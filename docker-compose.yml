@@ -13,6 +13,8 @@ services:
       - DB_USER=root
       - DB_PASS=kot4b4ru
       - DB_NAME=se2026
+      - FASIH_USER=agung.yuniarta
+      - FASIH_PASS=kelayu1998
     networks:
       - coolify
 
