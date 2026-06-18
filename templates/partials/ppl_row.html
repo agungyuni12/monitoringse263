@@ -1,0 +1,37 @@
+{{define "ppl_row.html"}}
+<tr id="row-sls-{{.SLS.ID}}" class="hover:bg-orange-50/30 transition-colors
+  {{if and (gt .JumlahSubmit 0) (eq .JumlahSubmit .Target)}}bg-green-50{{end}}">
+  <td class="px-4 py-3">
+    <p class="font-medium text-gray-800 text-xs">{{.NamaSLS}}</p>
+    <p class="text-xs text-gray-400 font-mono">{{.KodeSLS}}</p>
+  </td>
+  <td class="px-4 py-3 text-xs text-gray-600">
+    <p>{{.NamaDesa}}</p>
+    <p class="text-gray-400">Kec. {{.NamaKec}}</p>
+  </td>
+  <td class="px-4 py-3 text-center text-gray-700 text-sm">{{.Target}}</td>
+  <td class="px-4 py-3 text-center">
+    <span class="{{if gt .JumlahSubmit 0}}text-green-600 font-semibold{{else}}text-gray-400{{end}} text-sm">{{.JumlahSubmit}}</span>
+  </td>
+  <td class="px-4 py-3 text-center">
+    <span class="{{if gt .JumlahDraft 0}}text-se font-semibold{{else}}text-gray-400{{end}} text-sm">{{.JumlahDraft}}</span>
+  </td>
+  <td class="px-4 py-3 text-center">
+    {{if gt .JmlLaporan 0}}
+    <span class="text-xs text-green-500">&#10003; {{.TanggalTerakhir}}</span>
+    {{else}}
+    <span class="text-gray-300 text-xs">–</span>
+    {{end}}
+  </td>
+  <td class="px-4 py-3 text-center">
+    <button
+      hx-get="/ppl/sls/{{.SLS.ID}}/form"
+      hx-target="#modal-content"
+      hx-swap="innerHTML"
+      hx-on::after-request="openModal()"
+      class="text-xs bg-se hover:bg-se-dark text-white px-4 py-1.5 rounded-lg font-medium transition-colors">
+      Detail
+    </button>
+  </td>
+</tr>
+{{end}}

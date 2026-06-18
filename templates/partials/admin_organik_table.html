@@ -1,0 +1,46 @@
+{{define "admin_organik_table.html"}}
+{{if .OrganikRows}}
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+      <tr>
+        <th class="px-4 py-3 text-left">Tanggal</th>
+        <th class="px-4 py-3 text-left">Organik</th>
+        <th class="px-4 py-3 text-left">SLS / Lokasi</th>
+        <th class="px-4 py-3 text-left">PPL</th>
+        <th class="px-4 py-3 text-left">PML</th>
+        <th class="px-4 py-3 text-center">Diawasi</th>
+        <th class="px-4 py-3 text-left">Kendala</th>
+        <th class="px-4 py-3 text-left">Solusi</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50">
+      {{range .OrganikRows}}
+      <tr class="hover:bg-orange-50 transition-colors">
+        <td class="px-4 py-3 whitespace-nowrap text-gray-700">{{.Tanggal}}</td>
+        <td class="px-4 py-3 font-medium text-gray-800">{{.NamaOrganik}}</td>
+        <td class="px-4 py-3">
+          <div class="font-medium text-gray-800">{{.NamaSLS}}</div>
+          <div class="text-xs text-gray-500">{{.NamaDesa}}, Kec. {{.NamaKec}}</div>
+        </td>
+        <td class="px-4 py-3 text-gray-700">{{.NamaPPL}}</td>
+        <td class="px-4 py-3 text-gray-700">{{.NamaPML}}</td>
+        <td class="px-4 py-3 text-center font-semibold text-se">{{.JumlahDiawasi}}</td>
+        <td class="px-4 py-3 text-gray-700 max-w-xs">
+          <div class="truncate" title="{{.Kendala}}">{{.Kendala}}</div>
+        </td>
+        <td class="px-4 py-3 text-green-700 max-w-xs">
+          <div class="truncate" title="{{.Solusi}}">{{if .Solusi}}{{.Solusi}}{{else}}<span class="text-gray-300">—</span>{{end}}</div>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{if .OrganikPage}}
+{{template "pagination.html" .OrganikPage}}
+{{end}}
+{{else}}
+<div class="px-6 py-10 text-center text-gray-400 text-sm">Belum ada laporan pengawasan organik.</div>
+{{end}}
+{{end}}

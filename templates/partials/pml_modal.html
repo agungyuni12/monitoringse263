@@ -1,0 +1,133 @@
+{{define "pml_modal.html"}}
+<div class="p-6">
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <h3 class="text-base font-semibold text-gray-800">Verifikasi PML</h3>
+      <p class="text-sm font-medium text-se">{{.SP.NamaSLS}}</p>
+      <p class="text-xs text-gray-400">{{.SP.NamaDesa}} – Kec. {{.SP.NamaKec}}</p>
+    </div>
+    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Ringkasan dari FASIH (otomatis) -->
+  <div class="bg-orange-50 rounded-xl p-4 mb-4">
+    <p class="text-xs font-semibold text-se uppercase tracking-wide mb-3">Data FASIH – {{.SP.NamaPPL}}</p>
+    <div class="grid grid-cols-4 gap-2 text-sm">
+      <div class="bg-white rounded-lg p-2.5 text-center">
+        <p class="text-xs text-gray-500 mb-0.5">Target</p>
+        <p class="text-lg font-bold text-gray-700">{{.SP.Target}}</p>
+      </div>
+      <div class="bg-white rounded-lg p-2.5 text-center">
+        <p class="text-xs text-gray-500 mb-0.5">Submit</p>
+        <p class="text-lg font-bold text-green-600">{{.SP.JumlahSubmit}}</p>
+      </div>
+      <div class="bg-white rounded-lg p-2.5 text-center">
+        <p class="text-xs text-gray-500 mb-0.5">Approved</p>
+        <p class="text-lg font-bold text-blue-600">{{.SP.JumlahDiperiksa}}</p>
+      </div>
+      <div class="bg-white rounded-lg p-2.5 text-center">
+        <p class="text-xs text-gray-500 mb-0.5">Rejected</p>
+        <p class="text-lg font-bold text-red-500">{{.SP.JumlahError}}</p>
+      </div>
+    </div>
+    <p class="text-xs text-gray-400 mt-2 text-right">Data otomatis dari FASIH</p>
+  </div>
+
+  <!-- Form kendala hari ini -->
+  <div class="border border-orange-200 rounded-xl p-4 mb-4">
+    <p class="text-xs font-semibold text-se uppercase tracking-wide mb-3">
+      {{if .HasToday}}Update Kendala Hari Ini{{else}}Input Kendala Hari Ini{{end}}
+    </p>
+    <form
+      hx-post="/pml/sls/{{.SP.SLS.ID}}/save"
+      hx-target="#row-pml-{{.SP.SLS.ID}}"
+      hx-swap="outerHTML"
+      hx-indicator="#spinner-pml">
+
+      <div class="mb-3">
+        <label class="block text-xs font-medium text-gray-700 mb-1">Tanggal</label>
+        <input type="date" name="tanggal" value="{{.Today.Tanggal}}"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-xs font-medium text-gray-700 mb-1">Status Kendala</label>
+        <select name="status_kendala"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+          {{range .StatusOpts}}
+          <option value="{{.Value}}" {{if eq $.Today.StatusKendala .Value}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-xs font-medium text-gray-700 mb-1">
+          Kendala <span class="text-gray-400 font-normal">(opsional)</span>
+        </label>
+        <textarea name="kendala" rows="2"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se resize-none"
+          placeholder="Tuliskan kendala yang ditemukan...">{{.Today.Kendala}}</textarea>
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-xs font-medium text-gray-700 mb-1">
+          Solusi Sementara <span class="text-gray-400 font-normal">(opsional)</span>
+        </label>
+        <textarea name="solusi_sementara" rows="2"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se resize-none"
+          placeholder="Tuliskan solusi sementara...">{{.Today.SolusiSementara}}</textarea>
+      </div>
+
+      <div class="mb-4">
+        <label class="block text-xs font-medium text-gray-700 mb-1">
+          Tindak Lanjut PML <span class="text-gray-400 font-normal">(opsional)</span>
+        </label>
+        <textarea name="tindak_lanjut_pml" rows="2"
+          class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se resize-none"
+          placeholder="Tindak lanjut yang dilakukan...">{{.Today.TindakLanjutPML}}</textarea>
+      </div>
+
+      <div class="flex gap-3">
+        <button type="submit"
+          class="flex-1 py-2 bg-se hover:bg-se-dark text-white font-semibold rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
+          <span id="spinner-pml" class="htmx-indicator">
+            <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+          </span>
+          Simpan Kendala
+        </button>
+        <button type="button" onclick="closeModal()"
+          class="px-5 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg text-sm hover:bg-gray-50 transition-colors">
+          Batal
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Riwayat kendala -->
+  {{if .History}}
+  <div>
+    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Riwayat Kendala</p>
+    <div class="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+      {{range .History}}
+      <div class="px-3 py-2.5 bg-white text-xs">
+        <div class="flex items-center justify-between mb-1">
+          <span class="font-medium text-gray-700">{{.Tanggal}}</span>
+          <span class="text-xs text-gray-400">{{.StatusKendala}}</span>
+        </div>
+        {{if .Kendala}}<p class="text-red-500 mt-0.5">⚠ {{.Kendala}}</p>{{end}}
+        {{if .SolusiSementara}}<p class="text-blue-600 mt-0.5">✓ {{.SolusiSementara}}</p>{{end}}
+        {{if .TindakLanjutPML}}<p class="text-gray-600 mt-0.5">→ {{.TindakLanjutPML}}</p>{{end}}
+      </div>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+</div>
+{{end}}

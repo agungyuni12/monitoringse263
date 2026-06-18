@@ -1,0 +1,26 @@
+# Binary hasil build
+monitoringse
+
+# File Excel & data lokal
+*.xlsx
+*.xls
+alokasi/
+
+# SQL dump (terlalu besar, sensitif)
+db/se2026_full.sql
+
+# File catatan/draft yang tidak relevan
+*.md
+!README.md
+
+# Environment & secret
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

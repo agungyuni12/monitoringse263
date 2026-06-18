@@ -1,0 +1,59 @@
+{{define "ppl_table.html"}}
+<!-- Desktop table -->
+<div class="hidden md:block overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-orange-50 text-gray-600 text-left text-xs uppercase tracking-wide">
+        <th class="px-4 py-3 font-medium">Nama SLS</th>
+        <th class="px-4 py-3 font-medium">Desa / Kec</th>
+        <th class="px-4 py-3 font-medium text-center">Target</th>
+        <th class="px-4 py-3 font-medium text-center">Submit</th>
+        <th class="px-4 py-3 font-medium text-center">Draft</th>
+        <th class="px-4 py-3 font-medium text-center">Sync FASIH</th>
+        <th class="px-4 py-3 font-medium text-center">Aksi</th>
+      </tr>
+    </thead>
+    <tbody id="sls-table-body" class="divide-y divide-gray-100">
+      {{range .List}}
+      {{template "ppl_row.html" .}}
+      {{else}}
+      <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Belum ada data SLS.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+
+<!-- Mobile card list -->
+<div class="md:hidden divide-y divide-gray-100">
+  {{range .List}}
+  <div class="p-4">
+    <div class="flex justify-between items-start mb-1">
+      <div class="flex-1 mr-3">
+        <p class="font-semibold text-gray-800 text-sm">{{.NamaSLS}}</p>
+        <p class="text-xs text-gray-400">{{.NamaDesa}} – Kec. {{.NamaKec}}</p>
+      </div>
+      <button
+        hx-get="/ppl/sls/{{.SLS.ID}}/form"
+        hx-target="#modal-content"
+        hx-swap="innerHTML"
+        hx-on::after-request="openModal()"
+        class="text-xs bg-se text-white px-3 py-1.5 rounded-lg font-medium shrink-0">
+        Detail
+      </button>
+    </div>
+    <div class="flex gap-4 text-xs text-gray-600 mt-2">
+      <span>Target: <strong>{{.Target}}</strong></span>
+      <span class="text-green-600">Submit: <strong>{{.JumlahSubmit}}</strong></span>
+      <span class="text-se">Draft: <strong>{{.JumlahDraft}}</strong></span>
+      {{if gt .JmlLaporan 0}}
+      <span class="text-gray-400 text-xs">&#10003; {{.TanggalTerakhir}}</span>
+      {{end}}
+    </div>
+  </div>
+  {{else}}
+  <p class="p-4 text-center text-sm text-gray-400">Belum ada data SLS.</p>
+  {{end}}
+</div>
+
+{{template "pagination" .Page}}
+{{end}}

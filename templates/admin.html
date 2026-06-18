@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin – SIGEMPAR SE2026</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            se: { DEFAULT:'#F37021', dark:'#d45f10', light:'#f59548', bg:'#FFF4ED' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .htmx-indicator { display:none; }
+    .htmx-request .htmx-indicator { display:inline-block; }
+    .badge-open        { background:#FEF3C7; color:#92400E; }
+    .badge-in_progress { background:#DBEAFE; color:#1E40AF; }
+    .badge-resolved    { background:#D1FAE5; color:#065F46; }
+    .badge-escalated   { background:#FEE2E2; color:#991B1B; }
+    .tab-btn.active    { border-bottom: 2px solid #F37021; color:#F37021; font-weight:600; }
+    .tab-panel         { display:none; }
+    .tab-panel.active  { display:block; }
+  </style>
+</head>
+<body class="bg-se-bg min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-se shadow-md">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="/static/logo-sigempar.png" alt="SIGEMPAR" class="w-10 h-10 rounded-xl object-contain"/>
+        <div>
+          <h1 class="text-white font-bold text-base leading-tight">SIGEMPAR – Dasbor Admin</h1>
+          <p class="text-orange-100 text-xs">SE 2026 | {{.Name}}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="/kendala" class="text-orange-100 hover:text-white text-sm flex items-center gap-1 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
+          Daftar Kendala
+        </a>
+        <a href="/logout" class="text-orange-100 hover:text-white text-sm flex items-center gap-1 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+          </svg>
+          Keluar
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- ===== RINGKASAN KAB. DOMPU ===== -->
+    <section>
+      <div class="flex items-center gap-2 mb-4">
+        <div class="w-1.5 h-6 bg-se rounded-full"></div>
+        <h2 class="font-bold text-gray-800 text-lg">Ringkasan Kabupaten Dompu SE 2026</h2>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-gray-400">
+          <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Total SLS</p>
+          <p class="text-3xl font-bold text-gray-700">{{.Summary.TotalSLS}}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-gray-400">
+          <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Total Target</p>
+          <p class="text-3xl font-bold text-gray-700">{{.Summary.TotalTarget}}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-green-500">
+          <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Submit PPL</p>
+          <p class="text-3xl font-bold text-green-600">{{.Summary.TotalSubmit}}</p>
+          <p class="text-xs text-gray-400 mt-1">{{pct .Summary.TotalSubmit .Summary.TotalFasihTotal}}% dari total</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-se">
+          <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Draft PPL</p>
+          <p class="text-3xl font-bold text-se">{{.Summary.TotalDraft}}</p>
+          <p class="text-xs text-gray-400 mt-1">{{pct .Summary.TotalDraft .Summary.TotalFasihTotal}}% dari total</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-green-600">
+          <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Approved PML</p>
+          <p class="text-3xl font-bold text-green-700">{{.Summary.TotalDiperiksa}}</p>
+          <p class="text-xs text-gray-400 mt-1">{{pct .Summary.TotalDiperiksa .Summary.TotalFasihTotal}}% dari total</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-red-500">
+          <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Rejected PML</p>
+          <p class="text-3xl font-bold text-red-600">{{.Summary.TotalError}}</p>
+          <p class="text-xs text-gray-400 mt-1">{{pct .Summary.TotalError .Summary.TotalFasihTotal}}% dari total</p>
+        </div>
+      </div>
+
+      <!-- Progress Bars -->
+      <div class="bg-white rounded-xl shadow-sm p-5 space-y-4">
+        <div>
+          <div class="flex justify-between text-sm text-gray-600 mb-1.5">
+            <span class="font-medium">Progres Submit+Reject+Approve vs Total Assignment</span>
+            <span class="font-semibold text-green-600">{{.Summary.TotalSubmit}} / {{.Summary.TotalFasihTotal}} ({{pct .Summary.TotalSubmit .Summary.TotalFasihTotal}}%)</span>
+          </div>
+          <!-- Stacked bar: Approved (hijau) + Submit pending (kuning) + Rejected (merah) -->
+          <div class="h-4 bg-gray-100 rounded-full overflow-hidden flex">
+            <div class="h-full bg-green-600 transition-all" style="width:{{pct .Summary.TotalDiperiksa .Summary.TotalFasihTotal}}%" title="Approved"></div>
+            <div class="h-full bg-yellow-400 transition-all" style="width:{{pct .Summary.TotalPending .Summary.TotalFasihTotal}}%" title="Submit pending"></div>
+            <div class="h-full bg-red-500 transition-all" style="width:{{pct .Summary.TotalError .Summary.TotalFasihTotal}}%" title="Rejected"></div>
+          </div>
+          <div class="flex gap-4 mt-1.5 text-xs text-gray-500">
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-green-600 inline-block"></span>Approved {{.Summary.TotalDiperiksa}}</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-yellow-400 inline-block"></span>Pending {{.Summary.TotalPending}}</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-red-500 inline-block"></span>Rejected {{.Summary.TotalError}}</span>
+          </div>
+        </div>
+        <div>
+          <div class="flex justify-between text-sm text-gray-600 mb-1.5">
+            <span class="font-medium">Progres Approved PML vs Submit</span>
+            <span class="font-semibold text-green-700">{{.Summary.TotalDiperiksa}} / {{.Summary.TotalSubmit}} ({{pct .Summary.TotalDiperiksa .Summary.TotalSubmit}}%)</span>
+          </div>
+          <div class="h-4 bg-gray-100 rounded-full overflow-hidden">
+            <div class="h-full bg-green-600 rounded-full transition-all" style="width:{{pct .Summary.TotalDiperiksa .Summary.TotalSubmit}}%"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== TABS ===== -->
+    <section>
+      <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+
+        <!-- Tab nav -->
+        <div class="flex border-b border-gray-100 overflow-x-auto">
+          <button onclick="switchTab('pml')" id="tab-pml"
+            class="tab-btn active px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
+            Per PML
+          </button>
+          <button onclick="switchTab('ppl')" id="tab-ppl"
+            class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
+            Per PPL
+          </button>
+          <button onclick="switchTab('organik')" id="tab-organik"
+            class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
+            Pengawasan Organik
+          </button>
+          <button onclick="switchTab('sls')" id="tab-sls"
+            class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
+            Progres Semua SLS
+          </button>
+          <button onclick="switchTab('peta')" id="tab-peta"
+            class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
+            Peta Sebaran
+          </button>
+        </div>
+
+        <!-- TAB: Per PML -->
+        <div id="panel-pml" class="tab-panel active">
+          <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center" id="pml-filter-bar">
+            <input type="text" name="q"
+              hx-get="/admin/table/pml"
+              hx-target="#admin-pml-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="input changed delay:300ms"
+              hx-include="#pml-filter-bar"
+              placeholder="Cari nama PML..."
+              class="w-full md:w-80 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <a id="pml-dl-btn" href="/admin/download/pml"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="admin-pml-wrap">
+            {{template "admin_pml_table.html" .}}
+          </div>
+        </div>
+
+        <!-- TAB: Per PPL -->
+        <div id="panel-ppl" class="tab-panel">
+          <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center" id="ppl-filter-bar">
+            <input type="text" name="q"
+              hx-get="/admin/table/ppl"
+              hx-target="#admin-ppl-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="input changed delay:300ms"
+              hx-include="#ppl-filter-bar"
+              placeholder="Cari nama PPL..."
+              class="w-full md:w-72 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="pml_id" onchange="updatePPLDownload(this)"
+              hx-get="/admin/table/ppl"
+              hx-target="#admin-ppl-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="change"
+              hx-include="#ppl-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+              <option value="">-- Semua PML --</option>
+              {{range .PMLUserList}}
+              <option value="{{.ID}}">{{.Name}}</option>
+              {{end}}
+            </select>
+            <a id="ppl-dl-btn" href="/admin/download/ppl"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="admin-ppl-wrap">
+            {{template "admin_ppl_table.html" .}}
+          </div>
+        </div>
+
+        <!-- TAB: Pengawasan Organik -->
+        <div id="panel-organik" class="tab-panel">
+          <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center">
+            <input type="text" name="q"
+              hx-get="/admin/table/organik"
+              hx-target="#admin-organik-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="input changed delay:300ms"
+              placeholder="Cari nama organik, SLS, PPL, desa..."
+              class="w-full md:w-80 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <a href="/admin/download/organik"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="admin-organik-wrap">
+            {{template "admin_organik_table.html" .}}
+          </div>
+        </div>
+
+        <!-- TAB: Progres Semua SLS -->
+        <div id="panel-sls" class="tab-panel">
+          <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center" id="sls-filter-bar">
+            <select name="level"
+              hx-get="/admin/table/sls"
+              hx-target="#admin-sls-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="change"
+              hx-include="#sls-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+              <option value="">Per SLS</option>
+              <option value="desa">Per Desa</option>
+              <option value="kec">Per Kecamatan</option>
+            </select>
+            <input type="text" name="q"
+              hx-get="/admin/table/sls"
+              hx-target="#admin-sls-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="input changed delay:300ms"
+              hx-include="#sls-filter-bar"
+              hx-indicator="#sls-search-spin"
+              placeholder="Cari nama SLS, Desa, Kecamatan..."
+              class="w-full md:w-80 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <span id="sls-search-spin" class="htmx-indicator inline-block align-middle">
+              <svg class="w-4 h-4 animate-spin text-se" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+              </svg>
+            </span>
+            <a id="sls-dl-btn" href="/admin/download/sls"
+              onclick="updateSLSDownload(this)"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="admin-sls-wrap">
+            {{template "admin_sls_table.html" .}}
+          </div>
+        </div>
+
+        <!-- TAB: Peta Sebaran -->
+        <div id="panel-peta" class="tab-panel">
+          <div class="p-4 space-y-3">
+
+            <!-- Kontrol -->
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="text-sm font-medium text-gray-700">Tampilkan per:</label>
+              <select id="peta-level" onchange="onLevelChange()"
+                class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+                <option value="kec">Kecamatan</option>
+                <option value="desa">Desa</option>
+                <option value="sls">SLS (Detail)</option>
+              </select>
+            </div>
+
+            <!-- Info bar -->
+            <div id="map-info"
+              class="bg-orange-50 border border-orange-100 rounded-lg px-4 py-2 text-sm text-gray-700">
+              Memuat data peta…
+            </div>
+
+            <!-- Map container -->
+            <div id="peta-map" class="w-full rounded-xl border border-gray-200 shadow-inner"
+              style="height:520px;"></div>
+
+            <!-- Legend -->
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
+              <span class="font-semibold text-gray-700">% Submit:</span>
+              <span class="flex items-center gap-1"><span class="w-4 h-4 rounded border border-gray-300 inline-block" style="background:#FEF3EC"></span>0%</span>
+              <span class="flex items-center gap-1"><span class="w-4 h-4 rounded border border-gray-300 inline-block" style="background:#FDCFAE"></span>1–20%</span>
+              <span class="flex items-center gap-1"><span class="w-4 h-4 rounded border border-gray-300 inline-block" style="background:#FAA46B"></span>21–40%</span>
+              <span class="flex items-center gap-1"><span class="w-4 h-4 rounded border border-gray-300 inline-block" style="background:#F37021"></span>41–60%</span>
+              <span class="flex items-center gap-1"><span class="w-4 h-4 rounded border border-gray-300 inline-block" style="background:#C85A0E"></span>61–80%</span>
+              <span class="flex items-center gap-1"><span class="w-4 h-4 rounded border border-gray-300 inline-block" style="background:#8B3408"></span>&gt;80%</span>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <script>
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      document.getElementById('panel-' + name).classList.add('active');
+      if (name === 'peta') setTimeout(initPetaMap, 60);
+    }
+
+    // Update href tombol download SLS sesuai level & q
+    function updateSLSDownload(el) {
+      var bar = document.getElementById('sls-filter-bar');
+      var level = bar.querySelector('[name="level"]').value;
+      var q = bar.querySelector('[name="q"]').value;
+      var href = '/admin/download/sls';
+      var params = [];
+      if (level) params.push('level=' + level);
+      if (q) params.push('q=' + encodeURIComponent(q));
+      if (params.length) href += '?' + params.join('&');
+      document.getElementById('sls-dl-btn').href = href;
+    }
+
+    // Update href tombol download PPL sesuai pml_id
+    function updatePPLDownload(sel) {
+      var href = '/admin/download/ppl';
+      if (sel.value) href += '?pml_id=' + sel.value;
+      document.getElementById('ppl-dl-btn').href = href;
+    }
+
+    // Pasang listener agar download SLS ikut q juga
+    document.addEventListener('DOMContentLoaded', function() {
+      var bar = document.getElementById('sls-filter-bar');
+      if (bar) {
+        bar.querySelector('[name="level"]').addEventListener('change', function() { updateSLSDownload(this); });
+        bar.querySelector('[name="q"]').addEventListener('input', function() { updateSLSDownload(this); });
+      }
+    });
+
+    // ===== PETA SEBARAN =====
+    var petaMap = null;
+    var statsData = {};
+    var currentLevel = 'kec';
+    var currentLayer = null;
+
+    function getColor(pct) {
+      if (pct === 0)  return '#FEF3EC';
+      if (pct <= 20)  return '#FDCFAE';
+      if (pct <= 40)  return '#FAA46B';
+      if (pct <= 60)  return '#F37021';
+      if (pct <= 80)  return '#C85A0E';
+      return '#8B3408';
+    }
+
+    function statKeyOf(p) {
+      if (currentLevel === 'kec')  return p.idkec;
+      if (currentLevel === 'desa') return p.iddesa;
+      return p.idsls;
+    }
+
+    function featureStyle(feature) {
+      var s = statsData[statKeyOf(feature.properties)] || {pct: 0};
+      var weight = currentLevel === 'sls' ? 1 : currentLevel === 'desa' ? 1.5 : 2.5;
+      return {fillColor: getColor(s.pct), weight: weight, opacity: 1, color: '#777', fillOpacity: 0.8};
+    }
+
+    function popupFor(feature, latlng) {
+      var p = feature.properties;
+      var s = statsData[statKeyOf(p)] || {submit: 0, draft: 0, target: 0, pct: 0};
+      var title, sub;
+      if (currentLevel === 'kec')       { title = 'Kec. ' + p.nmkec;  sub = ''; }
+      else if (currentLevel === 'desa') { title = 'Desa ' + p.nmdesa; sub = 'Kec. ' + p.nmkec; }
+      else                              { title = p.nmsls; sub = 'Desa ' + p.nmdesa + ' &bull; Kec. ' + p.nmkec; }
+      var terisi = (s.submit||0) + (s.draft||0);
+      var content = '<div style="font-size:13px;min-width:180px">' +
+        '<div style="font-weight:700;margin-bottom:4px">' + title + '</div>' +
+        (sub ? '<div style="color:#666;margin-bottom:4px">' + sub + '</div>' : '') +
+        '<div>Submit: <b>' + (s.submit||0) + '</b> &nbsp; Draft: <b>' + (s.draft||0) + '</b></div>' +
+        '<div>Terisi / Target: <b>' + terisi + '</b> / ' + (s.target||0) + '</div>' +
+        '<div>Persentase: <b style="color:#F37021">' + (s.pct||0) + '%</b></div>' +
+        '</div>';
+      L.popup({maxWidth: 260}).setLatLng(latlng).setContent(content).openOn(petaMap);
+    }
+
+    function updateMapInfo(numFeatures) {
+      var el = document.getElementById('map-info');
+      if (!el) return;
+      var vals = Object.values(statsData);
+      var totSubmit = vals.reduce(function(a, s) { return a + (s.submit||0); }, 0);
+      var totDraft  = vals.reduce(function(a, s) { return a + (s.draft||0);  }, 0);
+      var totTarget = vals.reduce(function(a, s) { return a + (s.target||0); }, 0);
+      var totIsi = totSubmit + totDraft;
+      var pct = totTarget > 0 ? Math.round(totIsi * 100 / totTarget) : 0;
+      var label = currentLevel === 'kec'  ? numFeatures + ' kecamatan'
+                : currentLevel === 'desa' ? numFeatures + ' desa'
+                : numFeatures + ' SLS';
+      el.innerHTML = '<b>Kabupaten DOMPU</b> &mdash; ' + label +
+        ' &nbsp;|&nbsp; Submit: <b>' + totSubmit + '</b> &nbsp; Draft: <b>' + totDraft + '</b>' +
+        ' &nbsp;|&nbsp; Terisi: <b>' + totIsi + '</b> / ' + totTarget +
+        ' (<b>' + pct + '%</b>) &nbsp;|&nbsp; <span style="color:#999">Klik wilayah untuk detail</span>';
+    }
+
+    function loadLevel(level) {
+      currentLevel = level;
+      var lvlParam = (level === 'sls') ? '' : level;
+      var statsUrl = '/admin/geo/stats' + (lvlParam ? '?level=' + lvlParam : '');
+      var geoUrl   = '/admin/geo/geojson' + (lvlParam ? '?level=' + lvlParam : '');
+      document.getElementById('map-info').textContent = 'Memuat data…';
+      Promise.all([
+        fetch(geoUrl).then(function(r) { return r.json(); }),
+        fetch(statsUrl).then(function(r) { return r.json(); })
+      ]).then(function(results) {
+        var geoJson = results[0];
+        statsData = results[1];
+        if (currentLayer) petaMap.removeLayer(currentLayer);
+        currentLayer = L.geoJSON(geoJson, {
+          style: featureStyle,
+          onEachFeature: function(feature, layer) {
+            layer.on('mouseover', function() {
+              this.setStyle({weight: 2.5, color: '#F37021'});
+              this.bringToFront();
+            });
+            layer.on('mouseout', function() { currentLayer.resetStyle(this); });
+            layer.on('click', function(e) { popupFor(feature, e.latlng); });
+          }
+        }).addTo(petaMap);
+        if (currentLayer.getLayers().length) {
+          petaMap.fitBounds(currentLayer.getBounds(), {padding: [10, 10]});
+        }
+        updateMapInfo(geoJson.features.length);
+      }).catch(function(err) {
+        document.getElementById('map-info').textContent = 'Gagal memuat data: ' + err.message;
+      });
+    }
+
+    function onLevelChange() {
+      loadLevel(document.getElementById('peta-level').value);
+    }
+
+    function initPetaMap() {
+      if (petaMap) return;
+      petaMap = L.map('peta-map');
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 18
+      }).addTo(petaMap);
+      loadLevel('kec');
+    }
+  </script>
+</body>
+</html>

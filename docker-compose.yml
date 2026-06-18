@@ -1,0 +1,36 @@
+version: '3.8'
+services:
+  app-monitoringse:
+    build: .
+    container_name: monitoringse
+    restart: unless-stopped
+    ports:
+      - '8075:8080'
+    environment:
+      - PORT=8080
+      - DB_HOST=h1098wnz4qclfy4yz15f2qkf
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASS=kot4b4ru
+      - DB_NAME=se2026
+    networks:
+      - coolify
+
+  fasih-scraper:
+    build: ./scraper
+    container_name: fasih-scraper
+    restart: "no"   # one-shot: jalankan manual atau via cron
+    environment:
+      - FASIH_USER=agung.yuniarta
+      - FASIH_PASS=kelayu1998
+      - DB_HOST=h1098wnz4qclfy4yz15f2qkf
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASS=kot4b4ru
+      - DB_NAME=se2026
+    networks:
+      - coolify
+
+networks:
+  coolify:
+    external: true

@@ -1,0 +1,58 @@
+{{define "pml_table.html"}}
+<!-- Desktop table -->
+<div class="hidden md:block overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-orange-50 text-gray-600 text-left text-xs uppercase tracking-wide">
+        <th class="px-4 py-3 font-medium">SLS</th>
+        <th class="px-4 py-3 font-medium">PPL</th>
+        <th class="px-4 py-3 font-medium text-center">Target</th>
+        <th class="px-4 py-3 font-medium text-center">Submit</th>
+        <th class="px-4 py-3 font-medium text-center">Draft</th>
+        <th class="px-4 py-3 font-medium text-center">Approved</th>
+        <th class="px-4 py-3 font-medium text-center">Rejected</th>
+        <th class="px-4 py-3 font-medium text-center">Aksi</th>
+      </tr>
+    </thead>
+    <tbody id="pml-table-body" class="divide-y divide-gray-100">
+      {{range .List}}
+      {{template "pml_row.html" .}}
+      {{else}}
+      <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Belum ada data SLS.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+
+<!-- Mobile card list -->
+<div class="md:hidden divide-y divide-gray-100">
+  {{range .List}}
+  <div class="p-4 {{if and (gt .JumlahSubmit 0) (eq .JumlahSubmit .JumlahDiperiksa)}}bg-green-50{{end}}">
+    <div class="flex justify-between items-start mb-2">
+      <div>
+        <p class="font-semibold text-gray-800 text-sm">{{.NamaSLS}}</p>
+        <p class="text-xs text-gray-400">{{.KodeSLS}} | PPL: {{.NamaPPL}}</p>
+      </div>
+      <button
+        hx-get="/pml/sls/{{.SLS.ID}}/verif"
+        hx-target="#modal-content"
+        hx-swap="innerHTML"
+        hx-on::after-request="openModal()"
+        class="text-xs bg-se text-white px-3 py-1.5 rounded-lg font-medium">
+        Verifikasi
+      </button>
+    </div>
+    <div class="grid grid-cols-4 gap-2 text-xs text-gray-600">
+      <span>Submit: <strong class="text-green-600">{{.JumlahSubmit}}</strong></span>
+      <span>Draft: <strong class="text-se">{{.JumlahDraft}}</strong></span>
+      <span>Approved: <strong class="text-green-600">{{.JumlahDiperiksa}}</strong></span>
+      <span>Rejected: <strong class="text-red-600">{{.JumlahError}}</strong></span>
+    </div>
+  </div>
+  {{else}}
+  <p class="p-4 text-center text-sm text-gray-400">Belum ada data SLS.</p>
+  {{end}}
+</div>
+
+{{template "pagination" .Page}}
+{{end}}

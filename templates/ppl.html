@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Input Progres PPL – SIGEMPAR SE2026</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            se: { DEFAULT:'#F37021', dark:'#d45f10', light:'#f59548', bg:'#FFF4ED' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .htmx-indicator { display:none; }
+    .htmx-request .htmx-indicator { display:inline-block; }
+    #toast { transition: opacity 0.4s ease, transform 0.4s ease; }
+    #toast.hide { opacity:0; transform:translateY(-1rem); pointer-events:none; }
+  </style>
+</head>
+<body class="bg-se-bg min-h-screen">
+
+  <!-- Toast -->
+  <div id="toast" class="hide fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium flex items-center gap-2 max-w-xs"></div>
+
+  <!-- Modal overlay -->
+  <div id="modal-overlay" class="hidden fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4"
+       onclick="closeModal()">
+    <div id="modal-content" class="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onclick="event.stopPropagation()">
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="bg-se shadow-md">
+    <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="/static/logo-sigempar.png" alt="SIGEMPAR" class="w-10 h-10 rounded-xl object-contain"/>
+        <div>
+          <h1 class="text-white font-bold text-base leading-tight">SIGEMPAR – Input Progres PPL</h1>
+          <p class="text-orange-100 text-xs">SE 2026 | Petugas: {{.Name}}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="/kendala" class="text-orange-100 hover:text-white text-sm flex items-center gap-1 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
+          Daftar Kendala
+        </a>
+        <a href="/logout" class="text-orange-100 hover:text-white text-sm flex items-center gap-1 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+          </svg>
+          Keluar
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 py-6">
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-gray-400">
+        <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Total Target</p>
+        <p class="text-2xl font-bold text-gray-700">{{.TotalTarget}}</p>
+        <p class="text-xs text-gray-400 mt-1">usaha (total fasih)</p>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-green-500">
+        <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Submit</p>
+        <p class="text-2xl font-bold text-green-600">{{.TotalSubmit}}</p>
+        <p class="text-xs text-gray-400 mt-1">{{pct .TotalSubmit .TotalTarget}}% dari target</p>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-se">
+        <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Draft</p>
+        <p class="text-2xl font-bold text-se">{{.TotalDraft}}</p>
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="bg-white rounded-xl shadow-sm px-5 py-4 mb-6">
+      <div class="flex justify-between text-sm text-gray-600 mb-2">
+        <span class="font-medium">Progres Submit</span>
+        <span class="font-semibold text-green-600">{{.TotalSubmit}} / {{.TotalTarget}}</span>
+      </div>
+      <div class="h-3 bg-gray-100 rounded-full overflow-hidden">
+        <div class="h-full bg-green-500 rounded-full transition-all" style="width:{{pct .TotalSubmit .TotalTarget}}%"></div>
+      </div>
+    </div>
+
+    <!-- SLS Table -->
+    <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+        <div class="w-1.5 h-5 bg-se rounded-full"></div>
+        <h2 class="font-semibold text-gray-800">Daftar Tugas SLS</h2>
+        <span class="text-xs text-gray-400 ml-auto">{{.Page.TotalRow}} SLS</span>
+      </div>
+
+      <div id="ppl-table-wrap">
+        {{template "ppl_table.html" .}}
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function openModal() {
+      document.getElementById('modal-overlay').classList.remove('hidden');
+      document.getElementById('modal-overlay').classList.add('flex');
+    }
+    function closeModal() {
+      document.getElementById('modal-overlay').classList.add('hidden');
+      document.getElementById('modal-overlay').classList.remove('flex');
+    }
+    document.addEventListener('showToast', function(e) {
+      const {msg, kind} = e.detail;
+      const toast = document.getElementById('toast');
+      const colors = {success:'bg-green-600', error:'bg-red-600', warning:'bg-yellow-500'};
+      toast.className = `fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium flex items-center gap-2 max-w-xs ${colors[kind]||'bg-se'}`;
+      toast.textContent = msg;
+      toast.classList.remove('hide');
+      setTimeout(()=>toast.classList.add('hide'), 3500);
+    });
+    document.addEventListener('closeModal', closeModal);
+  </script>
+</body>
+</html>

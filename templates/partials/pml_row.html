@@ -1,0 +1,33 @@
+{{define "pml_row.html"}}
+<tr id="row-pml-{{.SLS.ID}}" class="hover:bg-orange-50/30 transition-colors
+  {{if and (gt .JumlahSubmit 0) (eq .JumlahSubmit .JumlahDiperiksa)}}bg-green-50{{end}}">
+  <td class="px-4 py-3">
+    <p class="font-medium text-gray-800 text-xs">{{.NamaSLS}}</p>
+    <p class="text-xs text-gray-400 font-mono">{{.KodeSLS}}</p>
+  </td>
+  <td class="px-4 py-3 text-xs text-gray-600">{{.NamaPPL}}</td>
+  <td class="px-4 py-3 text-center text-xs text-gray-700">{{.Target}}</td>
+  <td class="px-4 py-3 text-center">
+    <span class="{{if gt .JumlahSubmit 0}}text-green-600 font-semibold{{else}}text-gray-400{{end}} text-xs">{{.JumlahSubmit}}</span>
+  </td>
+  <td class="px-4 py-3 text-center">
+    <span class="{{if gt .JumlahDraft 0}}text-se font-semibold{{else}}text-gray-400{{end}} text-xs">{{.JumlahDraft}}</span>
+  </td>
+  <td class="px-4 py-3 text-center">
+    <span class="{{if gt .JumlahDiperiksa 0}}text-green-600 font-bold{{else}}text-gray-400{{end}} text-xs">{{.JumlahDiperiksa}}</span>
+  </td>
+  <td class="px-4 py-3 text-center">
+    <span class="{{if gt .JumlahError 0}}text-red-600 font-semibold{{else}}text-gray-400{{end}} text-xs">{{.JumlahError}}</span>
+  </td>
+  <td class="px-4 py-3 text-center">
+    <button
+      hx-get="/pml/sls/{{.SLS.ID}}/verif"
+      hx-target="#modal-content"
+      hx-swap="innerHTML"
+      hx-on::after-request="openModal()"
+      class="text-xs bg-se hover:bg-se-dark text-white px-3 py-1.5 rounded-lg font-medium transition-colors">
+      Verifikasi
+    </button>
+  </td>
+</tr>
+{{end}}

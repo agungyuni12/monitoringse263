@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Organik – SIGEMPAR SE2026</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { se: { DEFAULT:'#F37021', dark:'#d45f10', light:'#f59548', bg:'#FFF4ED' } } } }
+    }
+  </script>
+  <style>
+    .htmx-indicator { display:none; }
+    .htmx-request .htmx-indicator { display:inline-block; }
+  </style>
+</head>
+<body class="bg-se-bg min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-se shadow-md">
+    <div class="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="/static/logo-sigempar.png" alt="SIGEMPAR" class="w-10 h-10 rounded-xl object-contain"/>
+        <div>
+          <h1 class="text-white font-bold text-base leading-tight">SIGEMPAR – Organik</h1>
+          <p class="text-orange-100 text-xs">SE 2026 | {{.Name}}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="/kendala" class="text-orange-100 hover:text-white text-sm flex items-center gap-1 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
+          Daftar Kendala
+        </a>
+        <a href="/logout" class="text-orange-100 hover:text-white text-sm flex items-center gap-1 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+          </svg>
+          Keluar
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- Alert -->
+    {{if .OK}}
+    <div class="bg-green-50 border border-green-300 text-green-800 rounded-xl px-4 py-3 text-sm font-medium">
+      ✓ Laporan berhasil disimpan.
+    </div>
+    {{end}}
+    {{if .Err}}
+    <div class="bg-red-50 border border-red-300 text-red-800 rounded-xl px-4 py-3 text-sm font-medium">
+      Gagal menyimpan laporan. Pastikan semua field terisi dengan benar.
+    </div>
+    {{end}}
+
+    <!-- Form Input -->
+    <section class="bg-white rounded-2xl shadow-sm p-6 space-y-5">
+      <div class="flex items-center gap-2 mb-1">
+        <div class="w-1.5 h-6 bg-se rounded-full"></div>
+        <h2 class="font-bold text-gray-800 text-lg">Input Pengawasan Harian</h2>
+      </div>
+
+      <form method="POST" action="/organik/laporan" class="space-y-4" autocomplete="off">
+
+        <!-- Cari SLS -->
+        <div class="relative">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Cari SLS <span class="text-red-500">*</span></label>
+          <input type="hidden" id="sls_id" name="sls_id"/>
+          <input type="text" id="sls-search"
+            hx-get="/organik/sls/search"
+            hx-target="#sls-results"
+            hx-trigger="input changed delay:250ms"
+            hx-indicator="#sls-spin"
+            name="q"
+            placeholder="Ketik nama SLS, desa, kecamatan, atau nama PPL..."
+            autocomplete="off"
+            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+          <span id="sls-spin" class="htmx-indicator absolute right-3 top-9">
+            <svg class="w-4 h-4 animate-spin text-se" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+          </span>
+          <!-- Dropdown hasil pencarian -->
+          <div id="sls-results" class="absolute z-20 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-64 overflow-y-auto"></div>
+        </div>
+
+        <!-- Info SLS terpilih -->
+        <div id="sls-info" class="hidden bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 text-sm space-y-1">
+          <div class="font-semibold text-gray-800" id="sls-nama-display"></div>
+          <div class="text-gray-600">
+            <span class="font-medium">Desa:</span> <span id="sls-desa-display"></span> &bull;
+            <span class="font-medium">Kec:</span> <span id="sls-kec-display"></span>
+          </div>
+          <div class="text-gray-600">
+            <span class="font-medium">PPL:</span> <span id="sls-ppl-display"></span> &bull;
+            <span class="font-medium">PML:</span> <span id="sls-pml-display"></span>
+          </div>
+        </div>
+
+        <!-- Tanggal & Jumlah -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal <span class="text-red-500">*</span></label>
+            <input type="date" name="tanggal" value="{{.Today}}" required
+              class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Jumlah Diawasi <span class="text-red-500">*</span></label>
+            <input type="number" name="jumlah_diawasi" min="0" value="0" required
+              class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+          </div>
+        </div>
+
+        <!-- Kendala -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Kendala <span class="text-red-500">*</span></label>
+          <textarea name="kendala" rows="3" required placeholder="Tuliskan kendala yang ditemui..."
+            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-se resize-none"></textarea>
+        </div>
+
+        <!-- Solusi -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Solusi / Tindak Lanjut <span class="text-gray-400 text-xs">(opsional)</span></label>
+          <textarea name="solusi" rows="2" placeholder="Tuliskan solusi atau tindak lanjut jika ada..."
+            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-se resize-none"></textarea>
+        </div>
+
+        <button type="submit" id="submit-btn"
+          class="w-full bg-se hover:bg-se-dark text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-50"
+          disabled>
+          Simpan Laporan
+        </button>
+      </form>
+    </section>
+
+    <!-- Riwayat -->
+    <section class="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100">
+        <div class="flex items-center gap-2">
+          <div class="w-1.5 h-5 bg-se rounded-full"></div>
+          <h2 class="font-bold text-gray-800">Riwayat Pengawasan</h2>
+        </div>
+      </div>
+      {{if .Laporan}}
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+            <tr>
+              <th class="px-4 py-3 text-left">Tanggal</th>
+              <th class="px-4 py-3 text-left">SLS / Lokasi</th>
+              <th class="px-4 py-3 text-left">PPL</th>
+              <th class="px-4 py-3 text-left">PML</th>
+              <th class="px-4 py-3 text-center">Diawasi</th>
+              <th class="px-4 py-3 text-left">Kendala</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            {{range .Laporan}}
+            <tr class="hover:bg-orange-50 transition-colors">
+              <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-700">{{.Tanggal}}</td>
+              <td class="px-4 py-3">
+                <div class="font-medium text-gray-800">{{.NamaSLS}}</div>
+                <div class="text-xs text-gray-500">{{.NamaDesa}}, Kec. {{.NamaKec}}</div>
+              </td>
+              <td class="px-4 py-3 text-gray-700">{{.NamaPPL}}</td>
+              <td class="px-4 py-3 text-gray-700">{{.NamaPML}}</td>
+              <td class="px-4 py-3 text-center font-semibold text-se">{{.JumlahDiawasi}}</td>
+              <td class="px-4 py-3">
+                <div class="text-gray-700 max-w-xs truncate" title="{{.Kendala}}">{{.Kendala}}</div>
+                {{if .Solusi}}<div class="text-xs text-green-700 mt-0.5 max-w-xs truncate" title="{{.Solusi}}">→ {{.Solusi}}</div>{{end}}
+              </td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+      {{else}}
+      <div class="px-6 py-10 text-center text-gray-400 text-sm">Belum ada laporan pengawasan.</div>
+      {{end}}
+    </section>
+
+  </main>
+
+  <script>
+    function selectSLS(id, nama, kec, desa, ppl, pml) {
+      document.getElementById('sls_id').value = id;
+      document.getElementById('sls-search').value = nama + ' – ' + desa + ', Kec. ' + kec;
+      document.getElementById('sls-results').innerHTML = '';
+      document.getElementById('sls-nama-display').textContent = nama;
+      document.getElementById('sls-kec-display').textContent = kec;
+      document.getElementById('sls-desa-display').textContent = desa;
+      document.getElementById('sls-ppl-display').textContent = ppl;
+      document.getElementById('sls-pml-display').textContent = pml;
+      document.getElementById('sls-info').classList.remove('hidden');
+      document.getElementById('submit-btn').disabled = false;
+    }
+
+    // Tutup dropdown saat klik di luar
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('#sls-search') && !e.target.closest('#sls-results')) {
+        document.getElementById('sls-results').innerHTML = '';
+      }
+    });
+  </script>
+</body>
+</html>
