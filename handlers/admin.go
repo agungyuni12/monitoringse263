@@ -76,17 +76,17 @@ func AdminGeoJSON(c echo.Context) error {
 }
 
 type AdminSummary struct {
-	TotalSLS        int
-	TotalTarget     int
-	TotalSubmit     int
-	TotalDraft      int
-	TotalDiperiksa  int
-	TotalError      int
-	TotalObservasi  int
-	TotalFasihTotal int
-	TotalPending    int // submit - approved - rejected (menunggu review PML)
-	PctSubmit       int
-	PctDiperiksa    int
+	TotalSLS         int
+	TotalTarget      int
+	TotalSubmit      int // jumlah_submit = semua status submit (untuk % progress)
+	TotalFasihSubmit int // fasih_submitted = pending review PML (untuk kolom Submit)
+	TotalDraft       int
+	TotalDiperiksa   int
+	TotalError       int
+	TotalObservasi   int
+	TotalFasihTotal  int
+	PctSubmit        int
+	PctDiperiksa     int
 }
 
 type PMLRow struct {
@@ -141,7 +141,8 @@ type SLSAdminRow struct {
 	NamaKec         string
 	NamaDesa        string
 	Target          int
-	JumlahSubmit    int
+	FasihSubmit     int // fasih_submitted: pending review PML (kolom Submit)
+	JumlahSubmit    int // jumlah_submit: semua status (untuk % progress)
 	JumlahDraft     int
 	JumlahDiperiksa int
 	JumlahError     int
@@ -157,7 +158,8 @@ type DesaRow struct {
 	NamaKec         string
 	JmlSLS          int
 	Target          int
-	JumlahSubmit    int
+	FasihSubmit     int // fasih_submitted: pending review PML (kolom Submit)
+	JumlahSubmit    int // jumlah_submit: semua status (untuk % progress)
 	JumlahDraft     int
 	JumlahDiperiksa int
 	JumlahError     int
@@ -169,7 +171,8 @@ type KecRow struct {
 	NamaKec         string
 	JmlSLS          int
 	Target          int
-	JumlahSubmit    int
+	FasihSubmit     int // fasih_submitted: pending review PML (kolom Submit)
+	JumlahSubmit    int // jumlah_submit: semua status (untuk % progress)
 	JumlahDraft     int
 	JumlahDiperiksa int
 	JumlahError     int
@@ -184,17 +187,14 @@ func AdminDashboard(c echo.Context) error {
 		  (SELECT COUNT(*) FROM sls),
 		  (SELECT COALESCE(SUM(target),0) FROM sls),
 		  (SELECT COALESCE(SUM(jumlah_submit),0) FROM progress),
+		  (SELECT COALESCE(SUM(fasih_submitted),0) FROM progress),
 		  (SELECT COALESCE(SUM(jumlah_draft),0) FROM progress),
 		  (SELECT COALESCE(SUM(fasih_approved),0) FROM progress),
 		  (SELECT COALESCE(SUM(fasih_rejected),0) FROM progress),
 		  (SELECT COALESCE(SUM(jumlah_observasi),0) FROM verifikasi_harian),
 		  (SELECT COALESCE(SUM(fasih_total),0) FROM progress)`).
-		Scan(&s.TotalSLS, &s.TotalTarget, &s.TotalSubmit, &s.TotalDraft,
+		Scan(&s.TotalSLS, &s.TotalTarget, &s.TotalSubmit, &s.TotalFasihSubmit, &s.TotalDraft,
 			&s.TotalDiperiksa, &s.TotalError, &s.TotalObservasi, &s.TotalFasihTotal)
-	s.TotalPending = s.TotalSubmit - s.TotalDiperiksa - s.TotalError
-	if s.TotalPending < 0 {
-		s.TotalPending = 0
-	}
 	if s.TotalFasihTotal > 0 {
 		s.PctSubmit = s.TotalSubmit * 100 / s.TotalFasihTotal
 	}
@@ -308,7 +308,7 @@ func queryAdminPML(page int, q string) ([]PMLRow, models.PageInfo) {
 	rows, err := db.DB.Query(`
 		SELECT u.id, u.name,
 		       COUNT(DISTINCT s.ppl_id), COUNT(s.id),
-		       COALESCE(SUM(p.jumlah_submit),0), COALESCE(SUM(p.jumlah_draft),0),
+		       COALESCE(SUM(p.fasih_submitted),0), COALESCE(SUM(p.jumlah_draft),0),
 		       COALESCE(SUM(p.fasih_approved),0), COALESCE(SUM(p.fasih_rejected),0),
 		       COALESCE((SELECT SUM(vh2.jumlah_observasi) FROM verifikasi_harian vh2 WHERE vh2.sls_id IN (SELECT id FROM sls WHERE pml_id=u.id)),0),
 		       COUNT(DISTINCT CASE WHEN vh3.status_kendala IN ('open','in_progress','escalated') THEN s.id END)
@@ -367,7 +367,7 @@ func queryAdminPPL(page int, q string, pmlID int) ([]PPLRow, models.PageInfo) {
 	rows, err := db.DB.Query(`
 		SELECT u.id, u.name, pml.name,
 		       COUNT(s.id),
-		       COALESCE(SUM(p.jumlah_submit),0),
+		       COALESCE(SUM(p.fasih_submitted),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
 		       COALESCE(SUM(s.target),0)
 		FROM users u
@@ -413,7 +413,8 @@ func queryAdminSLS(page int, q string) ([]SLSAdminRow, models.PageInfo) {
 		SELECT s.id, s.kode_sls, s.nama_sls,
 		       ppl.name, pml.name,
 		       COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''), s.target,
-		       COALESCE(p.jumlah_submit,0), COALESCE(p.jumlah_draft,0),
+		       COALESCE(p.fasih_submitted,0), COALESCE(p.jumlah_submit,0),
+		       COALESCE(p.jumlah_draft,0),
 		       COALESCE(p.fasih_approved,0), COALESCE(p.fasih_rejected,0),
 		       COALESCE((SELECT SUM(vh.jumlah_observasi) FROM verifikasi_harian vh WHERE vh.sls_id=s.id),0),
 		       COALESCE(p.fasih_total,0),
@@ -438,7 +439,7 @@ func queryAdminSLS(page int, q string) ([]SLSAdminRow, models.PageInfo) {
 		var r SLSAdminRow
 		rows.Scan(&r.ID, &r.KodeSLS, &r.NamaSLS, &r.NamaPPL, &r.NamaPML,
 			&r.NamaKec, &r.NamaDesa, &r.Target,
-			&r.JumlahSubmit, &r.JumlahDraft,
+			&r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft,
 			&r.JumlahDiperiksa, &r.JumlahError, &r.JumlahObservasi,
 			&r.FasihTotal, &r.StatusKendala, &r.Kendala)
 		if r.FasihTotal > 0 {
@@ -467,6 +468,7 @@ func queryAdminSLSByDesa(page int, q string) ([]DesaRow, models.PageInfo) {
 		SELECT s.nama_desa, s.nama_kec,
 		       COUNT(DISTINCT s.id),
 		       COALESCE(SUM(s.target),0),
+		       COALESCE(SUM(p.fasih_submitted),0),
 		       COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
 		       COALESCE(SUM(p.fasih_approved),0),
@@ -486,7 +488,7 @@ func queryAdminSLSByDesa(page int, q string) ([]DesaRow, models.PageInfo) {
 	for rows.Next() {
 		var r DesaRow
 		rows.Scan(&r.NamaDesa, &r.NamaKec, &r.JmlSLS, &r.Target,
-			&r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError, &r.FasihTotal)
+			&r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError, &r.FasihTotal)
 		if r.FasihTotal > 0 {
 			r.PctSubmit = r.JumlahSubmit * 100 / r.FasihTotal
 			if r.PctSubmit > 100 {
@@ -511,6 +513,7 @@ func queryAdminSLSByKec(page int, q string) ([]KecRow, models.PageInfo) {
 		SELECT s.nama_kec,
 		       COUNT(DISTINCT s.id),
 		       COALESCE(SUM(s.target),0),
+		       COALESCE(SUM(p.fasih_submitted),0),
 		       COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
 		       COALESCE(SUM(p.fasih_approved),0),
@@ -530,7 +533,7 @@ func queryAdminSLSByKec(page int, q string) ([]KecRow, models.PageInfo) {
 	for rows.Next() {
 		var r KecRow
 		rows.Scan(&r.NamaKec, &r.JmlSLS, &r.Target,
-			&r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError, &r.FasihTotal)
+			&r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError, &r.FasihTotal)
 		if r.FasihTotal > 0 {
 			r.PctSubmit = r.JumlahSubmit * 100 / r.FasihTotal
 			if r.PctSubmit > 100 {

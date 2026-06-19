@@ -82,8 +82,8 @@
         </div>
         <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-green-500">
           <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Submit PPL</p>
-          <p class="text-3xl font-bold text-green-600">{{.Summary.TotalSubmit}}</p>
-          <p class="text-xs text-gray-400 mt-1">{{pct .Summary.TotalSubmit .Summary.TotalFasihTotal}}% dari total</p>
+          <p class="text-3xl font-bold text-green-600">{{.Summary.TotalFasihSubmit}}</p>
+          <p class="text-xs text-gray-400 mt-1">Pending review PML</p>
         </div>
         <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-se">
           <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Draft PPL</p>
@@ -115,12 +115,12 @@
           <!-- Stacked bar: Approved (hijau) + Submit pending (kuning) + Rejected (merah) -->
           <div class="h-4 bg-gray-100 rounded-full overflow-hidden flex">
             <div class="h-full bg-green-600 transition-all" style="width:{{pct .Summary.TotalDiperiksa .Summary.TotalFasihTotal}}%" title="Approved"></div>
-            <div class="h-full bg-yellow-400 transition-all" style="width:{{pct .Summary.TotalPending .Summary.TotalFasihTotal}}%" title="Submit pending"></div>
+            <div class="h-full bg-yellow-400 transition-all" style="width:{{pct .Summary.TotalFasihSubmit .Summary.TotalFasihTotal}}%" title="Submit pending"></div>
             <div class="h-full bg-red-500 transition-all" style="width:{{pct .Summary.TotalError .Summary.TotalFasihTotal}}%" title="Rejected"></div>
           </div>
           <div class="flex gap-4 mt-1.5 text-xs text-gray-500">
             <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-green-600 inline-block"></span>Approved {{.Summary.TotalDiperiksa}}</span>
-            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-yellow-400 inline-block"></span>Pending {{.Summary.TotalPending}}</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-yellow-400 inline-block"></span>Pending {{.Summary.TotalFasihSubmit}}</span>
             <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-red-500 inline-block"></span>Rejected {{.Summary.TotalError}}</span>
           </div>
         </div>
