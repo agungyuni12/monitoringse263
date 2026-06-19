@@ -19,7 +19,7 @@
     <tbody class="divide-y divide-gray-100">
       {{range .SLSList}}
       <tr class="hover:bg-orange-50/30 transition-colors
-        {{if and (gt .JumlahSubmit 0) (eq .JumlahSubmit .JumlahDiperiksa)}}bg-green-50{{end}}  {{/* JumlahSubmit=semua, JumlahDiperiksa=approved */}}
+        {{if and (gt .JumlahSubmit 0) (eq .JumlahSubmit .JumlahDiperiksa)}}bg-green-50{{end}}">
         <td class="px-4 py-3 font-mono text-xs text-gray-600">{{.KodeSLS}}</td>
         <td class="px-4 py-3 text-gray-800 text-xs font-medium">{{.NamaSLS}}</td>
         <td class="px-4 py-3 text-xs text-gray-600">{{.NamaPPL}}</td>
