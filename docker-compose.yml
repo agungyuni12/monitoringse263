@@ -15,6 +15,9 @@ services:
       - DB_NAME=se2026
       - FASIH_USER=agung.yuniarta
       - FASIH_PASS=kelayu1998
+    extra_hosts:
+      - "sso.bps.go.id:host-gateway"
+      - "fasih-sm.bps.go.id:host-gateway"
     networks:
       - coolify
 

@@ -140,7 +140,7 @@
         <div class="flex items-center gap-2 text-xs text-gray-400">
           {{if .LastSync.Error}}
           <span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span>
-          <span>Sync gagal: {{.LastSync.Error}}</span>
+          <span>Sync gagal {{.LastSync.Time}}: <span class="text-red-500">{{.LastSync.Error}}</span></span>
           {{else if .LastSync.Time}}
           <span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span>
           <span>Data FASIH diperbarui: <b class="text-gray-600">{{.LastSync.Time}}</b> &mdash; {{.LastSync.Updated}} SLS</span>
