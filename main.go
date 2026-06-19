@@ -32,8 +32,8 @@ func main() {
 	}
 	log.Println("Database terhubung.")
 
-	// Sync FASIH otomatis setiap 10 menit
-	handlers.StartFasihSync(10 * time.Minute)
+	// Sync FASIH otomatis setiap 30 menit
+	handlers.StartFasihSync(30 * time.Minute)
 
 	// Load all templates
 	funcMap := template.FuncMap{
