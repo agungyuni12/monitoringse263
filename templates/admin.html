@@ -134,6 +134,28 @@
           </div>
         </div>
       </div>
+
+      <!-- Info Sync FASIH -->
+      <div class="mt-3 flex items-center justify-between px-1">
+        <div class="flex items-center gap-2 text-xs text-gray-400">
+          {{if .LastSync.Error}}
+          <span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span>
+          <span>Sync gagal: {{.LastSync.Error}}</span>
+          {{else if .LastSync.Time}}
+          <span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span>
+          <span>Data FASIH diperbarui: <b class="text-gray-600">{{.LastSync.Time}}</b> &mdash; {{.LastSync.Updated}} SLS</span>
+          {{else}}
+          <span class="w-2 h-2 rounded-full bg-yellow-400 inline-block"></span>
+          <span>Menunggu sync pertama...</span>
+          {{end}}
+        </div>
+        <form hx-post="/admin/sync/fasih" hx-swap="none">
+          <button type="submit"
+            class="text-xs px-3 py-1 border border-gray-300 rounded-lg text-gray-500 hover:bg-orange-50 hover:border-se hover:text-se transition-colors">
+            Sync Sekarang
+          </button>
+        </form>
+      </div>
     </section>
 
     <!-- ===== TABS ===== -->
@@ -199,7 +221,7 @@
               hx-include="#ppl-filter-bar"
               placeholder="Cari nama PPL..."
               class="w-full md:w-72 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
-            <select name="pml_id" onchange="updatePPLDownload(this)"
+            <select name="pml_id" onchange="updatePPLDownload()"
               hx-get="/admin/table/ppl"
               hx-target="#admin-ppl-wrap"
               hx-swap="innerHTML"
@@ -342,32 +364,50 @@
       if (name === 'peta') setTimeout(initPetaMap, 60);
     }
 
-    // Update href tombol download SLS sesuai level & q
-    function updateSLSDownload(el) {
+    // Update href download SLS sesuai level & q
+    function updateSLSDownload() {
       var bar = document.getElementById('sls-filter-bar');
       var level = bar.querySelector('[name="level"]').value;
       var q = bar.querySelector('[name="q"]').value;
-      var href = '/admin/download/sls';
       var params = [];
       if (level) params.push('level=' + level);
       if (q) params.push('q=' + encodeURIComponent(q));
-      if (params.length) href += '?' + params.join('&');
-      document.getElementById('sls-dl-btn').href = href;
+      document.getElementById('sls-dl-btn').href = '/admin/download/sls' + (params.length ? '?' + params.join('&') : '');
     }
 
-    // Update href tombol download PPL sesuai pml_id
-    function updatePPLDownload(sel) {
-      var href = '/admin/download/ppl';
-      if (sel.value) href += '?pml_id=' + sel.value;
-      document.getElementById('ppl-dl-btn').href = href;
+    // Update href download PPL sesuai q & pml_id
+    function updatePPLDownload() {
+      var bar = document.getElementById('ppl-filter-bar');
+      var q = bar.querySelector('[name="q"]').value;
+      var pmlID = bar.querySelector('[name="pml_id"]').value;
+      var params = [];
+      if (q) params.push('q=' + encodeURIComponent(q));
+      if (pmlID) params.push('pml_id=' + pmlID);
+      document.getElementById('ppl-dl-btn').href = '/admin/download/ppl' + (params.length ? '?' + params.join('&') : '');
     }
 
-    // Pasang listener agar download SLS ikut q juga
+    // Update href download PML sesuai q
+    function updatePMLDownload() {
+      var bar = document.getElementById('pml-filter-bar');
+      var q = bar.querySelector('[name="q"]').value;
+      document.getElementById('pml-dl-btn').href = '/admin/download/pml' + (q ? '?q=' + encodeURIComponent(q) : '');
+    }
+
+    // Pasang listener pada semua filter
     document.addEventListener('DOMContentLoaded', function() {
-      var bar = document.getElementById('sls-filter-bar');
-      if (bar) {
-        bar.querySelector('[name="level"]').addEventListener('change', function() { updateSLSDownload(this); });
-        bar.querySelector('[name="q"]').addEventListener('input', function() { updateSLSDownload(this); });
+      var slsBar = document.getElementById('sls-filter-bar');
+      if (slsBar) {
+        slsBar.querySelector('[name="level"]').addEventListener('change', updateSLSDownload);
+        slsBar.querySelector('[name="q"]').addEventListener('input', updateSLSDownload);
+      }
+      var pplBar = document.getElementById('ppl-filter-bar');
+      if (pplBar) {
+        pplBar.querySelector('[name="q"]').addEventListener('input', updatePPLDownload);
+        pplBar.querySelector('[name="pml_id"]').addEventListener('change', updatePPLDownload);
+      }
+      var pmlBar = document.getElementById('pml-filter-bar');
+      if (pmlBar) {
+        pmlBar.querySelector('[name="q"]').addEventListener('input', updatePMLDownload);
       }
     });
 

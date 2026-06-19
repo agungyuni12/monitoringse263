@@ -239,6 +239,7 @@ func AdminDashboard(c echo.Context) error {
 		"Q":           q,
 		"StatusOpts":  models.StatusOptions,
 		"PMLUserList": queryPMLUsers(),
+		"LastSync":    LastSyncResult,
 	})
 }
 

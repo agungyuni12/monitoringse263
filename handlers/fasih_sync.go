@@ -58,20 +58,32 @@ var LastSyncResult struct {
 	Error   string
 }
 
+var wita = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Makassar")
+	if err != nil {
+		return time.FixedZone("WITA", 8*3600)
+	}
+	return loc
+}()
+
+func witaTime(t time.Time) string {
+	return t.In(wita).Format("02/01/2006 15:04:05 WITA")
+}
+
 func runSync() {
 	start := time.Now()
 	n, err := doFasihSync()
 	if err != nil {
 		log.Printf("[FASIH] Sync gagal: %v", err)
 		LastSyncResult.Error = err.Error()
-		LastSyncResult.Time = start.Format("02/01/2006 15:04:05")
+		LastSyncResult.Time = witaTime(start)
 		return
 	}
 	elapsed := time.Since(start).Round(time.Second)
 	log.Printf("[FASIH] Sync selesai: %d SLS diupdate (%v)", n, elapsed)
 	LastSyncResult.Updated = n
 	LastSyncResult.Error = ""
-	LastSyncResult.Time = start.Format("02/01/2006 15:04:05")
+	LastSyncResult.Time = witaTime(start)
 }
 
 // --- HTTP client & login ---
