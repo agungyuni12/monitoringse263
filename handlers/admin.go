@@ -94,22 +94,29 @@ type PMLRow struct {
 	Name           string
 	JmlPPL         int
 	JmlSLS         int
-	Submit         int
+	Submit         int // fasih_submitted: pending
+	JumlahSubmit   int // jumlah_submit: semua status (untuk %)
 	Draft          int
 	Diperiksa      int
 	Error          int
+	FasihTotal     int
+	PctSubmit      int
 	Observasi      int
 	KendalaTerbuka int
 }
 
 type PPLRow struct {
-	ID      int
-	Name    string
-	PMLName string
-	JmlSLS  int
-	Submit  int
-	Draft   int
-	Target  int
+	ID           int
+	Name         string
+	PMLName      string
+	JmlSLS       int
+	Submit       int // fasih_submitted: pending
+	JumlahSubmit int // jumlah_submit: semua status (untuk %)
+	Draft        int
+	Diperiksa    int
+	Error        int
+	FasihTotal   int
+	PctSubmit    int
 }
 
 type PMLUser struct {
@@ -308,8 +315,10 @@ func queryAdminPML(page int, q string) ([]PMLRow, models.PageInfo) {
 	rows, err := db.DB.Query(`
 		SELECT u.id, u.name,
 		       COUNT(DISTINCT s.ppl_id), COUNT(s.id),
-		       COALESCE(SUM(p.fasih_submitted),0), COALESCE(SUM(p.jumlah_draft),0),
+		       COALESCE(SUM(p.fasih_submitted),0), COALESCE(SUM(p.jumlah_submit),0),
+		       COALESCE(SUM(p.jumlah_draft),0),
 		       COALESCE(SUM(p.fasih_approved),0), COALESCE(SUM(p.fasih_rejected),0),
+		       COALESCE(SUM(p.fasih_total),0),
 		       COALESCE((SELECT SUM(vh2.jumlah_observasi) FROM verifikasi_harian vh2 WHERE vh2.sls_id IN (SELECT id FROM sls WHERE pml_id=u.id)),0),
 		       COUNT(DISTINCT CASE WHEN vh3.status_kendala IN ('open','in_progress','escalated') THEN s.id END)
 		FROM users u
@@ -333,7 +342,14 @@ func queryAdminPML(page int, q string) ([]PMLRow, models.PageInfo) {
 	for rows.Next() {
 		var r PMLRow
 		rows.Scan(&r.ID, &r.Name, &r.JmlPPL, &r.JmlSLS,
-			&r.Submit, &r.Draft, &r.Diperiksa, &r.Error, &r.Observasi, &r.KendalaTerbuka)
+			&r.Submit, &r.JumlahSubmit, &r.Draft, &r.Diperiksa, &r.Error, &r.FasihTotal,
+			&r.Observasi, &r.KendalaTerbuka)
+		if r.FasihTotal > 0 {
+			r.PctSubmit = r.JumlahSubmit * 100 / r.FasihTotal
+			if r.PctSubmit > 100 {
+				r.PctSubmit = 100
+			}
+		}
 		pmls = append(pmls, r)
 	}
 	return pmls, models.NewPageInfo(page, total, "/admin/table/pml", "admin-pml-wrap", extra)
@@ -368,8 +384,11 @@ func queryAdminPPL(page int, q string, pmlID int) ([]PPLRow, models.PageInfo) {
 		SELECT u.id, u.name, pml.name,
 		       COUNT(s.id),
 		       COALESCE(SUM(p.fasih_submitted),0),
+		       COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
-		       COALESCE(SUM(s.target),0)
+		       COALESCE(SUM(p.fasih_approved),0),
+		       COALESCE(SUM(p.fasih_rejected),0),
+		       COALESCE(SUM(p.fasih_total),0)
 		FROM users u
 		JOIN sls s ON s.ppl_id = u.id
 		JOIN users pml ON pml.id = s.pml_id
@@ -386,7 +405,14 @@ func queryAdminPPL(page int, q string, pmlID int) ([]PPLRow, models.PageInfo) {
 	var ppls []PPLRow
 	for rows.Next() {
 		var r PPLRow
-		rows.Scan(&r.ID, &r.Name, &r.PMLName, &r.JmlSLS, &r.Submit, &r.Draft, &r.Target)
+		rows.Scan(&r.ID, &r.Name, &r.PMLName, &r.JmlSLS,
+			&r.Submit, &r.JumlahSubmit, &r.Draft, &r.Diperiksa, &r.Error, &r.FasihTotal)
+		if r.FasihTotal > 0 {
+			r.PctSubmit = r.JumlahSubmit * 100 / r.FasihTotal
+			if r.PctSubmit > 100 {
+				r.PctSubmit = 100
+			}
+		}
 		ppls = append(ppls, r)
 	}
 	return ppls, models.NewPageInfo(page, total, "/admin/table/ppl", "admin-ppl-wrap", extra)
