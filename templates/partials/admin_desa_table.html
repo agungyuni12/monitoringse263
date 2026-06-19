@@ -6,7 +6,7 @@
         <th class="px-4 py-3 font-medium">Nama Desa</th>
         <th class="px-4 py-3 font-medium">Kecamatan</th>
         <th class="px-4 py-3 font-medium text-center">Jml SLS</th>
-        <th class="px-4 py-3 font-medium text-center">Target</th>
+        <th class="px-4 py-3 font-medium text-center">Total</th>
         <th class="px-4 py-3 font-medium text-center">Submit</th>
         <th class="px-4 py-3 font-medium text-center">Draft</th>
         <th class="px-4 py-3 font-medium text-center">Approved</th>
@@ -20,7 +20,7 @@
         <td class="px-4 py-3 font-medium text-gray-800">{{.NamaDesa}}</td>
         <td class="px-4 py-3 text-xs text-gray-500">Kec. {{.NamaKec}}</td>
         <td class="px-4 py-3 text-center text-gray-700">{{.JmlSLS}}</td>
-        <td class="px-4 py-3 text-center text-gray-700">{{.Target}}</td>
+        <td class="px-4 py-3 text-center text-gray-700">{{.FasihTotal}}</td>
         <td class="px-4 py-3 text-center">
           <span class="{{if gt .JumlahSubmit 0}}text-green-600 font-semibold{{else}}text-gray-400{{end}}">{{.JumlahSubmit}}</span>
         </td>
@@ -36,9 +36,9 @@
         <td class="px-4 py-3">
           <div class="flex items-center gap-2">
             <div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden min-w-12">
-              <div class="h-full bg-se rounded-full" style="width:{{pct (add .JumlahSubmit .JumlahDraft) .Target}}%"></div>
+              <div class="h-full bg-se rounded-full" style="width:{{.PctSubmit}}%"></div>
             </div>
-            <span class="text-xs text-gray-500 w-8 text-right">{{pct (add .JumlahSubmit .JumlahDraft) .Target}}%</span>
+            <span class="text-xs text-gray-500 w-8 text-right">{{.PctSubmit}}%</span>
           </div>
         </td>
       </tr>

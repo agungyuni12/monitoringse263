@@ -8,11 +8,12 @@
         <th class="px-4 py-3 font-medium">PPL</th>
         <th class="px-4 py-3 font-medium">PML</th>
         <th class="px-4 py-3 font-medium">Desa / Kec</th>
-        <th class="px-4 py-3 font-medium text-center">Target</th>
+        <th class="px-4 py-3 font-medium text-center">Total</th>
         <th class="px-4 py-3 font-medium text-center">Submit</th>
         <th class="px-4 py-3 font-medium text-center">Draft</th>
         <th class="px-4 py-3 font-medium text-center">Approved</th>
         <th class="px-4 py-3 font-medium text-center">Rejected</th>
+        <th class="px-4 py-3 font-medium text-center">Progres</th>
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-100">
@@ -27,7 +28,7 @@
           <p>{{.NamaDesa}}</p>
           <p class="text-gray-400">Kec. {{.NamaKec}}</p>
         </td>
-        <td class="px-4 py-3 text-center text-xs text-gray-700">{{.Target}}</td>
+        <td class="px-4 py-3 text-center text-xs text-gray-700">{{.FasihTotal}}</td>
         <td class="px-4 py-3 text-center">
           <span class="{{if gt .JumlahSubmit 0}}text-green-600 font-semibold{{else}}text-gray-400{{end}} text-xs">{{.JumlahSubmit}}</span>
         </td>
@@ -40,9 +41,17 @@
         <td class="px-4 py-3 text-center">
           <span class="{{if gt .JumlahError 0}}text-red-600 font-semibold{{else}}text-gray-400{{end}} text-xs">{{.JumlahError}}</span>
         </td>
+        <td class="px-4 py-3 text-center min-w-[90px]">
+          <div class="flex items-center gap-1.5">
+            <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div class="h-full bg-green-500 rounded-full" style="width:{{.PctSubmit}}%"></div>
+            </div>
+            <span class="text-xs {{if gt .PctSubmit 0}}text-green-600 font-semibold{{else}}text-gray-400{{end}} w-8 text-right">{{.PctSubmit}}%</span>
+          </div>
+        </td>
       </tr>
       {{else}}
-      <tr><td colspan="10" class="px-4 py-8 text-center text-gray-400">Tidak ada data yang cocok.</td></tr>
+      <tr><td colspan="11" class="px-4 py-8 text-center text-gray-400">Tidak ada data yang cocok.</td></tr>
       {{end}}
     </tbody>
   </table>

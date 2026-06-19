@@ -13,10 +13,11 @@ import (
 )
 
 type GeoStat struct {
-	Submit int `json:"submit"`
-	Draft  int `json:"draft"`
-	Target int `json:"target"`
-	Pct    int `json:"pct"`
+	Submit     int `json:"submit"`
+	Draft      int `json:"draft"`
+	Target     int `json:"target"`
+	FasihTotal int `json:"fasih_total"`
+	Pct        int `json:"pct"`
 }
 
 func AdminGeoStats(c echo.Context) error {
@@ -35,7 +36,8 @@ func AdminGeoStats(c echo.Context) error {
 		SELECT SUBSTRING(s.kode_sls, 1, %d),
 		       COALESCE(SUM(p.jumlah_submit), 0),
 		       COALESCE(SUM(p.jumlah_draft), 0),
-		       COALESCE(SUM(s.target), 0)
+		       COALESCE(SUM(s.target), 0),
+		       COALESCE(SUM(p.fasih_total), 0)
 		FROM sls s
 		LEFT JOIN progress p ON p.sls_id = s.id
 		GROUP BY SUBSTRING(s.kode_sls, 1, %d)
@@ -49,9 +51,9 @@ func AdminGeoStats(c echo.Context) error {
 	for rows.Next() {
 		var key string
 		var g GeoStat
-		rows.Scan(&key, &g.Submit, &g.Draft, &g.Target)
-		if g.Target > 0 {
-			g.Pct = (g.Submit + g.Draft) * 100 / g.Target
+		rows.Scan(&key, &g.Submit, &g.Draft, &g.Target, &g.FasihTotal)
+		if g.FasihTotal > 0 {
+			g.Pct = g.Submit * 100 / g.FasihTotal
 			if g.Pct > 100 {
 				g.Pct = 100
 			}
@@ -144,6 +146,8 @@ type SLSAdminRow struct {
 	JumlahDiperiksa int
 	JumlahError     int
 	JumlahObservasi int
+	FasihTotal      int
+	PctSubmit       int
 	StatusKendala   string
 	Kendala         string
 }
@@ -157,6 +161,8 @@ type DesaRow struct {
 	JumlahDraft     int
 	JumlahDiperiksa int
 	JumlahError     int
+	FasihTotal      int
+	PctSubmit       int
 }
 
 type KecRow struct {
@@ -167,6 +173,8 @@ type KecRow struct {
 	JumlahDraft     int
 	JumlahDiperiksa int
 	JumlahError     int
+	FasihTotal      int
+	PctSubmit       int
 }
 
 func AdminDashboard(c echo.Context) error {
@@ -407,6 +415,7 @@ func queryAdminSLS(page int, q string) ([]SLSAdminRow, models.PageInfo) {
 		       COALESCE(p.jumlah_submit,0), COALESCE(p.jumlah_draft,0),
 		       COALESCE(p.fasih_approved,0), COALESCE(p.fasih_rejected,0),
 		       COALESCE((SELECT SUM(vh.jumlah_observasi) FROM verifikasi_harian vh WHERE vh.sls_id=s.id),0),
+		       COALESCE(p.fasih_total,0),
 		       COALESCE((SELECT vh2.status_kendala FROM verifikasi_harian vh2 WHERE vh2.sls_id=s.id ORDER BY vh2.tanggal DESC LIMIT 1),'open'),
 		       COALESCE((SELECT vh3.kendala FROM verifikasi_harian vh3 WHERE vh3.sls_id=s.id ORDER BY vh3.tanggal DESC LIMIT 1),'')
 		FROM sls s
@@ -430,7 +439,13 @@ func queryAdminSLS(page int, q string) ([]SLSAdminRow, models.PageInfo) {
 			&r.NamaKec, &r.NamaDesa, &r.Target,
 			&r.JumlahSubmit, &r.JumlahDraft,
 			&r.JumlahDiperiksa, &r.JumlahError, &r.JumlahObservasi,
-			&r.StatusKendala, &r.Kendala)
+			&r.FasihTotal, &r.StatusKendala, &r.Kendala)
+		if r.FasihTotal > 0 {
+			r.PctSubmit = r.JumlahSubmit * 100 / r.FasihTotal
+			if r.PctSubmit > 100 {
+				r.PctSubmit = 100
+			}
+		}
 		list = append(list, r)
 	}
 	return list, models.NewPageInfo(page, total, "/admin/table/sls", "admin-sls-wrap", extra)
@@ -454,7 +469,8 @@ func queryAdminSLSByDesa(page int, q string) ([]DesaRow, models.PageInfo) {
 		       COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
 		       COALESCE(SUM(p.fasih_approved),0),
-		       COALESCE(SUM(p.fasih_rejected),0)
+		       COALESCE(SUM(p.fasih_rejected),0),
+		       COALESCE(SUM(p.fasih_total),0)
 		FROM sls s
 		LEFT JOIN progress p ON p.sls_id = s.id
 		WHERE s.nama_desa LIKE ? OR s.nama_kec LIKE ?
@@ -469,7 +485,13 @@ func queryAdminSLSByDesa(page int, q string) ([]DesaRow, models.PageInfo) {
 	for rows.Next() {
 		var r DesaRow
 		rows.Scan(&r.NamaDesa, &r.NamaKec, &r.JmlSLS, &r.Target,
-			&r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError)
+			&r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError, &r.FasihTotal)
+		if r.FasihTotal > 0 {
+			r.PctSubmit = r.JumlahSubmit * 100 / r.FasihTotal
+			if r.PctSubmit > 100 {
+				r.PctSubmit = 100
+			}
+		}
 		list = append(list, r)
 	}
 	return list, models.NewPageInfo(page, total, "/admin/table/sls", "admin-sls-wrap", extra)
@@ -491,7 +513,8 @@ func queryAdminSLSByKec(page int, q string) ([]KecRow, models.PageInfo) {
 		       COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
 		       COALESCE(SUM(p.fasih_approved),0),
-		       COALESCE(SUM(p.fasih_rejected),0)
+		       COALESCE(SUM(p.fasih_rejected),0),
+		       COALESCE(SUM(p.fasih_total),0)
 		FROM sls s
 		LEFT JOIN progress p ON p.sls_id = s.id
 		WHERE s.nama_kec LIKE ?
@@ -506,7 +529,13 @@ func queryAdminSLSByKec(page int, q string) ([]KecRow, models.PageInfo) {
 	for rows.Next() {
 		var r KecRow
 		rows.Scan(&r.NamaKec, &r.JmlSLS, &r.Target,
-			&r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError)
+			&r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError, &r.FasihTotal)
+		if r.FasihTotal > 0 {
+			r.PctSubmit = r.JumlahSubmit * 100 / r.FasihTotal
+			if r.PctSubmit > 100 {
+				r.PctSubmit = 100
+			}
+		}
 		list = append(list, r)
 	}
 	return list, models.NewPageInfo(page, total, "/admin/table/sls", "admin-sls-wrap", extra)

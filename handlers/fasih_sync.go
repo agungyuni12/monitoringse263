@@ -412,6 +412,10 @@ func upsertProgress(agg map[string]*slsAgg) (int, error) {
 			log.Printf("[FASIH] upsert %s: %v", kode, err)
 			continue
 		}
+		// Sinkronkan target lokal dengan total assignment FASIH
+		if a.total > 0 {
+			db.DB.Exec(`UPDATE sls SET target = ? WHERE id = ?`, a.total, slsID)
+		}
 		n++
 	}
 	return n, nil
