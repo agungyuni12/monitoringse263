@@ -272,6 +272,8 @@ def upload(sls_agg):
             inserted += 1
         else:
             updated += 1
+        if agg["fasih_total"] > 0:
+            cur.execute("UPDATE sls SET target = %s WHERE id = %s", (agg["fasih_total"], sls_id))
 
     conn.commit()
     cur.close()
