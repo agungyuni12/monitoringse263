@@ -15,11 +15,14 @@ Env vars:
   DB_NAME       (default: se2026)
 """
 
-import os, requests, math, time, sys
+import os, json, requests, math, time, sys
 from bs4 import BeautifulSoup
 from datetime import datetime
 from collections import defaultdict
 import pymysql
+from playwright.sync_api import sync_playwright
+from playwright_stealth import Stealth
+_stealth = Stealth(navigator_webdriver=True)
 
 # === KONFIGURASI ===
 FASIH_USER = os.getenv("FASIH_USER", "agung.yuniarta")
@@ -49,49 +52,67 @@ SUBMIT_STATUSES = frozenset({
 })
 
 
-def login():
-    session = requests.Session()
-    hdrs = {
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
-    }
-    print("[LOGIN] Mengakses SSO BPS...", flush=True)
-    r = session.get(f"{BASE_URL}/oauth2/authorization/ics", headers=hdrs, timeout=15, allow_redirects=True)
-    soup = BeautifulSoup(r.text, "html.parser")
-    form = soup.find("form", id="kc-form-login")
-    if not form:
-        raise RuntimeError("Form login tidak ditemukan")
-    post_data = {inp.get("name"): inp.get("value", "") for inp in form.find_all("input") if inp.get("name")}
-    post_data["username"] = FASIH_USER
-    post_data["password"] = FASIH_PASS
-    session.post(form["action"], data=post_data,
-                 headers={**hdrs, "Content-Type": "application/x-www-form-urlencoded",
-                          "Referer": r.url, "Origin": "https://sso.bps.go.id"},
-                 timeout=15, allow_redirects=True)
-    xsrf = session.cookies.get("XSRF-TOKEN", "")
+HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
+
+def _make_browser(pw):
+    browser = pw.chromium.launch(
+        executable_path=os.getenv("CHROME_PATH", "/usr/bin/google-chrome-stable") or None,
+        headless=HEADLESS,
+        args=["--disable-blink-features=AutomationControlled", "--disable-infobars", "--no-sandbox"],
+    )
+    ctx = browser.new_context(
+        user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+        viewport={"width": 1280, "height": 720},
+    )
+    return browser, ctx
+
+
+def login(ctx):
+    """Login lewat browser, return xsrf token. ctx tetap hidup untuk API calls."""
+    page = ctx.new_page()
+    _stealth.apply_stealth_sync(page)
+
+    LONG = 90_000   # 90 detik untuk koneksi lambat
+
+    print("[LOGIN] Membuka halaman challenge...", flush=True)
+    try:
+        page.goto(f"{BASE_URL}/oauth2/authorization/ics", wait_until="networkidle", timeout=LONG)
+    except Exception:
+        pass
+    print(f"[LOGIN] URL setelah challenge: {page.url}", flush=True)
+
+    active = page
+    if page.url in ("about:blank", ""):
+        print("[LOGIN] Membuka page baru setelah challenge...", flush=True)
+        active = ctx.new_page()
+        _stealth.apply_stealth_sync(active)
+
+    print("[LOGIN] Navigasi ulang ke SSO...", flush=True)
+    active.goto(f"{BASE_URL}/oauth2/authorization/ics", wait_until="networkidle", timeout=LONG)
+    print(f"[LOGIN] URL: {active.url}", flush=True)
+
+    active.wait_for_selector("#kc-form-login", timeout=LONG)
+    print("[LOGIN] Form login ditemukan.", flush=True)
+    active.fill("#username", FASIH_USER)
+    active.fill("#password", FASIH_PASS)
+    active.click("#kc-login")
+    active.wait_for_url("**fasih-sm.bps.go.id**", timeout=LONG)
+    print(f"[LOGIN] Redirect ke: {active.url}", flush=True)
+
+    cookies = ctx.cookies()
+    xsrf = next((c["value"] for c in cookies if c["name"] == "XSRF-TOKEN"), "")
     if not xsrf:
         raise RuntimeError("Login gagal – tidak ada XSRF token")
-    print(f"[LOGIN] Berhasil.", flush=True)
-    return session, xsrf
+    print("[LOGIN] Berhasil.", flush=True)
+    return xsrf
 
 
-def api_headers(xsrf):
-    return {
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/125.0.0.0 Safari/537.36",
-        "Accept": "application/json, */*",
-        "Content-Type": "application/json",
-        "X-XSRF-TOKEN": xsrf,
-        "Referer": f"{BASE_URL}/app/surveys/{SURVEY_ID}/{PERIOD_ID}",
-        "Origin": BASE_URL,
-    }
-
-
-def fetch_page(session, xsrf, page):
+def fetch_page(ctx, xsrf, page_num, retries=3):
     payload = {
         "surveyPeriodId": PERIOD_ID,
         "surveyRoleId":   PENCACAH_ROLE_ID,
         "size":   PAGE_SIZE,
-        "page":   page,
+        "page":   page_num,
         "search": "",
         "target": "TARGET_ONLY",
         "region": {
@@ -102,28 +123,43 @@ def fetch_page(session, xsrf, page):
         },
         "regionSummaryLevel": 6,
     }
-    r = session.post(
-        f"{BASE_URL}/analytic/api/v2/assignment/report-progress-by-responsibility",
-        json=payload, headers=api_headers(xsrf), timeout=30,
-    )
-    if r.status_code != 200:
-        print(f"  [WARN] page {page}: HTTP {r.status_code}", flush=True)
-        return [], 0
-    d = r.json()
-    if not d.get("success"):
-        print(f"  [WARN] page {page} error: {d}", flush=True)
-        return [], 0
-    inner = d.get("data", {})
-    total = inner.get("totalElements") or 0
-    return inner.get("content", []), total
+    hdrs = {
+        "Accept": "application/json, */*",
+        "Content-Type": "application/json",
+        "X-XSRF-TOKEN": xsrf,
+        "Referer": f"{BASE_URL}/app/surveys/{SURVEY_ID}/{PERIOD_ID}",
+        "Origin": BASE_URL,
+    }
+    for attempt in range(1, retries + 1):
+        try:
+            r = ctx.request.post(
+                f"{BASE_URL}/analytic/api/v2/assignment/report-progress-by-responsibility",
+                data=json.dumps(payload),
+                headers=hdrs,
+                timeout=90000,
+            )
+            if r.status != 200:
+                print(f"  [WARN] page {page_num}: HTTP {r.status}", flush=True)
+                return [], 0
+            d = r.json()
+            if not d.get("success"):
+                print(f"  [WARN] page {page_num} error: {d}", flush=True)
+                return [], 0
+            inner = d.get("data", {})
+            total = inner.get("totalElements") or 0
+            return inner.get("content", []), total
+        except Exception as e:
+            print(f"  [RETRY {attempt}/{retries}] page {page_num}: {e}", flush=True)
+            if attempt < retries:
+                time.sleep(5 * attempt)
+    return [], 0
 
 
-def scrape_all(session, xsrf):
+def scrape_all(ctx, xsrf):
     print("[SCRAPE] Mengambil halaman 1...", flush=True)
-    content0, total = fetch_page(session, xsrf, 0)
+    content0, total = fetch_page(ctx, xsrf, 0)
     if not total and not content0:
         raise RuntimeError("Tidak ada data dari FASIH")
-    # Jika totalElements null, hitung dari response
     if not total:
         total = len(content0)
 
@@ -133,7 +169,7 @@ def scrape_all(session, xsrf):
     all_content = list(content0)
     for pg in range(1, pages):
         print(f"  Halaman {pg+1}/{pages}...", flush=True)
-        c, _ = fetch_page(session, xsrf, pg)
+        c, _ = fetch_page(ctx, xsrf, pg)
         all_content.extend(c)
         time.sleep(DELAY)
 
@@ -266,10 +302,15 @@ if __name__ == "__main__":
     print(f"SYNC FASIH → se2026  [{datetime.now():%Y-%m-%d %H:%M:%S}]")
     print("="*50)
 
-    session, xsrf = login()
+    with sync_playwright() as pw:
+        browser, ctx = _make_browser(pw)
+        try:
+            xsrf = login(ctx)
 
-    print("\n[STEP 1] Scrape FASIH...")
-    all_content = scrape_all(session, xsrf)
+            print("\n[STEP 1] Scrape FASIH...")
+            all_content = scrape_all(ctx, xsrf)
+        finally:
+            browser.close()
 
     print("\n[STEP 2] Aggregate per SLS...")
     sls_agg = aggregate(all_content)
