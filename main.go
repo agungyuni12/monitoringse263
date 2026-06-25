@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"time"
 
 	"monitoringse/db"
 	"monitoringse/handlers"
@@ -31,9 +30,6 @@ func main() {
 		log.Fatalf("Gagal konek database: %v", err)
 	}
 	log.Println("Database terhubung.")
-
-	// Sync FASIH otomatis setiap 30 menit
-	handlers.StartFasihSync(30 * time.Minute)
 
 	// Load all templates
 	funcMap := template.FuncMap{

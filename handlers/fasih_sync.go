@@ -40,24 +40,6 @@ func getenv(key, fallback string) string {
 	return fallback
 }
 
-// StartFasihSync jalankan sync otomatis di background setiap interval.
-func StartFasihSync(interval time.Duration) {
-	go func() {
-		log.Printf("[FASIH] Sync pertama dimulai...")
-		runSync()
-		for range time.NewTicker(interval).C {
-			runSync()
-		}
-	}()
-}
-
-// LastSyncResult menyimpan hasil sync terakhir untuk ditampilkan di admin.
-var LastSyncResult struct {
-	Time    string
-	Updated int
-	Error   string
-}
-
 var wita = func() *time.Location {
 	loc, err := time.LoadLocation("Asia/Makassar")
 	if err != nil {
@@ -66,24 +48,31 @@ var wita = func() *time.Location {
 	return loc
 }()
 
-func witaTime(t time.Time) string {
-	return t.In(wita).Format("02/01/2006 15:04:05 WITA")
-}
-
-func runSync() {
-	start := time.Now()
-	n, err := doFasihSync()
-	if err != nil {
-		log.Printf("[FASIH] Sync gagal: %v", err)
-		LastSyncResult.Error = err.Error()
-		LastSyncResult.Time = witaTime(start)
-		return
+// LastSyncFromDB membaca waktu dan jumlah SLS sync terakhir dari database.
+func LastSyncFromDB() struct {
+	Time    string
+	Updated int
+	Error   string
+} {
+	var result struct {
+		Time    string
+		Updated int
+		Error   string
 	}
-	elapsed := time.Since(start).Round(time.Second)
-	log.Printf("[FASIH] Sync selesai: %d SLS diupdate (%v)", n, elapsed)
-	LastSyncResult.Updated = n
-	LastSyncResult.Error = ""
-	LastSyncResult.Time = witaTime(start)
+	var syncedAt *time.Time
+	var count int
+	err := db.DB.QueryRow(`
+		SELECT MAX(fasih_synced_at), COUNT(*)
+		FROM progress
+		WHERE fasih_synced_at = (SELECT MAX(fasih_synced_at) FROM progress)
+	`).Scan(&syncedAt, &count)
+	if err != nil || syncedAt == nil {
+		return result
+	}
+	wita := time.FixedZone("WITA", 8*3600)
+	result.Time = syncedAt.In(wita).Format("02/01/2006 15:04:05 WITA")
+	result.Updated = count
+	return result
 }
 
 // --- HTTP client & login ---
@@ -442,7 +431,14 @@ func min(a, b int) int {
 
 // AdminSyncFasih — trigger sync manual dari admin panel (POST /admin/sync/fasih).
 func AdminSyncFasih(c echo.Context) error {
-	go runSync()
+	go func() {
+		n, err := doFasihSync()
+		if err != nil {
+			log.Printf("[FASIH] Sync manual gagal: %v", err)
+			return
+		}
+		log.Printf("[FASIH] Sync manual selesai: %d SLS diupdate", n)
+	}()
 	return c.JSON(http.StatusOK, map[string]string{
 		"status": "Sync FASIH dimulai di background. Refresh halaman dalam beberapa menit.",
 	})
