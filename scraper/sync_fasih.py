@@ -299,7 +299,32 @@ def summary(sls_agg):
     print(f"{'='*50}\n")
 
 
-if __name__ == "__main__":
+WITA = time.timezone  # akan di-override di bawah
+try:
+    import zoneinfo
+    _wita_tz = zoneinfo.ZoneInfo("Asia/Makassar")
+except Exception:
+    import datetime as _dt
+    _wita_tz = _dt.timezone(_dt.timedelta(hours=8))
+
+def _now_wita():
+    return datetime.now(_wita_tz)
+
+def _next_run():
+    now = _now_wita()
+    h, m = now.hour, now.minute
+    # Malam 22:00–06:29 → tunggu sampai 06:30
+    if h >= 22 or h < 6 or (h == 6 and m < 30):
+        from datetime import timedelta
+        nxt = now.replace(hour=6, minute=30, second=0, microsecond=0)
+        if h >= 22:
+            nxt += timedelta(days=1)
+        return nxt
+    # Siang → 1 jam dari sekarang
+    from datetime import timedelta
+    return now + timedelta(hours=1)
+
+def run_once():
     print("="*50)
     print(f"SYNC FASIH → se2026  [{datetime.now():%Y-%m-%d %H:%M:%S}]")
     print("="*50)
@@ -308,7 +333,6 @@ if __name__ == "__main__":
         browser, ctx = _make_browser(pw)
         try:
             xsrf = login(ctx)
-
             print("\n[STEP 1] Scrape FASIH...")
             all_content = scrape_all(ctx, xsrf)
         finally:
@@ -321,3 +345,15 @@ if __name__ == "__main__":
     print("[STEP 3] Upload ke database...")
     n = upload(sls_agg)
     print(f"\nSelesai! {n} SLS diupdate.")
+
+if __name__ == "__main__":
+    while True:
+        try:
+            run_once()
+        except Exception as e:
+            print(f"[ERROR] Sync gagal: {e}", flush=True)
+
+        nxt = _next_run()
+        secs = max(0, (nxt - _now_wita()).total_seconds())
+        print(f"[SCHEDULER] Sync berikutnya: {nxt.strftime('%d/%m/%Y %H:%M WITA')} ({int(secs//60)} menit)", flush=True)
+        time.sleep(secs)
