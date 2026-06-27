@@ -40,9 +40,10 @@ DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "kelayu1998")
 DB_NAME = os.getenv("DB_NAME", "se2026")
 
-FASIH_URL  = "https://fasih-sm.bps.go.id"
-FASIH_USER = os.getenv("FASIH_USER", "agung.yuniarta")
-FASIH_PASS = os.getenv("FASIH_PASS", "kelayu1998")
+FASIH_URL       = "https://fasih-sm.bps.go.id"
+FASIH_USER      = os.getenv("FASIH_USER",      "agung.yuniarta")
+FASIH_PASS      = os.getenv("FASIH_PASS",      "kelayu1998")
+FASIH_PERIOD_ID = os.getenv("FASIH_PERIOD_ID", "fd68e454-ba45-4b85-8205-f3bf777ded24")
 
 DELAY = 1.0  # detik jeda antar request
 
@@ -258,64 +259,64 @@ def login_fasih(ctx):
     print("[FASIH] Login berhasil.", flush=True)
 
 
-def fetch_nama_principal(fasih_ctx, assignment_id):
-    """Ambil nama_principal dari pre_defined_data assignment FASIH."""
-    url = (
-        f"{FASIH_URL}/app/api/assignment-general/api/assignment"
-        f"/get-by-assignment-id?assignmentId={assignment_id}"
-    )
-    try:
-        r = fasih_ctx.request.get(url, timeout=15_000)
-        if r.status != 200:
-            return None
-        pre_raw = r.json().get("data", {}).get("pre_defined_data") or ""
-        if not pre_raw:
-            return None
-        pre = json.loads(pre_raw)
-        for item in pre.get("predata", []):
-            if item.get("dataKey") == "nama_principal":
-                return str(item.get("answer") or "").strip()[:255] or None
-    except Exception:
-        pass
-    return None
-
-
-def fill_keluarga_nama(conn, pw):
-    """Update kolom nama untuk keluarga anomali yang masih kosong dari FASIH."""
+def fill_nama_by_sls(conn, pw):
+    """
+    Isi kolom nama anomali yang kosong via endpoint batch per-SLS FASIH.
+    Jauh lebih efisien: 1 request per SLS (bukan per assignment).
+    """
     cur = conn.cursor()
     cur.execute("""
-        SELECT DISTINCT assignment_id FROM anomali
-        WHERE (nama IS NULL OR nama = '')
-          AND CAST(rule_key AS UNSIGNED) >= 136
+        SELECT DISTINCT s.kode_sls
+        FROM anomali a JOIN sls s ON a.sls_id = s.id
+        WHERE (a.nama IS NULL OR a.nama = '')
     """)
-    rows = [r[0] for r in cur.fetchall()]
+    sls_codes = [r[0] for r in cur.fetchall()]
     cur.close()
 
-    if not rows:
-        print("[FASIH NAMA] Semua nama keluarga sudah terisi.", flush=True)
+    if not sls_codes:
+        print("[FASIH NAMA] Semua nama sudah terisi.", flush=True)
         return
 
-    print(f"[FASIH NAMA] {len(rows)} assignment keluarga perlu nama...", flush=True)
+    print(f"[FASIH NAMA] Fetch nama untuk {len(sls_codes)} SLS...", flush=True)
 
     fasih_browser, fasih_ctx = _make_browser(pw)
     try:
         login_fasih(fasih_ctx)
-        updated = 0
-        cur = conn.cursor()
-        for i, asg_id in enumerate(rows, 1):
-            nama = fetch_nama_principal(fasih_ctx, asg_id)
-            if nama:
-                cur.execute(
-                    "UPDATE anomali SET nama=%s WHERE assignment_id=%s AND (nama IS NULL OR nama='')",
-                    (nama, asg_id),
-                )
-                updated += 1
-            if i % 50 == 0 or i == len(rows):
-                print(f"[FASIH NAMA] {i}/{len(rows)} diproses, {updated} nama terisi...", flush=True)
+
+        # Kumpulkan assignment_id → nama dari semua SLS
+        nama_map = {}
+        for i, kode_sls in enumerate(sls_codes, 1):
+            url = (
+                f"{FASIH_URL}/assignment-general/api/assignments"
+                f"/get-principal-values-by-smallest-code/{FASIH_PERIOD_ID}/{kode_sls}"
+            )
+            try:
+                r = fasih_ctx.request.get(url, timeout=15_000)
+                if r.status == 200:
+                    for item in r.json().get("data", []):
+                        asg_id = item.get("assignmentId")
+                        nama   = str(item.get("data1") or "").strip()[:255]
+                        if asg_id and nama:
+                            nama_map[asg_id] = nama
+            except Exception as e:
+                print(f"  [WARN] SLS {kode_sls}: {e}", flush=True)
+            if i % 20 == 0 or i == len(sls_codes):
+                print(f"  {i}/{len(sls_codes)} SLS diproses, {len(nama_map)} nama dikumpulkan...", flush=True)
             time.sleep(0.3)
+
+        # Update DB
+        cur = conn.cursor()
+        updated = 0
+        for asg_id, nama in nama_map.items():
+            cur.execute(
+                "UPDATE anomali SET nama=%s WHERE assignment_id=%s AND (nama IS NULL OR nama='')",
+                (nama, asg_id),
+            )
+            if cur.rowcount > 0:
+                updated += 1
         conn.commit()
         cur.close()
-        print(f"[FASIH NAMA] Selesai: {updated}/{len(rows)} nama diupdate.", flush=True)
+        print(f"[FASIH NAMA] Selesai: {updated} nama diupdate.", flush=True)
     finally:
         fasih_browser.close()
 
@@ -358,7 +359,7 @@ def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at):
         VALUES (%s, %s, %s, %s, %s, %s, 1, %s)
         ON DUPLICATE KEY UPDATE
           sls_id    = VALUES(sls_id),
-          nama      = VALUES(nama),
+          nama      = IF(VALUES(nama) != '' AND VALUES(nama) IS NOT NULL, VALUES(nama), nama),
           jenis     = VALUES(jenis),
           rule_msg  = VALUES(rule_msg),
           synced_at = VALUES(synced_at)
@@ -433,7 +434,7 @@ def run_once():
                     print(f"      {skip} skip (SLS tidak ada di DB)", flush=True)
                 time.sleep(DELAY)
 
-            fill_keluarga_nama(conn, pw)
+            fill_nama_by_sls(conn, pw)
             conn.close()
             print(f"\nSelesai! {total} baris anomali diupsert.", flush=True)
 
