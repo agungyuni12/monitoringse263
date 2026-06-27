@@ -26,6 +26,9 @@
     .badge-in_progress { background:#DBEAFE; color:#1E40AF; }
     .badge-resolved    { background:#D1FAE5; color:#065F46; }
     .badge-escalated   { background:#FEE2E2; color:#991B1B; }
+    .tab-btn.active    { border-bottom: 2px solid #F37021; color:#F37021; font-weight:600; }
+    .tab-panel         { display:none; }
+    .tab-panel.active  { display:block; }
   </style>
 </head>
 <body class="bg-se-bg min-h-screen">
@@ -106,21 +109,60 @@
       </div>
     </div>
 
-    <!-- Table -->
+    <!-- Tabs -->
     <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-        <div class="w-2 h-5 bg-se rounded-full"></div>
-        <h2 class="font-semibold text-gray-800">Monitoring PPL</h2>
-        <span class="text-xs text-gray-400 ml-auto">{{.Page.TotalRow}} SLS</span>
+      <div class="flex border-b border-gray-100">
+        <button onclick="switchTab('ringkasan')" id="tab-ringkasan"
+          class="tab-btn active px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
+          Ringkasan
+        </button>
+        <button onclick="switchTab('anomali')" id="tab-anomali"
+          class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
+          Anomali
+        </button>
       </div>
 
-      <div id="pml-table-wrap">
-        {{template "pml_table.html" .}}
+      <!-- TAB: Ringkasan (SLS list) -->
+      <div id="panel-ringkasan" class="tab-panel active">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+          <div class="w-2 h-5 bg-se rounded-full"></div>
+          <h2 class="font-semibold text-gray-800">Monitoring PPL</h2>
+          <span class="text-xs text-gray-400 ml-auto">{{.Page.TotalRow}} SLS</span>
+        </div>
+        <div id="pml-table-wrap">
+          {{template "pml_table.html" .}}
+        </div>
+      </div>
+
+      <!-- TAB: Anomali -->
+      <div id="panel-anomali" class="tab-panel">
+        <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center" id="pml-anomali-filter-bar">
+          <input type="text" name="q"
+            hx-get="/pml/anomali"
+            hx-target="#pml-anomali-result"
+            hx-swap="innerHTML"
+            hx-trigger="input changed delay:300ms"
+            hx-include="#pml-anomali-filter-bar"
+            placeholder="Cari nama, jenis, keterangan..."
+            class="w-full md:w-80 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+        </div>
+        <div id="pml-anomali-result"
+          hx-get="/pml/anomali"
+          hx-trigger="load"
+          hx-swap="innerHTML">
+          <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data anomali...</div>
+        </div>
       </div>
     </div>
   </main>
 
   <script>
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      document.getElementById('panel-' + name).classList.add('active');
+    }
     function openModal() {
       document.getElementById('modal-overlay').classList.remove('hidden');
       document.getElementById('modal-overlay').classList.add('flex');

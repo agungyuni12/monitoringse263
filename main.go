@@ -80,6 +80,7 @@ func main() {
 	ppl.GET("/table", handlers.PPLTable)
 	ppl.GET("/sls/:id/form", handlers.PPLFormModal)
 	ppl.POST("/sls/:id/save", handlers.PPLSaveProgress)
+	ppl.GET("/anomali", handlers.PPLAnomali)
 
 	// PML routes
 	pmlGrp := e.Group("/pml", mw.RequireAuth, mw.RequireRole("pml"))
@@ -87,6 +88,7 @@ func main() {
 	pmlGrp.GET("/table", handlers.PMLTable)
 	pmlGrp.GET("/sls/:id/verif", handlers.PMLVerifModal)
 	pmlGrp.POST("/sls/:id/save", handlers.PMLSaveVerif)
+	pmlGrp.GET("/anomali", handlers.PMLAnomali)
 
 	// Admin routes
 	adminGrp := e.Group("/admin", mw.RequireAuth, mw.RequireRole("admin"))
@@ -95,6 +97,7 @@ func main() {
 	adminGrp.GET("/table/ppl", handlers.AdminTablePPL)
 	adminGrp.GET("/table/sls", handlers.AdminTableSLS)
 	adminGrp.GET("/table/organik", handlers.AdminTableOrganik)
+	adminGrp.GET("/table/anomali", handlers.AdminAnomaliTable)
 	adminGrp.GET("/geo/stats", handlers.AdminGeoStats)
 	adminGrp.GET("/geo/geojson", handlers.AdminGeoJSON)
 	adminGrp.GET("/download/pml", handlers.DownloadPML)
