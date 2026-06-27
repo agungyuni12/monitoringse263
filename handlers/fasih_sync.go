@@ -263,19 +263,31 @@ type slsAgg struct {
 	draft     int
 	open      int
 	submitted int
-	approved  int
-	rejected  int
-	revoked   int
-	total     int
+	// Breakdown per level
+	approvedPengawas  int
+	rejectedPengawas  int
+	revokedPengawas   int
+	approvedKabupaten int
+	rejectedKabupaten int
+	approvedProvinsi  int
+	rejectedProvinsi  int
+	approvedPusat     int
+	rejectedPusat     int
+	total             int
 }
 
 var submitStatuses = map[string]bool{
-	"SUBMITTED BY Pencacah":       true,
-	"APPROVED BY Pengawas":        true,
-	"REJECTED BY Pengawas":        true,
-	"REVOKED BY Pengawas":         true,
-	"SUBMITTED RESPONDENT":        true,
-	"REJECTED BY Admin Kabupaten": true,
+	"SUBMITTED BY Pencacah":        true,
+	"SUBMITTED RESPONDENT":         true,
+	"APPROVED BY Pengawas":         true,
+	"REJECTED BY Pengawas":         true,
+	"REVOKED BY Pengawas":          true,
+	"APPROVED BY Admin Kabupaten":  true,
+	"REJECTED BY Admin Kabupaten":  true,
+	"APPROVED BY Admin Provinsi":   true,
+	"REJECTED BY Admin Provinsi":   true,
+	"APPROVED BY Admin Pusat":      true,
+	"REJECTED BY Admin Pusat":      true,
 }
 
 func doFasihSync() (int, error) {
@@ -351,11 +363,23 @@ func processPencacah(content []fasihPencacah, agg map[string]*slsAgg) {
 				case "SUBMITTED BY Pencacah", "SUBMITTED RESPONDENT":
 					a.submitted += cnt
 				case "APPROVED BY Pengawas":
-					a.approved += cnt
-				case "REJECTED BY Pengawas", "REJECTED BY Admin Kabupaten":
-					a.rejected += cnt
+					a.approvedPengawas += cnt
+				case "REJECTED BY Pengawas":
+					a.rejectedPengawas += cnt
 				case "REVOKED BY Pengawas":
-					a.revoked += cnt
+					a.revokedPengawas += cnt
+				case "APPROVED BY Admin Kabupaten":
+					a.approvedKabupaten += cnt
+				case "REJECTED BY Admin Kabupaten":
+					a.rejectedKabupaten += cnt
+				case "APPROVED BY Admin Provinsi":
+					a.approvedProvinsi += cnt
+				case "REJECTED BY Admin Provinsi":
+					a.rejectedProvinsi += cnt
+				case "APPROVED BY Admin Pusat":
+					a.approvedPusat += cnt
+				case "REJECTED BY Admin Pusat":
+					a.rejectedPusat += cnt
 				}
 			}
 		}
@@ -380,21 +404,30 @@ func upsertProgress(agg map[string]*slsAgg) (int, error) {
 	const sqlUpsert = `
 		INSERT INTO progress
 		  (sls_id, jumlah_submit, jumlah_draft,
-		   fasih_open, fasih_submitted, fasih_approved,
-		   fasih_rejected, fasih_revoked, fasih_total,
-		   fasih_synced_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,NOW(),NOW())
+		   fasih_open, fasih_submitted,
+		   fasih_approved_pengawas, fasih_rejected_pengawas, fasih_revoked_pengawas,
+		   fasih_approved_kabupaten, fasih_rejected_kabupaten,
+		   fasih_approved_provinsi, fasih_rejected_provinsi,
+		   fasih_approved_pusat, fasih_rejected_pusat,
+		   fasih_total, fasih_synced_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
 		ON DUPLICATE KEY UPDATE
-		  jumlah_submit   = VALUES(jumlah_submit),
-		  jumlah_draft    = VALUES(jumlah_draft),
-		  fasih_open      = VALUES(fasih_open),
-		  fasih_submitted = VALUES(fasih_submitted),
-		  fasih_approved  = VALUES(fasih_approved),
-		  fasih_rejected  = VALUES(fasih_rejected),
-		  fasih_revoked   = VALUES(fasih_revoked),
-		  fasih_total     = VALUES(fasih_total),
-		  fasih_synced_at = NOW(),
-		  updated_at      = NOW()`
+		  jumlah_submit             = VALUES(jumlah_submit),
+		  jumlah_draft              = VALUES(jumlah_draft),
+		  fasih_open                = VALUES(fasih_open),
+		  fasih_submitted           = VALUES(fasih_submitted),
+		  fasih_approved_pengawas   = VALUES(fasih_approved_pengawas),
+		  fasih_rejected_pengawas   = VALUES(fasih_rejected_pengawas),
+		  fasih_revoked_pengawas    = VALUES(fasih_revoked_pengawas),
+		  fasih_approved_kabupaten  = VALUES(fasih_approved_kabupaten),
+		  fasih_rejected_kabupaten  = VALUES(fasih_rejected_kabupaten),
+		  fasih_approved_provinsi   = VALUES(fasih_approved_provinsi),
+		  fasih_rejected_provinsi   = VALUES(fasih_rejected_provinsi),
+		  fasih_approved_pusat      = VALUES(fasih_approved_pusat),
+		  fasih_rejected_pusat      = VALUES(fasih_rejected_pusat),
+		  fasih_total               = VALUES(fasih_total),
+		  fasih_synced_at           = NOW(),
+		  updated_at                = NOW()`
 
 	syncedAt := time.Now()
 	_ = syncedAt
@@ -407,8 +440,12 @@ func upsertProgress(agg map[string]*slsAgg) (int, error) {
 		}
 		_, err := db.DB.Exec(sqlUpsert,
 			slsID, a.submit, a.draft,
-			a.open, a.submitted, a.approved,
-			a.rejected, a.revoked, a.total)
+			a.open, a.submitted,
+			a.approvedPengawas, a.rejectedPengawas, a.revokedPengawas,
+			a.approvedKabupaten, a.rejectedKabupaten,
+			a.approvedProvinsi, a.rejectedProvinsi,
+			a.approvedPusat, a.rejectedPusat,
+			a.total)
 		if err != nil {
 			log.Printf("[FASIH] upsert %s: %v", kode, err)
 			continue

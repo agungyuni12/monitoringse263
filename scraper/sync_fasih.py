@@ -41,15 +41,17 @@ PERIOD_ID = "fd68e454-ba45-4b85-8205-f3bf777ded24"
 PENCACAH_ROLE_ID = "6d7d919a-45e5-4779-bb87-2905b49fd31a"
 DOMPU_REGION2_ID = "546a26bf-e388-41ab-9083-e02cbbc093d4"
 
-PAGE_SIZE = 10    # server membatasi max 10 per halaman
-DELAY     = 0.3   # detik jeda antar halaman
-
 # Status yang dihitung sebagai "submit"
 SUBMIT_STATUSES = frozenset({
-    "SUBMITTED BY Pencacah", "APPROVED BY Pengawas",
-    "REJECTED BY Pengawas", "REVOKED BY Pengawas",
-    "SUBMITTED RESPONDENT", "REJECTED BY Admin Kabupaten",
+    "SUBMITTED BY Pencacah", "SUBMITTED RESPONDENT",
+    "APPROVED BY Pengawas",  "REJECTED BY Pengawas",  "REVOKED BY Pengawas",
+    "APPROVED BY Admin Kabupaten", "REJECTED BY Admin Kabupaten",
+    "APPROVED BY Admin Provinsi",  "REJECTED BY Admin Provinsi",
+    "APPROVED BY Admin Pusat",     "REJECTED BY Admin Pusat",
 })
+
+PAGE_SIZE = 10    # server membatasi max 10 per halaman
+DELAY     = 0.3   # detik jeda antar halaman
 
 
 HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
@@ -180,14 +182,20 @@ def scrape_all(ctx, xsrf):
 def aggregate(all_content):
     """Aggregate status per kode_sls (16-digit regionCode)."""
     sls_agg = defaultdict(lambda: {
-        "jumlah_submit":  0,
-        "jumlah_draft":   0,
-        "fasih_open":     0,
-        "fasih_submitted": 0,
-        "fasih_approved": 0,
-        "fasih_rejected": 0,
-        "fasih_revoked":  0,
-        "fasih_total":    0,
+        "jumlah_submit":           0,
+        "jumlah_draft":            0,
+        "fasih_open":              0,
+        "fasih_submitted":         0,
+        "fasih_approved_pengawas": 0,
+        "fasih_rejected_pengawas": 0,
+        "fasih_revoked_pengawas":  0,
+        "fasih_approved_kabupaten":0,
+        "fasih_rejected_kabupaten":0,
+        "fasih_approved_provinsi": 0,
+        "fasih_rejected_provinsi": 0,
+        "fasih_approved_pusat":    0,
+        "fasih_rejected_pusat":    0,
+        "fasih_total":             0,
     })
 
     for pencacah in all_content:
@@ -204,16 +212,33 @@ def aggregate(all_content):
                     a["jumlah_submit"] += cnt
                 if status == "DRAFT":
                     a["jumlah_draft"] += cnt
+                su = status.upper()
                 if status == "OPEN":
                     a["fasih_open"] += cnt
-                elif "SUBMITTED" in status:
+                elif "SUBMITTED" in su:
                     a["fasih_submitted"] += cnt
-                elif "APPROVED" in status:
-                    a["fasih_approved"] += cnt
-                elif "REJECTED" in status:
-                    a["fasih_rejected"] += cnt
-                elif "REVOKED" in status:
-                    a["fasih_revoked"] += cnt
+                elif "PENGAWAS" in su:
+                    if "APPROVED" in su:
+                        a["fasih_approved_pengawas"] += cnt
+                    elif "REJECTED" in su:
+                        a["fasih_rejected_pengawas"] += cnt
+                    elif "REVOKED" in su:
+                        a["fasih_revoked_pengawas"] += cnt
+                elif "KABUPATEN" in su:
+                    if "APPROVED" in su:
+                        a["fasih_approved_kabupaten"] += cnt
+                    elif "REJECTED" in su:
+                        a["fasih_rejected_kabupaten"] += cnt
+                elif "PROVINSI" in su:
+                    if "APPROVED" in su:
+                        a["fasih_approved_provinsi"] += cnt
+                    elif "REJECTED" in su:
+                        a["fasih_rejected_provinsi"] += cnt
+                elif "PUSAT" in su:
+                    if "APPROVED" in su:
+                        a["fasih_approved_pusat"] += cnt
+                    elif "REJECTED" in su:
+                        a["fasih_rejected_pusat"] += cnt
 
     print(f"[AGGREGATE] SLS unik: {len(sls_agg)}", flush=True)
     return sls_agg
@@ -239,21 +264,30 @@ def upload(sls_agg):
     SQL = """
         INSERT INTO progress
           (sls_id, jumlah_submit, jumlah_draft,
-           fasih_open, fasih_submitted, fasih_approved,
-           fasih_rejected, fasih_revoked, fasih_total,
-           fasih_synced_at, updated_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+           fasih_open, fasih_submitted,
+           fasih_approved_pengawas, fasih_rejected_pengawas, fasih_revoked_pengawas,
+           fasih_approved_kabupaten, fasih_rejected_kabupaten,
+           fasih_approved_provinsi, fasih_rejected_provinsi,
+           fasih_approved_pusat, fasih_rejected_pusat,
+           fasih_total, fasih_synced_at, updated_at)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
         ON DUPLICATE KEY UPDATE
-          jumlah_submit   = VALUES(jumlah_submit),
-          jumlah_draft    = VALUES(jumlah_draft),
-          fasih_open      = VALUES(fasih_open),
-          fasih_submitted = VALUES(fasih_submitted),
-          fasih_approved  = VALUES(fasih_approved),
-          fasih_rejected  = VALUES(fasih_rejected),
-          fasih_revoked   = VALUES(fasih_revoked),
-          fasih_total     = VALUES(fasih_total),
-          fasih_synced_at = VALUES(fasih_synced_at),
-          updated_at      = NOW()
+          jumlah_submit             = VALUES(jumlah_submit),
+          jumlah_draft              = VALUES(jumlah_draft),
+          fasih_open                = VALUES(fasih_open),
+          fasih_submitted           = VALUES(fasih_submitted),
+          fasih_approved_pengawas   = VALUES(fasih_approved_pengawas),
+          fasih_rejected_pengawas   = VALUES(fasih_rejected_pengawas),
+          fasih_revoked_pengawas    = VALUES(fasih_revoked_pengawas),
+          fasih_approved_kabupaten  = VALUES(fasih_approved_kabupaten),
+          fasih_rejected_kabupaten  = VALUES(fasih_rejected_kabupaten),
+          fasih_approved_provinsi   = VALUES(fasih_approved_provinsi),
+          fasih_rejected_provinsi   = VALUES(fasih_rejected_provinsi),
+          fasih_approved_pusat      = VALUES(fasih_approved_pusat),
+          fasih_rejected_pusat      = VALUES(fasih_rejected_pusat),
+          fasih_total               = VALUES(fasih_total),
+          fasih_synced_at           = VALUES(fasih_synced_at),
+          updated_at                = NOW()
     """
 
     for kode, agg in sls_agg.items():
@@ -263,10 +297,13 @@ def upload(sls_agg):
             continue
         cur.execute(SQL, (
             sls_id,
-            agg["jumlah_submit"], agg["jumlah_draft"],
-            agg["fasih_open"], agg["fasih_submitted"], agg["fasih_approved"],
-            agg["fasih_rejected"], agg["fasih_revoked"], agg["fasih_total"],
-            synced_at,
+            agg["jumlah_submit"],            agg["jumlah_draft"],
+            agg["fasih_open"],               agg["fasih_submitted"],
+            agg["fasih_approved_pengawas"],  agg["fasih_rejected_pengawas"],  agg["fasih_revoked_pengawas"],
+            agg["fasih_approved_kabupaten"], agg["fasih_rejected_kabupaten"],
+            agg["fasih_approved_provinsi"],  agg["fasih_rejected_provinsi"],
+            agg["fasih_approved_pusat"],     agg["fasih_rejected_pusat"],
+            agg["fasih_total"],              synced_at,
         ))
         if cur.rowcount == 1:
             inserted += 1

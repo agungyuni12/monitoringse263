@@ -92,16 +92,62 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-4 mb-4">
-        <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-green-600">
-          <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Approved PML</p>
-          <p class="text-3xl font-bold text-green-700">{{.Summary.TotalDiperiksa}}</p>
-          <p class="text-xs text-gray-400 mt-1">{{pct .Summary.TotalDiperiksa .Summary.TotalFasihTotal}}% dari total</p>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-red-500">
-          <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Rejected PML</p>
-          <p class="text-3xl font-bold text-red-600">{{.Summary.TotalError}}</p>
-          <p class="text-xs text-gray-400 mt-1">{{pct .Summary.TotalError .Summary.TotalFasihTotal}}% dari total</p>
+      <!-- Breakdown approval per level -->
+      <div class="bg-white rounded-xl shadow-sm p-4 mb-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-3">Breakdown Approval per Level</p>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <!-- Pengawas -->
+          <div class="rounded-lg border border-green-100 bg-green-50 p-3">
+            <p class="text-xs font-semibold text-green-700 mb-1.5">Pengawas</p>
+            <div class="flex justify-between text-xs text-gray-600 mb-0.5">
+              <span>Approved</span>
+              <span class="font-bold text-green-700">{{.Summary.TotalApprovedPengawas}}</span>
+            </div>
+            <div class="flex justify-between text-xs text-gray-600 mb-0.5">
+              <span>Rejected</span>
+              <span class="font-semibold text-red-600">{{.Summary.TotalRejectedPengawas}}</span>
+            </div>
+            <div class="flex justify-between text-xs text-gray-600">
+              <span>Revoked</span>
+              <span class="font-semibold text-yellow-600">{{.Summary.TotalRevokedPengawas}}</span>
+            </div>
+          </div>
+          <!-- Kabupaten -->
+          <div class="rounded-lg border border-blue-100 bg-blue-50 p-3">
+            <p class="text-xs font-semibold text-blue-700 mb-1.5">Kabupaten</p>
+            <div class="flex justify-between text-xs text-gray-600 mb-0.5">
+              <span>Approved</span>
+              <span class="font-bold text-blue-700">{{.Summary.TotalApprovedKabupaten}}</span>
+            </div>
+            <div class="flex justify-between text-xs text-gray-600">
+              <span>Rejected</span>
+              <span class="font-semibold text-red-600">{{.Summary.TotalRejectedKabupaten}}</span>
+            </div>
+          </div>
+          <!-- Provinsi -->
+          <div class="rounded-lg border border-purple-100 bg-purple-50 p-3">
+            <p class="text-xs font-semibold text-purple-700 mb-1.5">Provinsi</p>
+            <div class="flex justify-between text-xs text-gray-600 mb-0.5">
+              <span>Approved</span>
+              <span class="font-bold text-purple-700">{{.Summary.TotalApprovedProvinsi}}</span>
+            </div>
+            <div class="flex justify-between text-xs text-gray-600">
+              <span>Rejected</span>
+              <span class="font-semibold text-red-600">{{.Summary.TotalRejectedProvinsi}}</span>
+            </div>
+          </div>
+          <!-- Pusat -->
+          <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <p class="text-xs font-semibold text-gray-700 mb-1.5">Pusat</p>
+            <div class="flex justify-between text-xs text-gray-600 mb-0.5">
+              <span>Approved</span>
+              <span class="font-bold text-gray-800">{{.Summary.TotalApprovedPusat}}</span>
+            </div>
+            <div class="flex justify-between text-xs text-gray-600">
+              <span>Rejected</span>
+              <span class="font-semibold text-red-600">{{.Summary.TotalRejectedPusat}}</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -112,25 +158,31 @@
             <span class="font-medium">Progres Submit+Reject+Approve vs Total Assignment</span>
             <span class="font-semibold text-green-600">{{.Summary.TotalSubmit}} / {{.Summary.TotalFasihTotal}} ({{pct .Summary.TotalSubmit .Summary.TotalFasihTotal}}%)</span>
           </div>
-          <!-- Stacked bar: Approved (hijau) + Submit pending (kuning) + Rejected (merah) -->
+          <!-- Stacked bar: Approved Pengawas (hijau) + Submit pending (kuning) + Rejected Pengawas (merah) -->
           <div class="h-4 bg-gray-100 rounded-full overflow-hidden flex">
-            <div class="h-full bg-green-600 transition-all" style="width:{{pct .Summary.TotalDiperiksa .Summary.TotalFasihTotal}}%" title="Approved"></div>
+            <div class="h-full bg-green-600 transition-all" style="width:{{pct .Summary.TotalApprovedPengawas .Summary.TotalFasihTotal}}%" title="Approved Pengawas"></div>
+            <div class="h-full bg-blue-500 transition-all" style="width:{{pct .Summary.TotalApprovedKabupaten .Summary.TotalFasihTotal}}%" title="Approved Kabupaten"></div>
+            <div class="h-full bg-purple-500 transition-all" style="width:{{pct .Summary.TotalApprovedProvinsi .Summary.TotalFasihTotal}}%" title="Approved Provinsi"></div>
+            <div class="h-full bg-gray-600 transition-all" style="width:{{pct .Summary.TotalApprovedPusat .Summary.TotalFasihTotal}}%" title="Approved Pusat"></div>
             <div class="h-full bg-yellow-400 transition-all" style="width:{{pct .Summary.TotalFasihSubmit .Summary.TotalFasihTotal}}%" title="Submit pending"></div>
-            <div class="h-full bg-red-500 transition-all" style="width:{{pct .Summary.TotalError .Summary.TotalFasihTotal}}%" title="Rejected"></div>
+            <div class="h-full bg-red-500 transition-all" style="width:{{pct .Summary.TotalRejectedPengawas .Summary.TotalFasihTotal}}%" title="Rejected"></div>
           </div>
-          <div class="flex gap-4 mt-1.5 text-xs text-gray-500">
-            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-green-600 inline-block"></span>Approved {{.Summary.TotalDiperiksa}}</span>
+          <div class="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-gray-500">
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-green-600 inline-block"></span>Appr. Pengawas {{.Summary.TotalApprovedPengawas}}</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block"></span>Appr. Kab. {{.Summary.TotalApprovedKabupaten}}</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-purple-500 inline-block"></span>Appr. Prov. {{.Summary.TotalApprovedProvinsi}}</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-gray-600 inline-block"></span>Appr. Pusat {{.Summary.TotalApprovedPusat}}</span>
             <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-yellow-400 inline-block"></span>Pending {{.Summary.TotalFasihSubmit}}</span>
-            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-red-500 inline-block"></span>Rejected {{.Summary.TotalError}}</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-red-500 inline-block"></span>Rejected {{.Summary.TotalRejectedPengawas}}</span>
           </div>
         </div>
         <div>
           <div class="flex justify-between text-sm text-gray-600 mb-1.5">
-            <span class="font-medium">Progres Approved PML vs Submit</span>
-            <span class="font-semibold text-green-700">{{.Summary.TotalDiperiksa}} / {{.Summary.TotalSubmit}} ({{pct .Summary.TotalDiperiksa .Summary.TotalSubmit}}%)</span>
+            <span class="font-medium">Progres Approved Pengawas vs Submit</span>
+            <span class="font-semibold text-green-700">{{.Summary.TotalApprovedPengawas}} / {{.Summary.TotalSubmit}} ({{pct .Summary.TotalApprovedPengawas .Summary.TotalSubmit}}%)</span>
           </div>
           <div class="h-4 bg-gray-100 rounded-full overflow-hidden">
-            <div class="h-full bg-green-600 rounded-full transition-all" style="width:{{pct .Summary.TotalDiperiksa .Summary.TotalSubmit}}%"></div>
+            <div class="h-full bg-green-600 rounded-full transition-all" style="width:{{pct .Summary.TotalApprovedPengawas .Summary.TotalSubmit}}%"></div>
           </div>
         </div>
       </div>

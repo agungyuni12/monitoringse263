@@ -28,8 +28,8 @@ const verifCols = `
 	u.name,
 	COALESCE(p.jumlah_submit,0),
 	COALESCE(p.jumlah_draft,0),
-	COALESCE(p.fasih_approved,0),
-	COALESCE(p.fasih_rejected,0),
+	COALESCE(p.fasih_approved_pengawas,0),
+	COALESCE(p.fasih_rejected_pengawas,0),
 	COALESCE((SELECT SUM(vh2.jumlah_observasi) FROM verifikasi_harian vh2 WHERE vh2.sls_id=s.id),0),
 	COALESCE((SELECT vh2.kendala FROM verifikasi_harian vh2 WHERE vh2.sls_id=s.id ORDER BY vh2.tanggal DESC LIMIT 1),''),
 	COALESCE((SELECT vh2.solusi_sementara FROM verifikasi_harian vh2 WHERE vh2.sls_id=s.id ORDER BY vh2.tanggal DESC LIMIT 1),''),
@@ -86,8 +86,8 @@ func PMLDashboard(c echo.Context) error {
 	db.DB.QueryRow(`
 		SELECT
 		  COALESCE(SUM(p.jumlah_submit),0),
-		  COALESCE(SUM(p.fasih_approved),0),
-		  COALESCE(SUM(p.fasih_rejected),0),
+		  COALESCE(SUM(p.fasih_approved_pengawas),0),
+		  COALESCE(SUM(p.fasih_rejected_pengawas),0),
 		  COALESCE((SELECT SUM(jumlah_observasi) FROM verifikasi_harian vh WHERE vh.sls_id IN (SELECT id FROM sls WHERE pml_id=?)),0)
 		FROM sls s
 		LEFT JOIN progress p ON p.sls_id = s.id
@@ -217,7 +217,7 @@ func PMLSaveVerif(c echo.Context) error {
 
 	// Ambil diperiksa & error otomatis dari FASIH (progress)
 	var diperiksa, errDoc int
-	db.DB.QueryRow(`SELECT COALESCE(fasih_approved,0), COALESCE(fasih_rejected,0)
+	db.DB.QueryRow(`SELECT COALESCE(fasih_approved_pengawas,0), COALESCE(fasih_rejected_pengawas,0)
 		FROM progress WHERE sls_id=?`, slsID).Scan(&diperiksa, &errDoc)
 
 	_, err := db.DB.Exec(`

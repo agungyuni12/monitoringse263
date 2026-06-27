@@ -50,8 +50,8 @@ func DownloadPML(c echo.Context) error {
 		       COUNT(DISTINCT s.ppl_id), COUNT(s.id),
 		       COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
-		       COALESCE(SUM(p.fasih_approved),0),
-		       COALESCE(SUM(p.fasih_rejected),0)
+		       COALESCE(SUM(p.fasih_approved_pengawas),0),
+		       COALESCE(SUM(p.fasih_rejected_pengawas),0)
 		FROM users u
 		JOIN sls s ON s.pml_id = u.id
 		LEFT JOIN progress p ON p.sls_id = s.id
@@ -164,8 +164,8 @@ func DownloadSLS(c echo.Context) error {
 			       COALESCE(SUM(p.fasih_total),0),
 			       COALESCE(SUM(p.jumlah_submit),0),
 			       COALESCE(SUM(p.jumlah_draft),0),
-			       COALESCE(SUM(p.fasih_approved),0),
-			       COALESCE(SUM(p.fasih_rejected),0)
+			       COALESCE(SUM(p.fasih_approved_pengawas),0),
+			       COALESCE(SUM(p.fasih_rejected_pengawas),0)
 			FROM sls s
 			LEFT JOIN progress p ON p.sls_id = s.id
 			WHERE s.nama_kec LIKE ?
@@ -204,8 +204,8 @@ func DownloadSLS(c echo.Context) error {
 			       COALESCE(SUM(p.fasih_total),0),
 			       COALESCE(SUM(p.jumlah_submit),0),
 			       COALESCE(SUM(p.jumlah_draft),0),
-			       COALESCE(SUM(p.fasih_approved),0),
-			       COALESCE(SUM(p.fasih_rejected),0)
+			       COALESCE(SUM(p.fasih_approved_pengawas),0),
+			       COALESCE(SUM(p.fasih_rejected_pengawas),0)
 			FROM sls s
 			LEFT JOIN progress p ON p.sls_id = s.id
 			WHERE s.nama_desa LIKE ? OR s.nama_kec LIKE ?
@@ -247,8 +247,8 @@ func DownloadSLS(c echo.Context) error {
 			       COALESCE(p.fasih_total,0),
 			       COALESCE(p.jumlah_submit,0),
 			       COALESCE(p.jumlah_draft,0),
-			       COALESCE(p.fasih_approved,0),
-			       COALESCE(p.fasih_rejected,0)
+			       COALESCE(p.fasih_approved_pengawas,0),
+			       COALESCE(p.fasih_rejected_pengawas,0)
 			FROM sls s
 			JOIN users ppl ON ppl.id = s.ppl_id
 			JOIN users pml ON pml.id = s.pml_id

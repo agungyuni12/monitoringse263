@@ -47,20 +47,60 @@
         <span class="text-gray-600">Submitted by Pencacah</span>
         <span class="font-semibold text-blue-600">{{.FasihSubmit}}</span>
       </div>
+      <!-- Breakdown Pengawas -->
       <div class="flex justify-between px-4 py-2.5 text-sm">
         <span class="text-gray-600">Approved by Pengawas</span>
-        <span class="font-semibold text-green-600">{{.FasihApprove}}</span>
+        <span class="font-semibold text-green-600">{{.ApprovedPengawas}}</span>
       </div>
-      {{if gt .FasihReject 0}}
+      {{if gt .RejectedPengawas 0}}
       <div class="flex justify-between px-4 py-2.5 text-sm">
-        <span class="text-gray-600">Rejected</span>
-        <span class="font-semibold text-red-500">{{.FasihReject}}</span>
+        <span class="text-gray-600">Rejected by Pengawas</span>
+        <span class="font-semibold text-red-500">{{.RejectedPengawas}}</span>
       </div>
       {{end}}
-      {{if gt .FasihRevoke 0}}
+      {{if gt .RevokedPengawas 0}}
       <div class="flex justify-between px-4 py-2.5 text-sm">
-        <span class="text-gray-600">Revoked</span>
-        <span class="font-semibold text-yellow-600">{{.FasihRevoke}}</span>
+        <span class="text-gray-600">Revoked by Pengawas</span>
+        <span class="font-semibold text-yellow-600">{{.RevokedPengawas}}</span>
+      </div>
+      {{end}}
+      <!-- Breakdown Kabupaten -->
+      {{if gt .ApprovedKabupaten 0}}
+      <div class="flex justify-between px-4 py-2.5 text-sm">
+        <span class="text-gray-600">Approved by Kabupaten</span>
+        <span class="font-semibold text-blue-600">{{.ApprovedKabupaten}}</span>
+      </div>
+      {{end}}
+      {{if gt .RejectedKabupaten 0}}
+      <div class="flex justify-between px-4 py-2.5 text-sm">
+        <span class="text-gray-600">Rejected by Kabupaten</span>
+        <span class="font-semibold text-red-500">{{.RejectedKabupaten}}</span>
+      </div>
+      {{end}}
+      <!-- Breakdown Provinsi -->
+      {{if gt .ApprovedProvinsi 0}}
+      <div class="flex justify-between px-4 py-2.5 text-sm">
+        <span class="text-gray-600">Approved by Provinsi</span>
+        <span class="font-semibold text-purple-600">{{.ApprovedProvinsi}}</span>
+      </div>
+      {{end}}
+      {{if gt .RejectedProvinsi 0}}
+      <div class="flex justify-between px-4 py-2.5 text-sm">
+        <span class="text-gray-600">Rejected by Provinsi</span>
+        <span class="font-semibold text-red-500">{{.RejectedProvinsi}}</span>
+      </div>
+      {{end}}
+      <!-- Breakdown Pusat -->
+      {{if gt .ApprovedPusat 0}}
+      <div class="flex justify-between px-4 py-2.5 text-sm">
+        <span class="text-gray-600">Approved by Pusat</span>
+        <span class="font-semibold text-gray-800">{{.ApprovedPusat}}</span>
+      </div>
+      {{end}}
+      {{if gt .RejectedPusat 0}}
+      <div class="flex justify-between px-4 py-2.5 text-sm">
+        <span class="text-gray-600">Rejected by Pusat</span>
+        <span class="font-semibold text-red-500">{{.RejectedPusat}}</span>
       </div>
       {{end}}
       <div class="flex justify-between px-4 py-2.5 text-sm bg-gray-50">

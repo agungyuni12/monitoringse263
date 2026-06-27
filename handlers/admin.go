@@ -81,12 +81,24 @@ type AdminSummary struct {
 	TotalSubmit      int // jumlah_submit = semua status submit (untuk % progress)
 	TotalFasihSubmit int // fasih_submitted = pending review PML (untuk kolom Submit)
 	TotalDraft       int
-	TotalDiperiksa   int
-	TotalError       int
-	TotalObservasi   int
-	TotalFasihTotal  int
-	PctSubmit        int
-	PctDiperiksa     int
+	// Approved per level
+	TotalApprovedPengawas  int
+	TotalApprovedKabupaten int
+	TotalApprovedProvinsi  int
+	TotalApprovedPusat     int
+	// Rejected & Revoked per level
+	TotalRejectedPengawas  int
+	TotalRevokedPengawas   int
+	TotalRejectedKabupaten int
+	TotalRejectedProvinsi  int
+	TotalRejectedPusat     int
+	// Legacy aliases untuk progress bar (gunakan approved pengawas)
+	TotalDiperiksa  int // = TotalApprovedPengawas
+	TotalError      int // = TotalRejectedPengawas
+	TotalObservasi  int
+	TotalFasihTotal int
+	PctSubmit       int
+	PctDiperiksa    int
 }
 
 type PMLRow struct {
@@ -97,8 +109,19 @@ type PMLRow struct {
 	Submit         int // fasih_submitted: pending
 	JumlahSubmit   int // jumlah_submit: semua status (untuk %)
 	Draft          int
-	Diperiksa      int
-	Error          int
+	// Breakdown per level
+	ApprovedPengawas  int
+	RejectedPengawas  int
+	RevokedPengawas   int
+	ApprovedKabupaten int
+	RejectedKabupaten int
+	ApprovedProvinsi  int
+	RejectedProvinsi  int
+	ApprovedPusat     int
+	RejectedPusat     int
+	// Alias lama (tetap diisi untuk kompatibilitas template)
+	Diperiksa      int // = ApprovedPengawas
+	Error          int // = RejectedPengawas
 	FasihTotal     int
 	PctSubmit      int
 	Observasi      int
@@ -113,10 +136,20 @@ type PPLRow struct {
 	Submit       int // fasih_submitted: pending
 	JumlahSubmit int // jumlah_submit: semua status (untuk %)
 	Draft        int
-	Diperiksa    int
-	Error        int
-	FasihTotal   int
-	PctSubmit    int
+	// Breakdown per level
+	ApprovedPengawas  int
+	RejectedPengawas  int
+	ApprovedKabupaten int
+	RejectedKabupaten int
+	ApprovedProvinsi  int
+	RejectedProvinsi  int
+	ApprovedPusat     int
+	RejectedPusat     int
+	// Alias lama
+	Diperiksa  int // = ApprovedPengawas
+	Error      int // = RejectedPengawas
+	FasihTotal int
+	PctSubmit  int
 }
 
 type PMLUser struct {
@@ -196,12 +229,26 @@ func AdminDashboard(c echo.Context) error {
 		  (SELECT COALESCE(SUM(jumlah_submit),0) FROM progress),
 		  (SELECT COALESCE(SUM(fasih_submitted),0) FROM progress),
 		  (SELECT COALESCE(SUM(jumlah_draft),0) FROM progress),
-		  (SELECT COALESCE(SUM(fasih_approved),0) FROM progress),
-		  (SELECT COALESCE(SUM(fasih_rejected),0) FROM progress),
+		  (SELECT COALESCE(SUM(fasih_approved_pengawas),0) FROM progress),
+		  (SELECT COALESCE(SUM(fasih_rejected_pengawas),0) FROM progress),
+		  (SELECT COALESCE(SUM(fasih_revoked_pengawas),0) FROM progress),
+		  (SELECT COALESCE(SUM(fasih_approved_kabupaten),0) FROM progress),
+		  (SELECT COALESCE(SUM(fasih_rejected_kabupaten),0) FROM progress),
+		  (SELECT COALESCE(SUM(fasih_approved_provinsi),0) FROM progress),
+		  (SELECT COALESCE(SUM(fasih_rejected_provinsi),0) FROM progress),
+		  (SELECT COALESCE(SUM(fasih_approved_pusat),0) FROM progress),
+		  (SELECT COALESCE(SUM(fasih_rejected_pusat),0) FROM progress),
 		  (SELECT COALESCE(SUM(jumlah_observasi),0) FROM verifikasi_harian),
 		  (SELECT COALESCE(SUM(fasih_total),0) FROM progress)`).
 		Scan(&s.TotalSLS, &s.TotalTarget, &s.TotalSubmit, &s.TotalFasihSubmit, &s.TotalDraft,
-			&s.TotalDiperiksa, &s.TotalError, &s.TotalObservasi, &s.TotalFasihTotal)
+			&s.TotalApprovedPengawas, &s.TotalRejectedPengawas, &s.TotalRevokedPengawas,
+			&s.TotalApprovedKabupaten, &s.TotalRejectedKabupaten,
+			&s.TotalApprovedProvinsi, &s.TotalRejectedProvinsi,
+			&s.TotalApprovedPusat, &s.TotalRejectedPusat,
+			&s.TotalObservasi, &s.TotalFasihTotal)
+	// Isi alias lama supaya template lama tetap kompatibel
+	s.TotalDiperiksa = s.TotalApprovedPengawas
+	s.TotalError = s.TotalRejectedPengawas
 	if s.TotalFasihTotal > 0 {
 		s.PctSubmit = s.TotalSubmit * 100 / s.TotalFasihTotal
 	}
@@ -317,7 +364,11 @@ func queryAdminPML(page int, q string) ([]PMLRow, models.PageInfo) {
 		       COUNT(DISTINCT s.ppl_id), COUNT(s.id),
 		       COALESCE(SUM(p.fasih_submitted),0), COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
-		       COALESCE(SUM(p.fasih_approved),0), COALESCE(SUM(p.fasih_rejected),0),
+		       COALESCE(SUM(p.fasih_approved_pengawas),0), COALESCE(SUM(p.fasih_rejected_pengawas),0),
+		       COALESCE(SUM(p.fasih_revoked_pengawas),0),
+		       COALESCE(SUM(p.fasih_approved_kabupaten),0), COALESCE(SUM(p.fasih_rejected_kabupaten),0),
+		       COALESCE(SUM(p.fasih_approved_provinsi),0),  COALESCE(SUM(p.fasih_rejected_provinsi),0),
+		       COALESCE(SUM(p.fasih_approved_pusat),0),     COALESCE(SUM(p.fasih_rejected_pusat),0),
 		       COALESCE(SUM(p.fasih_total),0),
 		       COALESCE((SELECT SUM(vh2.jumlah_observasi) FROM verifikasi_harian vh2 WHERE vh2.sls_id IN (SELECT id FROM sls WHERE pml_id=u.id)),0),
 		       COUNT(DISTINCT CASE WHEN vh3.status_kendala IN ('open','in_progress','escalated') THEN s.id END)
@@ -342,8 +393,15 @@ func queryAdminPML(page int, q string) ([]PMLRow, models.PageInfo) {
 	for rows.Next() {
 		var r PMLRow
 		rows.Scan(&r.ID, &r.Name, &r.JmlPPL, &r.JmlSLS,
-			&r.Submit, &r.JumlahSubmit, &r.Draft, &r.Diperiksa, &r.Error, &r.FasihTotal,
-			&r.Observasi, &r.KendalaTerbuka)
+			&r.Submit, &r.JumlahSubmit, &r.Draft,
+			&r.ApprovedPengawas, &r.RejectedPengawas, &r.RevokedPengawas,
+			&r.ApprovedKabupaten, &r.RejectedKabupaten,
+			&r.ApprovedProvinsi, &r.RejectedProvinsi,
+			&r.ApprovedPusat, &r.RejectedPusat,
+			&r.FasihTotal, &r.Observasi, &r.KendalaTerbuka)
+		// Isi alias lama
+		r.Diperiksa = r.ApprovedPengawas
+		r.Error = r.RejectedPengawas
 		if r.FasihTotal > 0 {
 			r.PctSubmit = r.JumlahSubmit * 100 / r.FasihTotal
 			if r.PctSubmit > 100 {
@@ -386,8 +444,14 @@ func queryAdminPPL(page int, q string, pmlID int) ([]PPLRow, models.PageInfo) {
 		       COALESCE(SUM(p.fasih_submitted),0),
 		       COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
-		       COALESCE(SUM(p.fasih_approved),0),
-		       COALESCE(SUM(p.fasih_rejected),0),
+		       COALESCE(SUM(p.fasih_approved_pengawas),0),
+		       COALESCE(SUM(p.fasih_rejected_pengawas),0),
+		       COALESCE(SUM(p.fasih_approved_kabupaten),0),
+		       COALESCE(SUM(p.fasih_rejected_kabupaten),0),
+		       COALESCE(SUM(p.fasih_approved_provinsi),0),
+		       COALESCE(SUM(p.fasih_rejected_provinsi),0),
+		       COALESCE(SUM(p.fasih_approved_pusat),0),
+		       COALESCE(SUM(p.fasih_rejected_pusat),0),
 		       COALESCE(SUM(p.fasih_total),0)
 		FROM users u
 		JOIN sls s ON s.ppl_id = u.id
@@ -406,7 +470,15 @@ func queryAdminPPL(page int, q string, pmlID int) ([]PPLRow, models.PageInfo) {
 	for rows.Next() {
 		var r PPLRow
 		rows.Scan(&r.ID, &r.Name, &r.PMLName, &r.JmlSLS,
-			&r.Submit, &r.JumlahSubmit, &r.Draft, &r.Diperiksa, &r.Error, &r.FasihTotal)
+			&r.Submit, &r.JumlahSubmit, &r.Draft,
+			&r.ApprovedPengawas, &r.RejectedPengawas,
+			&r.ApprovedKabupaten, &r.RejectedKabupaten,
+			&r.ApprovedProvinsi, &r.RejectedProvinsi,
+			&r.ApprovedPusat, &r.RejectedPusat,
+			&r.FasihTotal)
+		// Isi alias lama
+		r.Diperiksa = r.ApprovedPengawas
+		r.Error = r.RejectedPengawas
 		if r.FasihTotal > 0 {
 			r.PctSubmit = r.JumlahSubmit * 100 / r.FasihTotal
 			if r.PctSubmit > 100 {
@@ -441,7 +513,7 @@ func queryAdminSLS(page int, q string) ([]SLSAdminRow, models.PageInfo) {
 		       COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''), s.target,
 		       COALESCE(p.fasih_submitted,0), COALESCE(p.jumlah_submit,0),
 		       COALESCE(p.jumlah_draft,0),
-		       COALESCE(p.fasih_approved,0), COALESCE(p.fasih_rejected,0),
+		       COALESCE(p.fasih_approved_pengawas,0), COALESCE(p.fasih_rejected_pengawas,0),
 		       COALESCE((SELECT SUM(vh.jumlah_observasi) FROM verifikasi_harian vh WHERE vh.sls_id=s.id),0),
 		       COALESCE(p.fasih_total,0),
 		       COALESCE((SELECT vh2.status_kendala FROM verifikasi_harian vh2 WHERE vh2.sls_id=s.id ORDER BY vh2.tanggal DESC LIMIT 1),'open'),
@@ -497,8 +569,8 @@ func queryAdminSLSByDesa(page int, q string) ([]DesaRow, models.PageInfo) {
 		       COALESCE(SUM(p.fasih_submitted),0),
 		       COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
-		       COALESCE(SUM(p.fasih_approved),0),
-		       COALESCE(SUM(p.fasih_rejected),0),
+		       COALESCE(SUM(p.fasih_approved_pengawas),0),
+		       COALESCE(SUM(p.fasih_rejected_pengawas),0),
 		       COALESCE(SUM(p.fasih_total),0)
 		FROM sls s
 		LEFT JOIN progress p ON p.sls_id = s.id
@@ -542,8 +614,8 @@ func queryAdminSLSByKec(page int, q string) ([]KecRow, models.PageInfo) {
 		       COALESCE(SUM(p.fasih_submitted),0),
 		       COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
-		       COALESCE(SUM(p.fasih_approved),0),
-		       COALESCE(SUM(p.fasih_rejected),0),
+		       COALESCE(SUM(p.fasih_approved_pengawas),0),
+		       COALESCE(SUM(p.fasih_rejected_pengawas),0),
 		       COALESCE(SUM(p.fasih_total),0)
 		FROM sls s
 		LEFT JOIN progress p ON p.sls_id = s.id

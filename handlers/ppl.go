@@ -15,9 +15,19 @@ type PPLDetailData struct {
 	SP           models.SLSProgress
 	FasihOpen    int
 	FasihSubmit  int
-	FasihApprove int
-	FasihReject  int
-	FasihRevoke  int
+	// Breakdown per level
+	FasihApprove          int // = ApprovedPengawas (alias lama)
+	FasihReject           int // = RejectedPengawas (alias lama)
+	FasihRevoke           int // = RevokedPengawas (alias lama)
+	ApprovedPengawas      int
+	RejectedPengawas      int
+	RevokedPengawas       int
+	ApprovedKabupaten     int
+	RejectedKabupaten     int
+	ApprovedProvinsi      int
+	RejectedProvinsi      int
+	ApprovedPusat         int
+	RejectedPusat         int
 	FasihTotal   int
 	SyncedAt     string
 }
@@ -151,12 +161,25 @@ func PPLFormModal(c echo.Context) error {
 	}
 
 	db.DB.QueryRow(`
-		SELECT COALESCE(fasih_open,0), COALESCE(fasih_submitted,0), COALESCE(fasih_approved,0),
-		       COALESCE(fasih_rejected,0), COALESCE(fasih_revoked,0), COALESCE(fasih_total,0),
+		SELECT COALESCE(fasih_open,0), COALESCE(fasih_submitted,0),
+		       COALESCE(fasih_approved_pengawas,0), COALESCE(fasih_rejected_pengawas,0),
+		       COALESCE(fasih_revoked_pengawas,0),
+		       COALESCE(fasih_approved_kabupaten,0), COALESCE(fasih_rejected_kabupaten,0),
+		       COALESCE(fasih_approved_provinsi,0),  COALESCE(fasih_rejected_provinsi,0),
+		       COALESCE(fasih_approved_pusat,0),     COALESCE(fasih_rejected_pusat,0),
+		       COALESCE(fasih_total,0),
 		       COALESCE(DATE_FORMAT(fasih_synced_at,'%d/%m/%Y %H:%i'),'Belum tersinkron')
 		FROM progress WHERE sls_id=?`, slsID).
-		Scan(&data.FasihOpen, &data.FasihSubmit, &data.FasihApprove,
-			&data.FasihReject, &data.FasihRevoke, &data.FasihTotal, &data.SyncedAt)
+		Scan(&data.FasihOpen, &data.FasihSubmit,
+			&data.ApprovedPengawas, &data.RejectedPengawas, &data.RevokedPengawas,
+			&data.ApprovedKabupaten, &data.RejectedKabupaten,
+			&data.ApprovedProvinsi, &data.RejectedProvinsi,
+			&data.ApprovedPusat, &data.RejectedPusat,
+			&data.FasihTotal, &data.SyncedAt)
+	// Isi alias lama
+	data.FasihApprove = data.ApprovedPengawas
+	data.FasihReject = data.RejectedPengawas
+	data.FasihRevoke = data.RevokedPengawas
 
 	return c.Render(http.StatusOK, "ppl_modal.html", data)
 }
