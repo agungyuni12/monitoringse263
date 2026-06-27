@@ -302,7 +302,7 @@ def fill_keluarga_nama(conn, pw):
         login_fasih(fasih_ctx)
         updated = 0
         cur = conn.cursor()
-        for asg_id in rows:
+        for i, asg_id in enumerate(rows, 1):
             nama = fetch_nama_principal(fasih_ctx, asg_id)
             if nama:
                 cur.execute(
@@ -310,10 +310,12 @@ def fill_keluarga_nama(conn, pw):
                     (nama, asg_id),
                 )
                 updated += 1
+            if i % 50 == 0 or i == len(rows):
+                print(f"[FASIH NAMA] {i}/{len(rows)} diproses, {updated} nama terisi...", flush=True)
             time.sleep(0.3)
         conn.commit()
         cur.close()
-        print(f"[FASIH NAMA] {updated}/{len(rows)} nama diupdate.", flush=True)
+        print(f"[FASIH NAMA] Selesai: {updated}/{len(rows)} nama diupdate.", flush=True)
     finally:
         fasih_browser.close()
 
