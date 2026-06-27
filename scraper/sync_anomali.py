@@ -19,7 +19,7 @@ Env vars:
   HEADLESS        jalankan Chrome headless (default: false)
 """
 
-import os, time
+import os, time, json
 import pymysql
 from datetime import datetime
 from urllib.parse import urlencode
@@ -39,6 +39,10 @@ DB_PORT = int(os.getenv("DB_PORT", "3306"))
 DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "kelayu1998")
 DB_NAME = os.getenv("DB_NAME", "se2026")
+
+FASIH_URL  = "https://fasih-sm.bps.go.id"
+FASIH_USER = os.getenv("FASIH_USER", "agung.yuniarta")
+FASIH_PASS = os.getenv("FASIH_PASS", "kelayu1998")
 
 DELAY = 1.0  # detik jeda antar request
 
@@ -228,6 +232,92 @@ def fetch_anomali(ctx, kode_kab, belum_kode, sudah_kode, anomali_type, anomali_n
     return []
 
 
+# ── FASIH: nama_principal untuk keluarga ─────────────────────────────────────
+
+def login_fasih(ctx):
+    LONG = 90_000
+    print("[FASIH] Login...", flush=True)
+    page = ctx.new_page()
+    _stealth.apply_stealth_sync(page)
+    try:
+        page.goto(f"{FASIH_URL}/oauth2/authorization/ics", wait_until="networkidle", timeout=LONG)
+    except Exception:
+        pass
+    time.sleep(2)
+    active = page
+    if page.url in ("about:blank", ""):
+        active = ctx.new_page()
+        _stealth.apply_stealth_sync(active)
+    active.goto(f"{FASIH_URL}/oauth2/authorization/ics", wait_until="networkidle", timeout=LONG)
+    active.wait_for_selector("#kc-form-login", timeout=LONG)
+    active.fill("#username", FASIH_USER)
+    active.fill("#password", FASIH_PASS)
+    active.click("#kc-login")
+    active.wait_for_url(f"**{FASIH_URL}**", timeout=LONG)
+    time.sleep(3)
+    print("[FASIH] Login berhasil.", flush=True)
+
+
+def fetch_nama_principal(fasih_ctx, assignment_id):
+    """Ambil nama_principal dari pre_defined_data assignment FASIH."""
+    url = (
+        f"{FASIH_URL}/app/api/assignment-general/api/assignment"
+        f"/get-by-assignment-id?assignmentId={assignment_id}"
+    )
+    try:
+        r = fasih_ctx.request.get(url, timeout=15_000)
+        if r.status != 200:
+            return None
+        pre_raw = r.json().get("data", {}).get("pre_defined_data") or ""
+        if not pre_raw:
+            return None
+        pre = json.loads(pre_raw)
+        for item in pre.get("predata", []):
+            if item.get("dataKey") == "nama_principal":
+                return str(item.get("answer") or "").strip()[:255] or None
+    except Exception:
+        pass
+    return None
+
+
+def fill_keluarga_nama(conn, pw):
+    """Update kolom nama untuk keluarga anomali yang masih kosong dari FASIH."""
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT DISTINCT assignment_id FROM anomali
+        WHERE (nama IS NULL OR nama = '')
+          AND CAST(rule_key AS UNSIGNED) >= 136
+    """)
+    rows = [r[0] for r in cur.fetchall()]
+    cur.close()
+
+    if not rows:
+        print("[FASIH NAMA] Semua nama keluarga sudah terisi.", flush=True)
+        return
+
+    print(f"[FASIH NAMA] {len(rows)} assignment keluarga perlu nama...", flush=True)
+
+    fasih_browser, fasih_ctx = _make_browser(pw)
+    try:
+        login_fasih(fasih_ctx)
+        updated = 0
+        cur = conn.cursor()
+        for asg_id in rows:
+            nama = fetch_nama_principal(fasih_ctx, asg_id)
+            if nama:
+                cur.execute(
+                    "UPDATE anomali SET nama=%s WHERE assignment_id=%s AND (nama IS NULL OR nama='')",
+                    (nama, asg_id),
+                )
+                updated += 1
+            time.sleep(0.3)
+        conn.commit()
+        cur.close()
+        print(f"[FASIH NAMA] {updated}/{len(rows)} nama diupdate.", flush=True)
+    finally:
+        fasih_browser.close()
+
+
 # ── Database ─────────────────────────────────────────────────────────────────
 
 def _connect_db():
@@ -341,6 +431,7 @@ def run_once():
                     print(f"      {skip} skip (SLS tidak ada di DB)", flush=True)
                 time.sleep(DELAY)
 
+            fill_keluarga_nama(conn, pw)
             conn.close()
             print(f"\nSelesai! {total} baris anomali diupsert.", flush=True)
 
