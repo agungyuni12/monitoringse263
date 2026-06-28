@@ -311,15 +311,9 @@ def run_once():
 
 
 def _next_run():
-    """Jalankan tiap 12 jam (06:00 & 18:00 WITA)"""
-    now = _now_wita()
-    hour = 6 if now.hour < 6 else (18 if now.hour < 18 else 30)
-    if hour == 30:
-        import datetime as dt
-        nxt = (now + dt.timedelta(days=1)).replace(hour=6, minute=0, second=0, microsecond=0)
-    else:
-        nxt = now.replace(hour=hour, minute=0, second=0, microsecond=0)
-    return (nxt - now).total_seconds()
+    """Jalankan tiap 2 jam"""
+    import datetime as dt
+    return 2 * 3600
 
 
 if __name__ == "__main__":
