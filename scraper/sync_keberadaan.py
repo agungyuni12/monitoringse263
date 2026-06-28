@@ -45,7 +45,7 @@ def _now_wita():
 def _connect_db():
     return pymysql.connect(
         host=DB_HOST, port=DB_PORT, user=DB_USER,
-        password=DB_PASS, db=DB_NAME, charset="utf8mb4",
+        password=DB_PASS, database=DB_NAME, charset="utf8mb4",
         cursorclass=pymysql.cursors.DictCursor
     )
 
