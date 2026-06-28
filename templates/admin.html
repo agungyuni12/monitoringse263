@@ -236,6 +236,10 @@
             class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
             Anomali
           </button>
+          <button onclick="switchTab('keberadaan')" id="tab-keberadaan"
+            class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
+            Keberadaan
+          </button>
           <button onclick="switchTab('peta')" id="tab-peta"
             class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
             Peta Sebaran
@@ -404,6 +408,43 @@
           </div>
         </div>
 
+        <!-- TAB: Keberadaan Usaha -->
+        <div id="panel-keberadaan" class="tab-panel">
+          <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center" id="keberadaan-filter-bar">
+            <input type="text" name="q"
+              hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
+              hx-trigger="input changed delay:400ms" hx-include="#keberadaan-filter-bar"
+              placeholder="Cari nama usaha, skala, status..."
+              class="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <input type="hidden" name="label" id="keberadaan-label-filter" value=""/>
+            <select name="kec"
+              hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#keberadaan-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+              <option value="">Semua Kecamatan</option>
+              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
+            </select>
+            <select name="pml_id"
+              hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#keberadaan-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+              <option value="">Semua PML</option>
+              {{range .PMLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <select name="ppl_id"
+              hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#keberadaan-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+              <option value="">Semua PPL</option>
+              {{range .PPLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+          </div>
+          <div id="keberadaan-result"
+            hx-get="/admin/table/keberadaan" hx-trigger="load" hx-swap="innerHTML">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data keberadaan...</div>
+          </div>
+        </div>
+
         <!-- TAB: Peta Sebaran -->
         <div id="panel-peta" class="tab-panel">
           <div class="p-4 space-y-3">
@@ -454,6 +495,19 @@
       document.getElementById('tab-' + name).classList.add('active');
       document.getElementById('panel-' + name).classList.add('active');
       if (name === 'peta') setTimeout(initPetaMap, 60);
+    }
+    function filterKeberadaan(label) {
+      var inp = document.getElementById('keberadaan-label-filter');
+      if (!inp) return;
+      inp.value = label;
+      // Trigger HTMX reload
+      htmx.trigger('#keberadaan-result', 'load');
+      // Reset active state tombol stat
+      document.querySelectorAll('.keberadaan-stat-btn').forEach(function(btn) {
+        var isActive = btn.dataset.label === label && label !== '';
+        btn.classList.toggle('ring-2', isActive);
+        btn.classList.toggle('ring-offset-1', isActive);
+      });
     }
 
     // Update href download SLS sesuai level & q

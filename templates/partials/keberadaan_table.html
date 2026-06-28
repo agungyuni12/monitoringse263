@@ -1,0 +1,107 @@
+{{define "keberadaan_table.html"}}
+<div>
+  {{/* Summary per status */}}
+  {{if .Stats}}
+  <div class="px-4 pt-3 pb-2 border-b border-gray-100 flex flex-wrap gap-2">
+    {{range .Stats}}
+    <button type="button"
+      onclick="filterKeberadaan('{{.Label}}')"
+      class="keberadaan-stat-btn flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors
+        {{if eq .Kode "1"}}bg-green-50 border-green-300 text-green-700 hover:bg-green-100
+        {{else if eq .Kode "2"}}bg-yellow-50 border-yellow-300 text-yellow-700 hover:bg-yellow-100
+        {{else if eq .Kode "3"}}bg-red-50 border-red-300 text-red-700 hover:bg-red-100
+        {{else if eq .Kode "4"}}bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100
+        {{else}}bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200{{end}}"
+      data-label="{{.Label}}">
+      <span class="font-bold">{{.Total}}</span>
+      <span class="truncate max-w-[180px]">{{.Label}}</span>
+    </button>
+    {{end}}
+    <button type="button"
+      onclick="filterKeberadaan('')"
+      class="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-300 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50">
+      Semua
+    </button>
+  </div>
+  {{end}}
+
+  <div class="px-4 py-2 text-xs text-gray-500 border-b border-gray-100">
+    Ditemukan <span class="font-semibold text-gray-700">{{.PageInfo.TotalRow}}</span> usaha
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="w-full text-xs">
+      <thead>
+        <tr class="bg-orange-50 text-gray-600 text-left uppercase tracking-wide">
+          <th class="px-3 py-2.5 font-medium text-center w-8">No</th>
+          <th class="px-3 py-2.5 font-medium">Lokasi (Kec / Desa / SLS)</th>
+          <th class="px-3 py-2.5 font-medium">Petugas</th>
+          <th class="px-3 py-2.5 font-medium">Nama Usaha</th>
+          <th class="px-3 py-2.5 font-medium">Skala</th>
+          <th class="px-3 py-2.5 font-medium">Status Keberadaan</th>
+          <th class="px-3 py-2.5 font-medium text-center">Sync</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {{range $i, $r := .Rows}}
+        <tr class="hover:bg-orange-50/20 transition-colors">
+          <td class="px-3 py-2 text-center text-gray-400">{{add $.PageInfo.From $i}}</td>
+          <td class="px-3 py-2 whitespace-nowrap">
+            <div class="text-gray-400">{{$r.NamaKec}} › {{$r.NamaDesa}}</div>
+            <div class="font-medium text-gray-700">{{$r.NamaSLS}}</div>
+          </td>
+          <td class="px-3 py-2 whitespace-nowrap">
+            <div class="text-gray-600">PPL: {{$r.NamaPPL}}</div>
+            <div class="text-gray-400">PML: {{$r.NamaPML}}</div>
+          </td>
+          <td class="px-3 py-2 font-medium text-gray-800">{{$r.Nama}}</td>
+          <td class="px-3 py-2">
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700 whitespace-nowrap">
+              {{if $r.Skala}}{{$r.Skala}}{{else}}-{{end}}
+            </span>
+          </td>
+          <td class="px-3 py-2">
+            {{if $r.Label}}
+              {{if eq $r.Kode "1"}}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700 whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>{{$r.Label}}
+              </span>
+              {{else if eq $r.Kode "2"}}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700 whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-yellow-500 inline-block"></span>{{$r.Label}}
+              </span>
+              {{else if eq $r.Kode "3"}}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700 whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-500 inline-block"></span>{{$r.Label}}
+              </span>
+              {{else if eq $r.Kode "4"}}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700 whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span>{{$r.Label}}
+              </span>
+              {{else}}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700 whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-orange-500 inline-block"></span>{{$r.Label}}
+              </span>
+              {{end}}
+            {{else}}
+            <span class="text-gray-400 italic">Belum diisi</span>
+            {{end}}
+          </td>
+          <td class="px-3 py-2 text-center text-gray-400 whitespace-nowrap">{{$r.SyncedAt}}</td>
+        </tr>
+        {{else}}
+        <tr><td colspan="7" class="px-4 py-10 text-center text-gray-400">
+          <div class="flex flex-col items-center gap-2">
+            <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+            </svg>
+            <span class="text-sm">Belum ada data keberadaan usaha</span>
+          </div>
+        </td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{template "pagination" .PageInfo}}
+</div>
+{{end}}
