@@ -416,7 +416,18 @@
               hx-trigger="input changed delay:400ms" hx-include="#keberadaan-filter-bar"
               placeholder="Cari nama usaha, skala, status..."
               class="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
-            <input type="hidden" name="label" id="keberadaan-label-filter" value=""/>
+            <select name="label" id="keberadaan-label-filter"
+              hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#keberadaan-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+              <option value="">Semua Status</option>
+              <option value="Ditemukan">✅ Ditemukan</option>
+              <option value="Tidak Ditemukan">❌ Tidak Ditemukan</option>
+              <option value="Baru">🆕 Baru</option>
+              <option value="Tutup">🔒 Tutup</option>
+              <option value="Ganda">⚠️ Ganda</option>
+              <option value="Non Respon">🚫 Non Respon</option>
+            </select>
             <select name="kec"
               hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
               hx-trigger="change" hx-include="#keberadaan-filter-bar"
@@ -497,12 +508,12 @@
       if (name === 'peta') setTimeout(initPetaMap, 60);
     }
     function filterKeberadaan(label) {
-      var inp = document.getElementById('keberadaan-label-filter');
-      if (!inp) return;
-      inp.value = label;
-      // Trigger HTMX reload
-      htmx.trigger('#keberadaan-result', 'load');
-      // Reset active state tombol stat
+      var sel = document.getElementById('keberadaan-label-filter');
+      if (!sel) return;
+      sel.value = label;
+      // Trigger HTMX via change event
+      sel.dispatchEvent(new Event('change'));
+      // Highlight tombol stat yang aktif
       document.querySelectorAll('.keberadaan-stat-btn').forEach(function(btn) {
         var isActive = btn.dataset.label === label && label !== '';
         btn.classList.toggle('ring-2', isActive);
