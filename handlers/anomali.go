@@ -161,41 +161,44 @@ func PPLAnomali(c echo.Context) error {
 	if page < 1 {
 		page = 1
 	}
-	q := c.QueryParam("q")
-	like := "%" + q + "%"
+	q     := c.QueryParam("q")
+	jenis := c.QueryParam("jenis")
+	slsID, _ := strconv.Atoi(c.QueryParam("sls_id"))
+	like  := "%" + q + "%"
+
+	where := `WHERE s.ppl_id=? AND (a.nama LIKE ? OR a.jenis LIKE ? OR a.rule_msg LIKE ? OR s.nama_sls LIKE ?)`
+	args  := []interface{}{userID, like, like, like, like}
+	if jenis != "" {
+		where += ` AND a.jenis = ?`
+		args = append(args, jenis)
+	}
+	if slsID > 0 {
+		where += ` AND s.id = ?`
+		args = append(args, slsID)
+	}
 
 	var total int
-	db.DB.QueryRow(`SELECT COUNT(*) FROM anomali a JOIN sls s ON s.id=a.sls_id
-		WHERE s.ppl_id=? AND (a.nama LIKE ? OR a.jenis LIKE ? OR a.rule_msg LIKE ? OR s.nama_sls LIKE ?)`,
-		userID, like, like, like, like).Scan(&total)
+	countArgs := append([]interface{}{}, args...)
+	db.DB.QueryRow(`SELECT COUNT(*) FROM anomali a JOIN sls s ON s.id=a.sls_id `+where, countArgs...).Scan(&total)
 
 	extra := ""
-	if q != "" {
-		extra = "&q=" + q
-	}
-	offset := (page - 1) * models.PerPage
+	if q != "" { extra += "&q=" + q }
+	if jenis != "" { extra += "&jenis=" + jenis }
+	if slsID > 0 { extra += fmt.Sprintf("&sls_id=%d", slsID) }
+
+	offset  := (page - 1) * models.PerPage
 	pageInfo := models.NewPageInfo(page, total, "/ppl/anomali", "ppl-anomali-result", extra)
 
+	queryArgs := append(args, models.PerPage, offset)
 	rows, err := db.DB.Query(`
 		SELECT a.id, s.nama_sls, a.nama, a.jenis, a.rule_key,
 		       COALESCE(a.rule_msg,''),
 		       COALESCE(DATE_FORMAT(a.synced_at,'%d/%m/%Y %H:%i'),'')
-		FROM anomali a
-		JOIN sls s ON s.id = a.sls_id
-		WHERE s.ppl_id = ?
-		  AND (a.nama LIKE ? OR a.jenis LIKE ? OR a.rule_msg LIKE ? OR s.nama_sls LIKE ?)
-		ORDER BY s.nama_sls, a.rule_key
-		LIMIT ? OFFSET ?`,
-		userID, like, like, like, like, models.PerPage, offset)
+		FROM anomali a JOIN sls s ON s.id=a.sls_id `+where+`
+		ORDER BY s.nama_sls, a.jenis, a.rule_key
+		LIMIT ? OFFSET ?`, queryArgs...)
 
-	if err != nil {
-		return c.Render(http.StatusOK, "ppl_anomali.html", map[string]interface{}{
-			"Rows": nil, "PageInfo": pageInfo, "Q": q,
-		})
-	}
-	defer rows.Close()
-
-	type PPLAnomaliRow struct {
+	type Row struct {
 		ID       int
 		NamaSLS  string
 		Nama     string
@@ -204,14 +207,17 @@ func PPLAnomali(c echo.Context) error {
 		RuleMsg  string
 		SyncedAt string
 	}
-	var list []PPLAnomaliRow
-	for rows.Next() {
-		var r PPLAnomaliRow
-		rows.Scan(&r.ID, &r.NamaSLS, &r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.SyncedAt)
-		list = append(list, r)
+	var list []Row
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var r Row
+			rows.Scan(&r.ID, &r.NamaSLS, &r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.SyncedAt)
+			list = append(list, r)
+		}
 	}
 	return c.Render(http.StatusOK, "ppl_anomali.html", map[string]interface{}{
-		"Rows": list, "PageInfo": pageInfo, "Q": q,
+		"Rows": list, "PageInfo": pageInfo, "Q": q, "Jenis": jenis, "SlsID": slsID, "Total": total,
 	})
 }
 
@@ -222,41 +228,45 @@ func PMLAnomali(c echo.Context) error {
 	if page < 1 {
 		page = 1
 	}
-	q := c.QueryParam("q")
-	like := "%" + q + "%"
+	q     := c.QueryParam("q")
+	jenis := c.QueryParam("jenis")
+	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
+	like  := "%" + q + "%"
+
+	where := `WHERE s.pml_id=? AND (a.nama LIKE ? OR a.jenis LIKE ? OR a.rule_msg LIKE ? OR s.nama_sls LIKE ?)`
+	args  := []interface{}{userID, like, like, like, like}
+	if jenis != "" {
+		where += ` AND a.jenis = ?`
+		args = append(args, jenis)
+	}
+	if pplID > 0 {
+		where += ` AND s.ppl_id = ?`
+		args = append(args, pplID)
+	}
 
 	var total int
-	db.DB.QueryRow(`SELECT COUNT(*) FROM anomali a JOIN sls s ON s.id=a.sls_id
-		WHERE s.pml_id=? AND (a.nama LIKE ? OR a.jenis LIKE ? OR a.rule_msg LIKE ? OR s.nama_sls LIKE ?)`,
-		userID, like, like, like, like).Scan(&total)
+	countArgs := append([]interface{}{}, args...)
+	db.DB.QueryRow(`SELECT COUNT(*) FROM anomali a JOIN sls s ON s.id=a.sls_id `+where, countArgs...).Scan(&total)
 
 	extra := ""
-	if q != "" {
-		extra = "&q=" + q
-	}
-	offset := (page - 1) * models.PerPage
+	if q != "" { extra += "&q=" + q }
+	if jenis != "" { extra += "&jenis=" + jenis }
+	if pplID > 0 { extra += fmt.Sprintf("&ppl_id=%d", pplID) }
+
+	offset  := (page - 1) * models.PerPage
 	pageInfo := models.NewPageInfo(page, total, "/pml/anomali", "pml-anomali-result", extra)
 
+	queryArgs := append(args, models.PerPage, offset)
 	rows, err := db.DB.Query(`
 		SELECT a.id, s.nama_sls, ppl.name,
 		       a.nama, a.jenis, a.rule_key,
 		       COALESCE(a.rule_msg,''),
 		       COALESCE(DATE_FORMAT(a.synced_at,'%d/%m/%Y %H:%i'),'')
 		FROM anomali a
-		JOIN sls s ON s.id = a.sls_id
-		JOIN users ppl ON ppl.id = s.ppl_id
-		WHERE s.pml_id = ?
-		  AND (a.nama LIKE ? OR a.jenis LIKE ? OR a.rule_msg LIKE ? OR s.nama_sls LIKE ?)
-		ORDER BY s.nama_sls, a.rule_key
-		LIMIT ? OFFSET ?`,
-		userID, like, like, like, like, models.PerPage, offset)
-
-	if err != nil {
-		return c.Render(http.StatusOK, "pml_anomali.html", map[string]interface{}{
-			"Rows": nil, "PageInfo": pageInfo, "Q": q,
-		})
-	}
-	defer rows.Close()
+		JOIN sls s ON s.id=a.sls_id
+		JOIN users ppl ON ppl.id=s.ppl_id `+where+`
+		ORDER BY ppl.name, s.nama_sls, a.jenis, a.rule_key
+		LIMIT ? OFFSET ?`, queryArgs...)
 
 	type PMLAnomaliRow struct {
 		ID       int
@@ -269,12 +279,15 @@ func PMLAnomali(c echo.Context) error {
 		SyncedAt string
 	}
 	var list []PMLAnomaliRow
-	for rows.Next() {
-		var r PMLAnomaliRow
-		rows.Scan(&r.ID, &r.NamaSLS, &r.NamaPPL, &r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.SyncedAt)
-		list = append(list, r)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var r PMLAnomaliRow
+			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaPPL, &r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.SyncedAt)
+			list = append(list, r)
+		}
 	}
 	return c.Render(http.StatusOK, "pml_anomali.html", map[string]interface{}{
-		"Rows": list, "PageInfo": pageInfo, "Q": q,
+		"Rows": list, "PageInfo": pageInfo, "Q": q, "Jenis": jenis, "PplID": pplID, "Total": total,
 	})
 }

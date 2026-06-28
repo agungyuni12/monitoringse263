@@ -112,6 +112,31 @@ func PPLDashboard(c echo.Context) error {
 
 	pageInfo := models.NewPageInfo(page, totalRow, "/ppl/table", "ppl-table-wrap", "")
 
+	// Jenis anomali unik untuk dropdown filter
+	jenisRows, _ := db.DB.Query(
+		`SELECT DISTINCT a.jenis FROM anomali a JOIN sls s ON s.id=a.sls_id WHERE s.ppl_id=? AND a.jenis!='' ORDER BY a.jenis`, userID)
+	var jenisList []string
+	if jenisRows != nil {
+		for jenisRows.Next() {
+			var j string
+			jenisRows.Scan(&j)
+			jenisList = append(jenisList, j)
+		}
+		jenisRows.Close()
+	}
+	// SLS unik untuk dropdown filter
+	slsRows, _ := db.DB.Query(`SELECT id, nama_sls FROM sls WHERE ppl_id=? ORDER BY nama_sls`, userID)
+	type SlsOpt struct{ ID int; Nama string }
+	var slsList []SlsOpt
+	if slsRows != nil {
+		for slsRows.Next() {
+			var s SlsOpt
+			slsRows.Scan(&s.ID, &s.Nama)
+			slsList = append(slsList, s)
+		}
+		slsRows.Close()
+	}
+
 	return c.Render(http.StatusOK, "ppl.html", map[string]interface{}{
 		"Name":        mw.SessionName(c),
 		"List":        list,
@@ -119,6 +144,8 @@ func PPLDashboard(c echo.Context) error {
 		"TotalTarget": totTarget,
 		"TotalSubmit": totSubmit,
 		"TotalDraft":  totDraft,
+		"JenisList":   jenisList,
+		"SLSList":     slsList,
 	})
 }
 

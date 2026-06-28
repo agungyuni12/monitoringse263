@@ -96,6 +96,32 @@ func PMLDashboard(c echo.Context) error {
 
 	pageInfo := models.NewPageInfo(page, totalRow, "/pml/table", "pml-table-wrap", "")
 
+	// Jenis anomali unik untuk dropdown filter
+	jenisRows, _ := db.DB.Query(
+		`SELECT DISTINCT a.jenis FROM anomali a JOIN sls s ON s.id=a.sls_id WHERE s.pml_id=? AND a.jenis!='' ORDER BY a.jenis`, userID)
+	var jenisList []string
+	if jenisRows != nil {
+		for jenisRows.Next() {
+			var j string
+			jenisRows.Scan(&j)
+			jenisList = append(jenisList, j)
+		}
+		jenisRows.Close()
+	}
+	// PPL di bawah PML ini untuk dropdown filter
+	pplRows, _ := db.DB.Query(
+		`SELECT u.id, u.name FROM users u JOIN sls s ON s.ppl_id=u.id WHERE s.pml_id=? GROUP BY u.id, u.name ORDER BY u.name`, userID)
+	type PplOpt struct{ ID int; Name string }
+	var pplList []PplOpt
+	if pplRows != nil {
+		for pplRows.Next() {
+			var p PplOpt
+			pplRows.Scan(&p.ID, &p.Name)
+			pplList = append(pplList, p)
+		}
+		pplRows.Close()
+	}
+
 	return c.Render(http.StatusOK, "pml.html", map[string]interface{}{
 		"Name":         mw.SessionName(c),
 		"List":         list,
@@ -105,6 +131,8 @@ func PMLDashboard(c echo.Context) error {
 		"TotError":     totError,
 		"TotObs":       totObs,
 		"StatusOpts":   models.StatusOptions,
+		"JenisList":    jenisList,
+		"PPLList":      pplList,
 	})
 }
 

@@ -138,18 +138,31 @@
       <div id="panel-anomali" class="tab-panel">
         <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center" id="pml-anomali-filter-bar">
           <input type="text" name="q"
-            hx-get="/pml/anomali"
-            hx-target="#pml-anomali-result"
-            hx-swap="innerHTML"
-            hx-trigger="input changed delay:300ms"
-            hx-include="#pml-anomali-filter-bar"
-            placeholder="Cari nama, jenis, keterangan..."
-            class="w-full md:w-80 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            hx-get="/pml/anomali" hx-target="#pml-anomali-result" hx-swap="innerHTML"
+            hx-trigger="input changed delay:400ms" hx-include="#pml-anomali-filter-bar"
+            placeholder="Cari nama, keterangan..."
+            class="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+          {{if .PPLList}}
+          <select name="ppl_id"
+            hx-get="/pml/anomali" hx-target="#pml-anomali-result" hx-swap="innerHTML"
+            hx-trigger="change" hx-include="#pml-anomali-filter-bar"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+            <option value="">Semua PPL</option>
+            {{range .PPLList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+          </select>
+          {{end}}
+          {{if .JenisList}}
+          <select name="jenis"
+            hx-get="/pml/anomali" hx-target="#pml-anomali-result" hx-swap="innerHTML"
+            hx-trigger="change" hx-include="#pml-anomali-filter-bar"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+            <option value="">Semua Jenis</option>
+            {{range .JenisList}}<option value="{{.}}">{{.}}</option>{{end}}
+          </select>
+          {{end}}
         </div>
         <div id="pml-anomali-result"
-          hx-get="/pml/anomali"
-          hx-trigger="load"
-          hx-swap="innerHTML">
+          hx-get="/pml/anomali" hx-trigger="load" hx-swap="innerHTML">
           <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data anomali...</div>
         </div>
       </div>

@@ -128,18 +128,29 @@
       <div id="panel-anomali" class="tab-panel">
         <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center" id="ppl-anomali-filter-bar">
           <input type="text" name="q"
-            hx-get="/ppl/anomali"
-            hx-target="#ppl-anomali-result"
-            hx-swap="innerHTML"
-            hx-trigger="input changed delay:300ms"
-            hx-include="#ppl-anomali-filter-bar"
-            placeholder="Cari nama, jenis, keterangan..."
-            class="w-full md:w-80 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            hx-get="/ppl/anomali" hx-target="#ppl-anomali-result" hx-swap="innerHTML"
+            hx-trigger="input changed delay:400ms" hx-include="#ppl-anomali-filter-bar"
+            placeholder="Cari nama, keterangan..."
+            class="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+          <select name="sls_id"
+            hx-get="/ppl/anomali" hx-target="#ppl-anomali-result" hx-swap="innerHTML"
+            hx-trigger="change" hx-include="#ppl-anomali-filter-bar"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+            <option value="">Semua SLS</option>
+            {{range .SLSList}}<option value="{{.ID}}">{{.Nama}}</option>{{end}}
+          </select>
+          {{if .JenisList}}
+          <select name="jenis"
+            hx-get="/ppl/anomali" hx-target="#ppl-anomali-result" hx-swap="innerHTML"
+            hx-trigger="change" hx-include="#ppl-anomali-filter-bar"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+            <option value="">Semua Jenis</option>
+            {{range .JenisList}}<option value="{{.}}">{{.}}</option>{{end}}
+          </select>
+          {{end}}
         </div>
         <div id="ppl-anomali-result"
-          hx-get="/ppl/anomali"
-          hx-trigger="load"
-          hx-swap="innerHTML">
+          hx-get="/ppl/anomali" hx-trigger="load" hx-swap="innerHTML">
           <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data anomali...</div>
         </div>
       </div>
