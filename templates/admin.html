@@ -370,60 +370,36 @@
 
         <!-- TAB: Anomali -->
         <div id="panel-anomali" class="tab-panel">
-          <div class="px-4 py-3 border-b border-gray-100" id="anomali-filter-bar">
-            <form id="anomali-form"
-              hx-get="/admin/table/anomali"
-              hx-target="#anomali-result"
-              hx-swap="innerHTML"
-              hx-trigger="submit"
-              hx-include="#anomali-filter-bar"
-              class="flex flex-wrap gap-2 items-end">
-              <div class="flex flex-col gap-1">
-                <label class="text-xs text-gray-500">Cari</label>
-                <input type="text" name="q"
-                  placeholder="Nama, jenis, keterangan, SLS..."
-                  class="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
-              </div>
-              <div class="flex flex-col gap-1">
-                <label class="text-xs text-gray-500">Kecamatan</label>
-                <select name="kec"
-                  class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
-                  <option value="">-- Semua Kec --</option>
-                  {{range .KecList}}
-                  <option value="{{.}}">{{.}}</option>
-                  {{end}}
-                </select>
-              </div>
-              <div class="flex flex-col gap-1">
-                <label class="text-xs text-gray-500">PML</label>
-                <select name="pml_id"
-                  class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
-                  <option value="">-- Semua PML --</option>
-                  {{range .PMLUserList}}
-                  <option value="{{.ID}}">{{.Name}}</option>
-                  {{end}}
-                </select>
-              </div>
-              <div class="flex flex-col gap-1">
-                <label class="text-xs text-gray-500">PPL</label>
-                <select name="ppl_id"
-                  class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
-                  <option value="">-- Semua PPL --</option>
-                  {{range .PPLUserList}}
-                  <option value="{{.ID}}">{{.Name}}</option>
-                  {{end}}
-                </select>
-              </div>
-              <button type="submit"
-                class="px-4 py-2 bg-se hover:bg-se-dark text-white text-sm font-medium rounded-lg transition-colors">
-                Filter
-              </button>
-            </form>
+          <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center" id="anomali-filter-bar">
+            <input type="text" name="q"
+              hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
+              hx-trigger="input changed delay:400ms" hx-include="#anomali-filter-bar"
+              placeholder="Cari nama, jenis, keterangan, SLS..."
+              class="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="kec"
+              hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#anomali-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+              <option value="">Semua Kecamatan</option>
+              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
+            </select>
+            <select name="pml_id"
+              hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#anomali-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+              <option value="">Semua PML</option>
+              {{range .PMLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <select name="ppl_id"
+              hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#anomali-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+              <option value="">Semua PPL</option>
+              {{range .PPLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
           </div>
           <div id="anomali-result"
-            hx-get="/admin/table/anomali"
-            hx-trigger="load"
-            hx-swap="innerHTML">
+            hx-get="/admin/table/anomali" hx-trigger="load" hx-swap="innerHTML">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data anomali...</div>
           </div>
         </div>
