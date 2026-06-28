@@ -311,9 +311,8 @@ def run_once():
 
 
 def _next_run():
-    """Jalankan tiap 2 jam"""
-    import datetime as dt
-    return 2 * 3600
+    """Jalankan tiap 7 jam"""
+    return 7 * 3600
 
 
 if __name__ == "__main__":
