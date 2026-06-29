@@ -451,7 +451,8 @@
             </select>
           </div>
           <div id="keberadaan-result"
-            hx-get="/admin/table/keberadaan" hx-trigger="load" hx-swap="innerHTML">
+            hx-get="/admin/table/keberadaan" hx-trigger="load, every 15s" hx-swap="innerHTML"
+            hx-include="#keberadaan-filter-bar">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data keberadaan...</div>
           </div>
         </div>
