@@ -381,20 +381,11 @@ def run_once():
     print(f"\n[{_now_wita()}] Selesai: total={total_asgn} ok={ok} null={null_count}", flush=True)
 
 
-def _next_run():
-    """Jalankan tiap 7 jam"""
-    return 7 * 3600
-
-
 if __name__ == "__main__":
     print("=== sync_keberadaan.py ===")
-    while True:
-        try:
-            run_once()
-        except Exception as e:
-            print(f"[ERROR] {e}")
-            import traceback; traceback.print_exc()
-        wait = _next_run()
-        h, m = divmod(int(wait) // 60, 60)
-        print(f"[SCHEDULER] Berikutnya {h}j {m}m lagi ({_now_wita()})")
-        time.sleep(wait)
+    try:
+        run_once()
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        import traceback; traceback.print_exc()
+    print(f"[{_now_wita()}] Done.")
