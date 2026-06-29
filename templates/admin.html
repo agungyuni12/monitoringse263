@@ -673,6 +673,18 @@
       }).addTo(petaMap);
       loadLevel('kec');
     }
+
+    // Pertahankan dropdown filter terbuka setelah HTMX swap
+    let _openFilter = null;
+    document.addEventListener('htmx:beforeRequest', function() {
+      const d = document.querySelector('#keberadaan-result details[open]');
+      _openFilter = d ? d.dataset.filter : null;
+    });
+    document.addEventListener('htmx:afterSwap', function(e) {
+      if (e.detail.target.id !== 'keberadaan-result' || !_openFilter) return;
+      const d = document.querySelector('#keberadaan-result details[data-filter="' + _openFilter + '"]');
+      if (d) d.setAttribute('open', '');
+    });
   </script>
 </body>
 </html>
