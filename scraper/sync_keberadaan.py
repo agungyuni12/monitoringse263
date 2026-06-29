@@ -30,6 +30,7 @@ DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "kelayu1998")
 DB_NAME = os.getenv("DB_NAME", "se2026")
 
+BATCH_SIZE   = 20   # assignment per Promise.all batch
 CHUNK_SIZE   = 5    # SLS per chunk sebelum re-login
 CHUNK_DELAY  = 20   # detik istirahat antar chunk
 
