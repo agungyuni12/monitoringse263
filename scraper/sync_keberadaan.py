@@ -190,12 +190,10 @@ def fetch_assignments_per_sls(page, kode_sls):
     for item in (items or []):
         if not isinstance(item, dict):
             continue
-        skala = (item.get("data6") or "").strip()
-        if not skala or skala.upper() == "KELUARGA":
-            continue  # kosong atau KELUARGA = bukan usaha
         asgn_id = item.get("assignmentId") or item.get("id") or ""
         if not asgn_id:
             continue
+        skala = (item.get("data6") or "").strip()
         results.append({
             "assignment_id": asgn_id,
             "nama":          (item.get("data1") or "").strip(),
@@ -296,35 +294,31 @@ def run_once():
             for it in usaha:
                 it["sls_id"] = sls_id
 
-            if not usaha:
-                continue
-
-            total_asgn += len(usaha)
-
-            # Flush langsung per SLS (atau per BATCH_SIZE jika SLS punya banyak usaha)
-            for start in range(0, len(usaha), BATCH_SIZE):
-                batch = usaha[start:start + BATCH_SIZE]
-                ids = [a["assignment_id"] for a in batch]
-                keberadaan_list = fetch_keberadaan_batch(page, ids)
-                for asgn, (kode, label) in zip(batch, keberadaan_list):
-                    if kode is None and label is None:
-                        null_count += 1
-                    else:
-                        ok += 1
-                    # Selalu upsert — SQL tidak timpa keberadaan yg sudah ada dengan NULL
-                    upsert_keberadaan(
-                        conn,
-                        sls_id        = asgn["sls_id"],
-                        assignment_id = asgn["assignment_id"],
-                        nama          = asgn["nama"],
-                        skala_usaha   = asgn["skala_usaha"],
-                        kode          = kode,
-                        label         = label,
-                        synced_at     = synced_at,
-                    )
-
-            if i % 50 == 0 or len(usaha) > 0:
+            if usaha:
+                total_asgn += len(usaha)
+                for start in range(0, len(usaha), BATCH_SIZE):
+                    batch = usaha[start:start + BATCH_SIZE]
+                    ids = [a["assignment_id"] for a in batch]
+                    keberadaan_list = fetch_keberadaan_batch(page, ids)
+                    for asgn, (kode, label) in zip(batch, keberadaan_list):
+                        if kode is None and label is None:
+                            null_count += 1
+                        else:
+                            ok += 1
+                        # Selalu upsert — SQL tidak timpa keberadaan yg sudah ada dengan NULL
+                        upsert_keberadaan(
+                            conn,
+                            sls_id        = asgn["sls_id"],
+                            assignment_id = asgn["assignment_id"],
+                            nama          = asgn["nama"],
+                            skala_usaha   = asgn["skala_usaha"],
+                            kode          = kode,
+                            label         = label,
+                            synced_at     = synced_at,
+                        )
                 print(f"  [{i}/{len(sls_list)}] {kode_sls} → {len(usaha)} usaha | total={total_asgn} ok={ok} null={null_count}", flush=True)
+            elif i % 100 == 0:
+                print(f"  [{i}/{len(sls_list)}] scan... total={total_asgn} ok={ok} null={null_count}", flush=True)
 
             time.sleep(SLS_DELAY)
 
