@@ -310,17 +310,18 @@ def run_once():
                     if kode is None and label is None:
                         null_count += 1
                     else:
-                        upsert_keberadaan(
-                            conn,
-                            sls_id        = asgn["sls_id"],
-                            assignment_id = asgn["assignment_id"],
-                            nama          = asgn["nama"],
-                            skala_usaha   = asgn["skala_usaha"],
-                            kode          = kode,
-                            label         = label,
-                            synced_at     = synced_at,
-                        )
                         ok += 1
+                    # Selalu upsert — SQL tidak timpa keberadaan yg sudah ada dengan NULL
+                    upsert_keberadaan(
+                        conn,
+                        sls_id        = asgn["sls_id"],
+                        assignment_id = asgn["assignment_id"],
+                        nama          = asgn["nama"],
+                        skala_usaha   = asgn["skala_usaha"],
+                        kode          = kode,
+                        label         = label,
+                        synced_at     = synced_at,
+                    )
 
             if i % 50 == 0 or len(usaha) > 0:
                 print(f"  [{i}/{len(sls_list)}] {kode_sls} → {len(usaha)} usaha | total={total_asgn} ok={ok} null={null_count}", flush=True)
