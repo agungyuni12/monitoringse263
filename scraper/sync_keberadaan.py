@@ -30,7 +30,8 @@ DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "kelayu1998")
 DB_NAME = os.getenv("DB_NAME", "se2026")
 
-SLS_DELAY    = 5.0  # detik antar SLS
+CHUNK_SIZE   = 5    # SLS per chunk sebelum re-login
+CHUNK_DELAY  = 20   # detik istirahat antar chunk
 
 WITA = timezone(timedelta(hours=8))
 
@@ -248,82 +249,91 @@ def fetch_keberadaan_batch(page, assignment_ids):
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
-def _check_session(page):
-    """Cek apakah session FASIH masih valid."""
-    try:
-        result = page.evaluate("""async () => {
-            const r = await fetch('/assignment-general/api/assignments/count', {credentials:'include'});
-            return r.status;
-        }""")
-        return result == 200
-    except Exception:
-        return False
-
-
 def run_once():
     synced_at = _now_wita()
-    conn = _connect_db()
+    conn      = _connect_db()
     ensure_table(conn)
-    sls_map = load_sls_map(conn)
-    sls_list = list(sls_map.items())
+    sls_map   = load_sls_map(conn)
+    sls_list  = list(sls_map.items())
+    total_sls = len(sls_list)
+    total_chunks = (total_sls + CHUNK_SIZE - 1) // CHUNK_SIZE
 
-    print(f"[{_now_wita()}] Mulai sync keberadaan usaha — {len(sls_list)} SLS", flush=True)
+    print(f"[{_now_wita()}] Mulai sync keberadaan — {total_sls} SLS, {total_chunks} chunk (@{CHUNK_SIZE} SLS)", flush=True)
 
-    ok = 0
-    null_count = 0
-    total_asgn = 0
+    ok          = 0
+    null_count  = 0
+    total_asgn  = 0
 
     with sync_playwright() as pw:
-        browser, ctx = _make_browser(pw)
-        page = login_fasih(ctx)
+        browser, _ = _make_browser(pw)
 
-        for i, (kode_sls, sls_id) in enumerate(sls_list):
-            # Re-login jika session expired (cek tiap 200 SLS)
-            if i > 0 and i % 200 == 0:
-                if not _check_session(page):
-                    print(f"  [!] Session expired di SLS {i}, re-login...", flush=True)
-                    try:
-                        page.close()
-                    except Exception:
-                        pass
-                    page = login_fasih(ctx)
+        for chunk_i, chunk_start in enumerate(range(0, total_sls, CHUNK_SIZE)):
+            chunk = sls_list[chunk_start : chunk_start + CHUNK_SIZE]
+            print(f"\n[chunk {chunk_i+1}/{total_chunks}] Login...", flush=True)
 
-            items = fetch_assignments_per_sls(page, kode_sls)
-            usaha = [it for it in items if it.get("assignment_id")]
-            for it in usaha:
-                it["sls_id"] = sls_id
+            # Context baru + login ulang tiap chunk
+            ctx  = browser.new_context(
+                user_agent=(
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+                ),
+                viewport={"width": 1280, "height": 720},
+            )
+            page = login_fasih(ctx)
 
-            if usaha:
-                total_asgn += len(usaha)
-                for asgn in usaha:
-                    kode, label = _parse_keberadaan(
-                        _page_fetch(page,
-                            f"{FASIH_URL}/app/api/assignment-general/api/assignment"
-                            f"/get-by-assignment-id?assignmentId={asgn['assignment_id']}"
+            pending = []  # kumpulkan semua assignment dari 5 SLS
+
+            for j, (kode_sls, sls_id) in enumerate(chunk):
+                global_i = chunk_start + j
+                items    = fetch_assignments_per_sls(page, kode_sls)
+                usaha    = [it for it in items if it.get("assignment_id")]
+                for it in usaha:
+                    it["sls_id"] = sls_id
+                    pending.append(it)
+                print(f"  [{global_i}/{total_sls}] {kode_sls} → {len(usaha)} asgn (buffer={len(pending)})", flush=True)
+
+            # Fetch keberadaan via Promise.all batch untuk semua pending sekaligus
+            chunk_ok   = 0
+            chunk_null = 0
+            if pending:
+                for start in range(0, len(pending), BATCH_SIZE):
+                    batch           = pending[start : start + BATCH_SIZE]
+                    ids             = [a["assignment_id"] for a in batch]
+                    keberadaan_list = fetch_keberadaan_batch(page, ids)
+                    for asgn, (kode, label) in zip(batch, keberadaan_list):
+                        if kode is None and label is None:
+                            null_count += 1
+                            chunk_null += 1
+                        else:
+                            ok       += 1
+                            chunk_ok += 1
+                        upsert_keberadaan(
+                            conn,
+                            sls_id        = asgn["sls_id"],
+                            assignment_id = asgn["assignment_id"],
+                            nama          = asgn["nama"],
+                            skala_usaha   = asgn["skala_usaha"],
+                            kode          = kode,
+                            label         = label,
+                            synced_at     = synced_at,
                         )
-                    )
-                    if kode is None and label is None:
-                        null_count += 1
-                    else:
-                        ok += 1
-                    upsert_keberadaan(
-                        conn,
-                        sls_id        = asgn["sls_id"],
-                        assignment_id = asgn["assignment_id"],
-                        nama          = asgn["nama"],
-                        skala_usaha   = asgn["skala_usaha"],
-                        kode          = kode,
-                        label         = label,
-                        synced_at     = synced_at,
-                    )
-            print(f"  [{i}/{len(sls_list)}] {kode_sls} → {len(usaha)} asgn | total={total_asgn} ok={ok} null={null_count}", flush=True)
+                total_asgn += len(pending)
 
-            time.sleep(SLS_DELAY)
+            print(f"  → simpan {len(pending)} asgn | ok={chunk_ok} null={chunk_null} | total ok={ok}", flush=True)
+
+            try:
+                ctx.close()
+            except Exception:
+                pass
+
+            if chunk_start + CHUNK_SIZE < total_sls:
+                print(f"  [jeda {CHUNK_DELAY}s]", flush=True)
+                time.sleep(CHUNK_DELAY)
 
         browser.close()
     conn.close()
 
-    print(f"[{_now_wita()}] Selesai: total={total_asgn} ok={ok} null={null_count}", flush=True)
+    print(f"\n[{_now_wita()}] Selesai: total={total_asgn} ok={ok} null={null_count}", flush=True)
 
 
 def _next_run():
