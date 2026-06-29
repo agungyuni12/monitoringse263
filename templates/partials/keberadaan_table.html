@@ -36,7 +36,15 @@
       <thead>
         <tr class="bg-orange-50 text-gray-600 text-left uppercase tracking-wide">
           <th class="px-3 py-2.5 font-medium text-center w-8">No</th>
-          <th class="px-3 py-2.5 font-medium">Lokasi (Kec / Desa / SLS)</th>
+          <th class="px-3 py-2.5 font-medium">
+            <select name="kec"
+              hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#keberadaan-filter-bar"
+              class="bg-transparent font-medium text-xs uppercase tracking-wide text-gray-600 cursor-pointer focus:outline-none pr-4">
+              <option value="">Lokasi (Kec / Desa / SLS)</option>
+              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
+            </select>
+          </th>
           <th class="px-3 py-2.5 font-medium">Petugas</th>
           <th class="px-3 py-2.5 font-medium">Nama Usaha</th>
           <th class="px-3 py-2.5 font-medium">

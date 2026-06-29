@@ -170,6 +170,7 @@ func AdminKeberadaanTable(c echo.Context) error {
 		"Stats":     stats,
 		"LabelList": labelList,
 		"SkalaList": querySkalaList(),
+		"KecList":   queryKecList(),
 		"Q":      q,
 		"Kecs":   kecs,
 		"Skalas": skalas,
