@@ -410,45 +410,74 @@
 
         <!-- TAB: Keberadaan Usaha -->
         <div id="panel-keberadaan" class="tab-panel">
-          <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center" id="keberadaan-filter-bar">
-            <input type="text" name="q"
-              hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
-              hx-trigger="input changed delay:400ms" hx-include="#keberadaan-filter-bar"
-              placeholder="Cari nama usaha, skala, status..."
-              class="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
-            <select name="label" id="keberadaan-label-filter"
-              hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#keberadaan-filter-bar"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
-              <option value="">Semua Status</option>
-              <option value="Ditemukan">✅ Ditemukan</option>
-              <option value="Tidak Ditemukan">❌ Tidak Ditemukan</option>
-              <option value="Baru">🆕 Baru</option>
-              <option value="Tutup">🔒 Tutup</option>
-              <option value="Ganda">⚠️ Ganda</option>
-              <option value="Non Respon">🚫 Non Respon</option>
-            </select>
-            <select name="kec"
-              hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#keberadaan-filter-bar"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
-              <option value="">Semua Kecamatan</option>
-              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
-            </select>
-            <select name="pml_id"
-              hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#keberadaan-filter-bar"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
-              <option value="">Semua PML</option>
-              {{range .PMLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
-            </select>
-            <select name="ppl_id"
-              hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#keberadaan-filter-bar"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
-              <option value="">Semua PPL</option>
-              {{range .PPLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
-            </select>
+          <div id="keberadaan-filter-bar" class="border-b border-gray-100">
+            {{/* Baris 1: search + status + PML + PPL */}}
+            <div class="px-4 py-3 flex flex-wrap gap-2 items-center">
+              <input type="text" name="q"
+                hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
+                hx-trigger="input changed delay:400ms" hx-include="#keberadaan-filter-bar"
+                placeholder="Cari nama usaha..."
+                class="w-full md:w-56 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+              <select name="label" id="keberadaan-label-filter"
+                hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
+                hx-trigger="change" hx-include="#keberadaan-filter-bar"
+                class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+                <option value="">Semua Status</option>
+                <option value="Ditemukan">✅ Ditemukan</option>
+                <option value="Tidak Ditemukan">❌ Tidak Ditemukan</option>
+                <option value="Baru">🆕 Baru</option>
+                <option value="Tutup">🔒 Tutup</option>
+                <option value="Ganda">⚠️ Ganda</option>
+                <option value="Non Respon">🚫 Non Respon</option>
+              </select>
+              <select name="pml_id"
+                hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
+                hx-trigger="change" hx-include="#keberadaan-filter-bar"
+                class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+                <option value="">Semua PML</option>
+                {{range .PMLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+              </select>
+              <select name="ppl_id"
+                hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
+                hx-trigger="change" hx-include="#keberadaan-filter-bar"
+                class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+                <option value="">Semua PPL</option>
+                {{range .PPLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+              </select>
+            </div>
+            {{/* Baris 2: checkbox skala + kecamatan */}}
+            <div class="px-4 pb-3 flex flex-wrap gap-3 items-start">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-xs text-gray-400 font-medium mr-1">Skala:</span>
+                {{range .SkalaList}}
+                <label class="cursor-pointer">
+                  <input type="checkbox" name="skala" value="{{.}}" class="sr-only peer"
+                    hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
+                    hx-trigger="change" hx-include="#keberadaan-filter-bar">
+                  <span class="inline-block px-2.5 py-1 rounded-full border text-xs font-medium transition-colors
+                    border-gray-300 bg-white text-gray-600
+                    peer-checked:bg-orange-100 peer-checked:border-orange-400 peer-checked:text-orange-700">
+                    {{.}}
+                  </span>
+                </label>
+                {{end}}
+              </div>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-xs text-gray-400 font-medium mr-1">Kecamatan:</span>
+                {{range .KecList}}
+                <label class="cursor-pointer">
+                  <input type="checkbox" name="kec" value="{{.}}" class="sr-only peer"
+                    hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
+                    hx-trigger="change" hx-include="#keberadaan-filter-bar">
+                  <span class="inline-block px-2.5 py-1 rounded-full border text-xs font-medium transition-colors
+                    border-gray-300 bg-white text-gray-600
+                    peer-checked:bg-blue-100 peer-checked:border-blue-400 peer-checked:text-blue-700">
+                    {{.}}
+                  </span>
+                </label>
+                {{end}}
+              </div>
+            </div>
           </div>
           <div id="keberadaan-result"
             hx-get="/admin/table/keberadaan" hx-trigger="load, every 15s" hx-swap="innerHTML"

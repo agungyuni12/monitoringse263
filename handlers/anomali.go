@@ -61,6 +61,21 @@ func queryKecList() []string {
 	return list
 }
 
+func querySkalaList() []string {
+	rows, err := db.DB.Query(`SELECT DISTINCT skala_usaha FROM keberadaan_usaha WHERE skala_usaha != '' ORDER BY skala_usaha`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var list []string
+	for rows.Next() {
+		var s string
+		rows.Scan(&s)
+		list = append(list, s)
+	}
+	return list
+}
+
 func queryAnomaili(page int, q, kec string, pmlID, pplID int, targetID, baseURL string) ([]AnomaliRow, models.PageInfo) {
 	like := "%" + q + "%"
 

@@ -37,24 +37,37 @@ func AdminKeberadaanTable(c echo.Context) error {
 	if page < 1 {
 		page = 1
 	}
-	q     := c.QueryParam("q")
-	kec   := c.QueryParam("kec")
-	label := c.QueryParam("label")
+	q      := c.QueryParam("q")
+	label  := c.QueryParam("label")
+	kecs   := c.QueryParams()["kec"]
+	skalas := c.QueryParams()["skala"]
 	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
 	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
-	like  := "%" + q + "%"
+	like   := "%" + q + "%"
 
 	where := ` WHERE (k.nama LIKE ? OR k.skala_usaha LIKE ? OR k.keberadaan_label LIKE ? OR s.nama_sls LIKE ?)`
 	args  := []interface{}{like, like, like, like}
 
-	if kec != "" {
-		where += ` AND s.nama_kec = ?`
-		args = append(args, kec)
-	}
 	if label != "" {
 		where += ` AND k.keberadaan_label = ?`
 		args = append(args, label)
 	}
+	inClause := func(col string, vals []string) {
+		if len(vals) == 0 {
+			return
+		}
+		ph := ""
+		for i, v := range vals {
+			if i > 0 {
+				ph += ","
+			}
+			ph += "?"
+			args = append(args, v)
+		}
+		where += ` AND ` + col + ` IN (` + ph + `)`
+	}
+	inClause("s.nama_kec", kecs)
+	inClause("k.skala_usaha", skalas)
 	if pmlID > 0 {
 		where += ` AND s.pml_id = ?`
 		args = append(args, pmlID)
@@ -72,8 +85,11 @@ func AdminKeberadaanTable(c echo.Context) error {
 	if q != "" {
 		extra += "&q=" + q
 	}
-	if kec != "" {
-		extra += "&kec=" + kec
+	for _, v := range kecs {
+		extra += "&kec=" + v
+	}
+	for _, v := range skalas {
+		extra += "&skala=" + v
 	}
 	if label != "" {
 		extra += "&label=" + label
@@ -153,10 +169,11 @@ func AdminKeberadaanTable(c echo.Context) error {
 		"PageInfo":  pageInfo,
 		"Stats":     stats,
 		"LabelList": labelList,
-		"Q":         q,
-		"Kec":       kec,
-		"Label":     label,
-		"PmlID":     pmlID,
-		"PplID":     pplID,
+		"Q":      q,
+		"Kecs":   kecs,
+		"Skalas": skalas,
+		"Label":  label,
+		"PmlID":  pmlID,
+		"PplID":  pplID,
 	})
 }
