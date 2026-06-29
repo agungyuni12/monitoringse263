@@ -30,8 +30,7 @@ DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "kelayu1998")
 DB_NAME = os.getenv("DB_NAME", "se2026")
 
-BATCH_SIZE   = 20   # jumlah assignment per Promise.all batch
-SLS_DELAY    = 0.05
+SLS_DELAY    = 5.0  # detik antar SLS
 
 WITA = timezone(timedelta(hours=8))
 
@@ -296,29 +295,28 @@ def run_once():
 
             if usaha:
                 total_asgn += len(usaha)
-                for start in range(0, len(usaha), BATCH_SIZE):
-                    batch = usaha[start:start + BATCH_SIZE]
-                    ids = [a["assignment_id"] for a in batch]
-                    keberadaan_list = fetch_keberadaan_batch(page, ids)
-                    for asgn, (kode, label) in zip(batch, keberadaan_list):
-                        if kode is None and label is None:
-                            null_count += 1
-                        else:
-                            ok += 1
-                        # Selalu upsert — SQL tidak timpa keberadaan yg sudah ada dengan NULL
-                        upsert_keberadaan(
-                            conn,
-                            sls_id        = asgn["sls_id"],
-                            assignment_id = asgn["assignment_id"],
-                            nama          = asgn["nama"],
-                            skala_usaha   = asgn["skala_usaha"],
-                            kode          = kode,
-                            label         = label,
-                            synced_at     = synced_at,
+                for asgn in usaha:
+                    kode, label = _parse_keberadaan(
+                        _page_fetch(page,
+                            f"{FASIH_URL}/app/api/assignment-general/api/assignment"
+                            f"/get-by-assignment-id?assignmentId={asgn['assignment_id']}"
                         )
-                print(f"  [{i}/{len(sls_list)}] {kode_sls} → {len(usaha)} usaha | total={total_asgn} ok={ok} null={null_count}", flush=True)
-            elif i % 100 == 0:
-                print(f"  [{i}/{len(sls_list)}] scan... total={total_asgn} ok={ok} null={null_count}", flush=True)
+                    )
+                    if kode is None and label is None:
+                        null_count += 1
+                    else:
+                        ok += 1
+                    upsert_keberadaan(
+                        conn,
+                        sls_id        = asgn["sls_id"],
+                        assignment_id = asgn["assignment_id"],
+                        nama          = asgn["nama"],
+                        skala_usaha   = asgn["skala_usaha"],
+                        kode          = kode,
+                        label         = label,
+                        synced_at     = synced_at,
+                    )
+            print(f"  [{i}/{len(sls_list)}] {kode_sls} → {len(usaha)} asgn | total={total_asgn} ok={ok} null={null_count}", flush=True)
 
             time.sleep(SLS_DELAY)
 
