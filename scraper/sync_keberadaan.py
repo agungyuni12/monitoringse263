@@ -30,9 +30,10 @@ DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "kelayu1998")
 DB_NAME = os.getenv("DB_NAME", "se2026")
 
-BATCH_SIZE   = 20   # assignment per Promise.all batch
-CHUNK_SIZE   = 5    # SLS per chunk sebelum re-login
-CHUNK_DELAY  = 20   # detik istirahat antar chunk
+BATCH_SIZE    = 20   # assignment per Promise.all batch
+CHUNK_SIZE    = 5    # SLS per chunk sebelum re-login
+CHUNK_DELAY   = 5    # detik istirahat antar chunk
+PROGRESS_FILE = "/app/keberadaan_progress.txt"  # simpan posisi terakhir
 
 WITA = timezone(timedelta(hours=8))
 
@@ -250,6 +251,30 @@ def fetch_keberadaan_batch(page, assignment_ids):
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
+def _save_progress(chunk_start):
+    try:
+        with open(PROGRESS_FILE, "w") as f:
+            f.write(str(chunk_start))
+    except Exception:
+        pass
+
+
+def _load_progress():
+    try:
+        with open(PROGRESS_FILE) as f:
+            return int(f.read().strip())
+    except Exception:
+        return 0
+
+
+def _clear_progress():
+    try:
+        import os as _os
+        _os.remove(PROGRESS_FILE)
+    except Exception:
+        pass
+
+
 def run_once():
     synced_at = _now_wita()
     conn      = _connect_db()
@@ -259,7 +284,11 @@ def run_once():
     total_sls = len(sls_list)
     total_chunks = (total_sls + CHUNK_SIZE - 1) // CHUNK_SIZE
 
-    print(f"[{_now_wita()}] Mulai sync keberadaan — {total_sls} SLS, {total_chunks} chunk (@{CHUNK_SIZE} SLS)", flush=True)
+    resume_from = _load_progress()
+    if resume_from > 0:
+        print(f"[{_now_wita()}] Resume dari SLS {resume_from} (chunk {resume_from//CHUNK_SIZE + 1}/{total_chunks})", flush=True)
+    else:
+        print(f"[{_now_wita()}] Mulai sync keberadaan — {total_sls} SLS, {total_chunks} chunk (@{CHUNK_SIZE} SLS)", flush=True)
 
     ok          = 0
     null_count  = 0
@@ -269,6 +298,8 @@ def run_once():
         browser, _ = _make_browser(pw)
 
         for chunk_i, chunk_start in enumerate(range(0, total_sls, CHUNK_SIZE)):
+            if chunk_start < resume_from:
+                continue
             chunk = sls_list[chunk_start : chunk_start + CHUNK_SIZE]
             print(f"\n[chunk {chunk_i+1}/{total_chunks}] Login...", flush=True)
 
@@ -327,13 +358,18 @@ def run_once():
             except Exception:
                 pass
 
-            if chunk_start + CHUNK_SIZE < total_sls:
+            # Simpan posisi chunk berikutnya supaya bisa resume kalau restart
+            next_start = chunk_start + CHUNK_SIZE
+            _save_progress(next_start)
+
+            if next_start < total_sls:
                 print(f"  [jeda {CHUNK_DELAY}s]", flush=True)
                 time.sleep(CHUNK_DELAY)
 
         browser.close()
     conn.close()
 
+    _clear_progress()  # hapus progress file, run berikutnya mulai dari awal
     print(f"\n[{_now_wita()}] Selesai: total={total_asgn} ok={ok} null={null_count}", flush=True)
 
 
