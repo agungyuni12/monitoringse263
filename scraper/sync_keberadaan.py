@@ -92,8 +92,10 @@ def upsert_keberadaan(conn, sls_id, assignment_id, nama, skala_usaha,
                                     VALUES(nama), nama),
               skala_usaha      = IF(VALUES(skala_usaha) != '' AND VALUES(skala_usaha) IS NOT NULL,
                                     VALUES(skala_usaha), skala_usaha),
-              keberadaan_kode  = VALUES(keberadaan_kode),
-              keberadaan_label = VALUES(keberadaan_label),
+              keberadaan_kode  = IF(VALUES(keberadaan_kode) IS NOT NULL,
+                                    VALUES(keberadaan_kode), keberadaan_kode),
+              keberadaan_label = IF(VALUES(keberadaan_label) IS NOT NULL,
+                                    VALUES(keberadaan_label), keberadaan_label),
               synced_at        = VALUES(synced_at)
         """, (sls_id, assignment_id, nama or "", skala_usaha or "",
               kode, label, synced_at))
@@ -189,8 +191,8 @@ def fetch_assignments_per_sls(page, kode_sls):
         if not isinstance(item, dict):
             continue
         skala = (item.get("data6") or "").strip()
-        if not skala:
-            continue  # kosong = keluarga
+        if not skala or skala.upper() == "KELUARGA":
+            continue  # kosong atau KELUARGA = bukan usaha
         asgn_id = item.get("assignmentId") or item.get("id") or ""
         if not asgn_id:
             continue
@@ -254,44 +256,25 @@ def run_once():
     conn = _connect_db()
     ensure_table(conn)
     sls_map = load_sls_map(conn)
+    sls_list = list(sls_map.items())
 
-    print(f"[{_now_wita()}] Mulai sync keberadaan usaha")
-    print(f"  SLS tersedia: {len(sls_map)}")
+    print(f"[{_now_wita()}] Mulai sync keberadaan usaha — {len(sls_list)} SLS")
 
-    with sync_playwright() as pw:
-        browser, ctx = _make_browser(pw)
-        page = login_fasih(ctx)
+    ok = 0
+    null_count = 0
+    pending = []   # buffer assignment menunggu batch penuh
 
-        # 1. Kumpulkan semua usaha assignments dari tiap SLS
-        all_assignments = []
-        sls_list = list(sls_map.items())  # [(kode_sls, sls_id), ...]
-        for i, (kode_sls, sls_id) in enumerate(sls_list):
-            if i % 20 == 0:
-                print(f"  SLS fetch {i}/{len(sls_list)}...")
-            items = fetch_assignments_per_sls(page, kode_sls)
-            for it in items:
-                it["sls_id"] = sls_id
-                all_assignments.append(it)
-            time.sleep(SLS_DELAY)
-
-        print(f"  Total usaha assignments: {len(all_assignments)}")
-
-        # 2. Fetch keberadaan via batch (Promise.all) per BATCH_SIZE assignments
-        ok = 0
-        skip = 0
-        null_count = 0
-        valid = [a for a in all_assignments if a.get("assignment_id")]
-        skip = len(all_assignments) - len(valid)
-
-        for i in range(0, len(valid), BATCH_SIZE):
-            batch = valid[i:i + BATCH_SIZE]
-            print(f"  [{i}/{len(valid)}] batch fetch {len(batch)} assignments...")
-            ids = [a["assignment_id"] for a in batch]
-            keberadaan_list = fetch_keberadaan_batch(page, ids)
-
-            for asgn, (kode, label) in zip(batch, keberadaan_list):
-                if kode is None and label is None:
-                    null_count += 1
+    def _flush(page, buf, synced_at):
+        """Fetch keberadaan untuk buffer lalu langsung upsert ke DB."""
+        nonlocal ok, null_count
+        if not buf:
+            return
+        ids = [a["assignment_id"] for a in buf]
+        keberadaan_list = fetch_keberadaan_batch(page, ids)
+        for asgn, (kode, label) in zip(buf, keberadaan_list):
+            if kode is None and label is None:
+                null_count += 1
+            else:
                 upsert_keberadaan(
                     conn,
                     sls_id        = asgn["sls_id"],
@@ -304,10 +287,36 @@ def run_once():
                 )
                 ok += 1
 
+    with sync_playwright() as pw:
+        browser, ctx = _make_browser(pw)
+        page = login_fasih(ctx)
+
+        for i, (kode_sls, sls_id) in enumerate(sls_list):
+            if i % 50 == 0:
+                print(f"  [{i}/{len(sls_list)}] SLS... ok={ok} null={null_count}", flush=True)
+
+            items = fetch_assignments_per_sls(page, kode_sls)
+            for it in items:
+                if not it.get("assignment_id"):
+                    continue
+                it["sls_id"] = sls_id
+                pending.append(it)
+                # Langsung flush setiap BATCH_SIZE assignment
+                if len(pending) >= BATCH_SIZE:
+                    _flush(page, pending, synced_at)
+                    pending.clear()
+
+            time.sleep(SLS_DELAY)
+
+        # Flush sisa
+        if pending:
+            _flush(page, pending, synced_at)
+            pending.clear()
+
         browser.close()
     conn.close()
 
-    print(f"[{_now_wita()}] Selesai: {ok} disimpan, {null_count} belum diisi, {skip} skip")
+    print(f"[{_now_wita()}] Selesai: {ok} disimpan, {null_count} belum diisi")
 
 
 def _next_run():
