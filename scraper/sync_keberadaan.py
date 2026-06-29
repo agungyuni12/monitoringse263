@@ -33,7 +33,6 @@ DB_NAME = os.getenv("DB_NAME", "se2026")
 BATCH_SIZE    = 20   # assignment per Promise.all batch
 CHUNK_SIZE    = 5    # SLS per chunk sebelum re-login
 CHUNK_DELAY   = 5    # detik istirahat antar chunk
-PROGRESS_FILE = "/app/keberadaan_progress.txt"  # simpan posisi terakhir
 
 WITA = timezone(timedelta(hours=8))
 
@@ -251,28 +250,37 @@ def fetch_keberadaan_batch(page, assignment_ids):
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
-def _save_progress(chunk_start):
-    try:
-        with open(PROGRESS_FILE, "w") as f:
-            f.write(str(chunk_start))
-    except Exception:
-        pass
+def _save_progress(conn, sls_index):
+    with conn.cursor() as cur:
+        cur.execute("""
+            INSERT INTO sync_progress (job, sls_index) VALUES ('keberadaan', %s)
+            ON DUPLICATE KEY UPDATE sls_index = %s
+        """, (sls_index, sls_index))
+    conn.commit()
 
 
-def _load_progress():
+def _load_progress(conn):
     try:
-        with open(PROGRESS_FILE) as f:
-            return int(f.read().strip())
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS sync_progress (
+                    job       VARCHAR(50) PRIMARY KEY,
+                    sls_index INT NOT NULL DEFAULT 0
+                ) ENGINE=InnoDB
+            """)
+        conn.commit()
+        with conn.cursor() as cur:
+            cur.execute("SELECT sls_index FROM sync_progress WHERE job='keberadaan'")
+            row = cur.fetchone()
+            return row["sls_index"] if row else 0
     except Exception:
         return 0
 
 
-def _clear_progress():
-    try:
-        import os as _os
-        _os.remove(PROGRESS_FILE)
-    except Exception:
-        pass
+def _clear_progress(conn):
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM sync_progress WHERE job='keberadaan'")
+    conn.commit()
 
 
 def run_once():
@@ -284,7 +292,7 @@ def run_once():
     total_sls = len(sls_list)
     total_chunks = (total_sls + CHUNK_SIZE - 1) // CHUNK_SIZE
 
-    resume_from = _load_progress()
+    resume_from = _load_progress(conn)
     if resume_from > 0:
         print(f"[{_now_wita()}] Resume dari SLS {resume_from} (chunk {resume_from//CHUNK_SIZE + 1}/{total_chunks})", flush=True)
     else:
@@ -358,9 +366,9 @@ def run_once():
             except Exception:
                 pass
 
-            # Simpan posisi chunk berikutnya supaya bisa resume kalau restart
+            # Simpan posisi chunk berikutnya ke DB supaya bisa resume kalau restart
             next_start = chunk_start + CHUNK_SIZE
-            _save_progress(next_start)
+            _save_progress(conn, next_start)
 
             if next_start < total_sls:
                 print(f"  [jeda {CHUNK_DELAY}s]", flush=True)
@@ -369,7 +377,7 @@ def run_once():
         browser.close()
     conn.close()
 
-    _clear_progress()  # hapus progress file, run berikutnya mulai dari awal
+    _clear_progress(conn)  # hapus progress di DB, run berikutnya mulai dari awal
     print(f"\n[{_now_wita()}] Selesai: total={total_asgn} ok={ok} null={null_count}", flush=True)
 
 
