@@ -191,6 +191,7 @@ func PPLKeberadaan(c echo.Context) error {
 	q      := c.QueryParam("q")
 	label  := c.QueryParam("label")
 	skalas := c.QueryParams()["skala"]
+	slsID, _ := strconv.Atoi(c.QueryParam("sls_id"))
 	like   := "%" + q + "%"
 
 	where := ` WHERE s.ppl_id = ? AND (k.nama LIKE ? OR k.skala_usaha LIKE ? OR k.keberadaan_label LIKE ? OR s.nama_sls LIKE ?)`
@@ -199,6 +200,10 @@ func PPLKeberadaan(c echo.Context) error {
 	if label != "" {
 		where += ` AND k.keberadaan_label = ?`
 		args = append(args, label)
+	}
+	if slsID > 0 {
+		where += ` AND s.id = ?`
+		args = append(args, slsID)
 	}
 	if len(skalas) > 0 {
 		ph := ""
@@ -218,6 +223,7 @@ func PPLKeberadaan(c echo.Context) error {
 	if q != "" { extra += "&q=" + q }
 	for _, v := range skalas { extra += "&skala=" + v }
 	if label != "" { extra += "&label=" + label }
+	if slsID > 0 { extra += fmt.Sprintf("&sls_id=%d", slsID) }
 
 	offset   := (page - 1) * models.PerPage
 	pageInfo := models.NewPageInfo(page, total, "/ppl/keberadaan", "ppl-keberadaan-result", extra)
@@ -263,11 +269,22 @@ func PPLKeberadaan(c echo.Context) error {
 		for skRows.Next() { var s string; skRows.Scan(&s); skalaList = append(skalaList, s) }
 	}
 
+	// SLS list milik PPL ini
+	type SLSOpt struct{ ID int; Nama string }
+	var slsList []SLSOpt
+	slsRows, _ := db.DB.Query(`SELECT id, nama_sls FROM sls WHERE ppl_id=? ORDER BY nama_sls`, userID)
+	if slsRows != nil {
+		defer slsRows.Close()
+		for slsRows.Next() { var s SLSOpt; slsRows.Scan(&s.ID, &s.Nama); slsList = append(slsList, s) }
+	}
+
 	return c.Render(http.StatusOK, "ppl_keberadaan_table.html", map[string]interface{}{
 		"Rows":      list,
 		"PageInfo":  pageInfo,
 		"SkalaList": skalaList,
+		"SLSList":   slsList,
 		"Skalas":    skalas,
+		"SlsID":     slsID,
 		"Q":         q,
 		"Label":     label,
 	})
@@ -284,6 +301,7 @@ func PMLKeberadaan(c echo.Context) error {
 	label  := c.QueryParam("label")
 	skalas := c.QueryParams()["skala"]
 	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
+	slsID, _ := strconv.Atoi(c.QueryParam("sls_id"))
 	like   := "%" + q + "%"
 
 	where := ` WHERE s.pml_id = ? AND (k.nama LIKE ? OR k.skala_usaha LIKE ? OR k.keberadaan_label LIKE ? OR s.nama_sls LIKE ?)`
@@ -293,6 +311,14 @@ func PMLKeberadaan(c echo.Context) error {
 		where += ` AND k.keberadaan_label = ?`
 		args = append(args, label)
 	}
+	if pplID > 0 {
+		where += ` AND s.ppl_id = ?`
+		args = append(args, pplID)
+	}
+	if slsID > 0 {
+		where += ` AND s.id = ?`
+		args = append(args, slsID)
+	}
 	if len(skalas) > 0 {
 		ph := ""
 		for i, v := range skalas {
@@ -301,10 +327,6 @@ func PMLKeberadaan(c echo.Context) error {
 			args = append(args, v)
 		}
 		where += ` AND k.skala_usaha IN (` + ph + `)`
-	}
-	if pplID > 0 {
-		where += ` AND s.ppl_id = ?`
-		args = append(args, pplID)
 	}
 
 	var total int
@@ -316,6 +338,7 @@ func PMLKeberadaan(c echo.Context) error {
 	for _, v := range skalas { extra += "&skala=" + v }
 	if label != "" { extra += "&label=" + label }
 	if pplID > 0 { extra += fmt.Sprintf("&ppl_id=%d", pplID) }
+	if slsID > 0 { extra += fmt.Sprintf("&sls_id=%d", slsID) }
 
 	offset   := (page - 1) * models.PerPage
 	pageInfo := models.NewPageInfo(page, total, "/pml/keberadaan", "pml-keberadaan-result", extra)
@@ -372,14 +395,31 @@ func PMLKeberadaan(c echo.Context) error {
 		for skRows.Next() { var s string; skRows.Scan(&s); skalaList = append(skalaList, s) }
 	}
 
+	// SLS list — filter berdasarkan PPL yang dipilih (jika ada)
+	type SLSOpt struct{ ID int; Nama string }
+	var slsList []SLSOpt
+	slsQ := `SELECT id, nama_sls FROM sls WHERE pml_id=?`
+	slsArgs := []interface{}{userID}
+	if pplID > 0 {
+		slsQ += ` AND ppl_id=?`
+		slsArgs = append(slsArgs, pplID)
+	}
+	slsRows, _ := db.DB.Query(slsQ+` ORDER BY nama_sls`, slsArgs...)
+	if slsRows != nil {
+		defer slsRows.Close()
+		for slsRows.Next() { var s SLSOpt; slsRows.Scan(&s.ID, &s.Nama); slsList = append(slsList, s) }
+	}
+
 	return c.Render(http.StatusOK, "pml_keberadaan_table.html", map[string]interface{}{
 		"Rows":      list,
 		"PageInfo":  pageInfo,
 		"PPLList":   pplList,
+		"SLSList":   slsList,
 		"SkalaList": skalaList,
 		"Skalas":    skalas,
 		"Q":         q,
 		"Label":     label,
 		"PplID":     pplID,
+		"SlsID":     slsID,
 	})
 }

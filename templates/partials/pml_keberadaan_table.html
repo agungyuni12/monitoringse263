@@ -1,4 +1,17 @@
 {{define "pml_keberadaan_table.html"}}
+{{if .SLSList}}
+<div class="px-3 py-2 border-b border-gray-100">
+  <select name="sls_id"
+    hx-get="/pml/keberadaan" hx-target="#pml-keberadaan-result" hx-swap="innerHTML"
+    hx-trigger="change" hx-include="#pml-keberadaan-filter, #pml-keberadaan-result"
+    class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+    <option value="">Semua SLS</option>
+    {{$slsID := .SlsID}}
+    {{range .SLSList}}<option value="{{.ID}}" {{if eq .ID $slsID}}selected{{end}}>{{.Nama}}</option>{{end}}
+  </select>
+  <span class="text-xs text-gray-400 ml-2">{{.PageInfo.TotalRow}} usaha</span>
+</div>
+{{end}}
 <div class="overflow-x-auto">
   <table class="w-full text-xs">
     <thead>
