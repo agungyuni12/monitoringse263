@@ -35,7 +35,7 @@
     <tbody class="divide-y divide-gray-50">
       {{range $i, $r := .Rows}}
       <tr class="hover:bg-orange-50/40 transition-colors">
-        <td class="px-3 py-2 text-center text-gray-400">{{add $i $.PageInfo.Offset}}</td>
+        <td class="px-3 py-2 text-center text-gray-400">{{add $i $.PageInfo.From}}</td>
         <td class="px-3 py-2">
           <div class="font-medium text-gray-800">{{$r.NamaSLS}}</div>
           <div class="text-gray-400">{{$r.NamaKec}} / {{$r.NamaDesa}}</div>
