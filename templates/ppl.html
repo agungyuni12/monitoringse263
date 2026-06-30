@@ -110,6 +110,10 @@
           class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
           Anomali
         </button>
+        <button onclick="switchTab('keberadaan')" id="tab-keberadaan"
+          class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
+          Keberadaan
+        </button>
       </div>
 
       <!-- TAB: Ringkasan (SLS list) -->
@@ -152,6 +156,33 @@
         <div id="ppl-anomali-result"
           hx-get="/ppl/anomali" hx-trigger="load" hx-swap="innerHTML">
           <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data anomali...</div>
+        </div>
+      </div>
+
+      <!-- TAB: Keberadaan -->
+      <div id="panel-keberadaan" class="tab-panel">
+        <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center" id="ppl-keberadaan-filter">
+          <input type="text" name="q"
+            hx-get="/ppl/keberadaan" hx-target="#ppl-keberadaan-result" hx-swap="innerHTML"
+            hx-trigger="input changed delay:400ms" hx-include="#ppl-keberadaan-filter"
+            placeholder="Cari nama usaha..."
+            class="w-full md:w-56 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+          <select name="label"
+            hx-get="/ppl/keberadaan" hx-target="#ppl-keberadaan-result" hx-swap="innerHTML"
+            hx-trigger="change" hx-include="#ppl-keberadaan-filter"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+            <option value="">Semua Status</option>
+            <option value="Ditemukan">✅ Ditemukan</option>
+            <option value="Tidak Ditemukan">❌ Tidak Ditemukan</option>
+            <option value="Baru">🆕 Baru</option>
+            <option value="Tutup">🔒 Tutup</option>
+            <option value="Ganda">⚠️ Ganda</option>
+            <option value="Non Respon">🚫 Non Respon</option>
+          </select>
+        </div>
+        <div id="ppl-keberadaan-result"
+          hx-get="/ppl/keberadaan" hx-trigger="load" hx-swap="innerHTML">
+          <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data keberadaan...</div>
         </div>
       </div>
     </div>

@@ -81,6 +81,7 @@ func main() {
 	ppl.GET("/sls/:id/form", handlers.PPLFormModal)
 	ppl.POST("/sls/:id/save", handlers.PPLSaveProgress)
 	ppl.GET("/anomali", handlers.PPLAnomali)
+	ppl.GET("/keberadaan", handlers.PPLKeberadaan)
 
 	// PML routes
 	pmlGrp := e.Group("/pml", mw.RequireAuth, mw.RequireRole("pml"))
@@ -89,6 +90,7 @@ func main() {
 	pmlGrp.GET("/sls/:id/verif", handlers.PMLVerifModal)
 	pmlGrp.POST("/sls/:id/save", handlers.PMLSaveVerif)
 	pmlGrp.GET("/anomali", handlers.PMLAnomali)
+	pmlGrp.GET("/keberadaan", handlers.PMLKeberadaan)
 
 	// Admin routes
 	adminGrp := e.Group("/admin", mw.RequireAuth, mw.RequireRole("admin"))

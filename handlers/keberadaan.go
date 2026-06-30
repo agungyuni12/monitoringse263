@@ -8,6 +8,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"monitoringse/db"
+	mw "monitoringse/middleware"
 	"monitoringse/models"
 )
 
@@ -177,5 +178,208 @@ func AdminKeberadaanTable(c echo.Context) error {
 		"Label":  label,
 		"PmlID":  pmlID,
 		"PplID":  pplID,
+	})
+}
+
+// PPLKeberadaan — GET /ppl/keberadaan
+func PPLKeberadaan(c echo.Context) error {
+	userID := mw.SessionUserID(c)
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page < 1 {
+		page = 1
+	}
+	q      := c.QueryParam("q")
+	label  := c.QueryParam("label")
+	skalas := c.QueryParams()["skala"]
+	like   := "%" + q + "%"
+
+	where := ` WHERE s.ppl_id = ? AND (k.nama LIKE ? OR k.skala_usaha LIKE ? OR k.keberadaan_label LIKE ? OR s.nama_sls LIKE ?)`
+	args  := []interface{}{userID, like, like, like, like}
+
+	if label != "" {
+		where += ` AND k.keberadaan_label = ?`
+		args = append(args, label)
+	}
+	if len(skalas) > 0 {
+		ph := ""
+		for i, v := range skalas {
+			if i > 0 { ph += "," }
+			ph += "?"
+			args = append(args, v)
+		}
+		where += ` AND k.skala_usaha IN (` + ph + `)`
+	}
+
+	var total int
+	countArgs := append([]interface{}{}, args...)
+	db.DB.QueryRow(`SELECT COUNT(*) FROM keberadaan_usaha k JOIN sls s ON s.id=k.sls_id`+where, countArgs...).Scan(&total)
+
+	extra := ""
+	if q != "" { extra += "&q=" + q }
+	for _, v := range skalas { extra += "&skala=" + v }
+	if label != "" { extra += "&label=" + label }
+
+	offset   := (page - 1) * models.PerPage
+	pageInfo := models.NewPageInfo(page, total, "/ppl/keberadaan", "ppl-keberadaan-result", extra)
+
+	queryArgs := append(args, models.PerPage, offset)
+	rows, err := db.DB.Query(`
+		SELECT k.id, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
+		       k.nama, k.skala_usaha,
+		       COALESCE(k.keberadaan_kode,''), COALESCE(k.keberadaan_label,''),
+		       COALESCE(DATE_FORMAT(k.synced_at,'%d/%m/%Y %H:%i'),'')
+		FROM keberadaan_usaha k
+		JOIN sls s ON s.id = k.sls_id`+where+`
+		ORDER BY s.nama_sls, k.nama
+		LIMIT ? OFFSET ?`, queryArgs...)
+
+	type PPLKeberadaanRow struct {
+		ID      int
+		NamaSLS string
+		NamaKec string
+		NamaDesa string
+		Nama    string
+		Skala   string
+		Kode    string
+		Label   string
+		SyncedAt string
+	}
+	var list []PPLKeberadaanRow
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var r PPLKeberadaanRow
+			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa,
+				&r.Nama, &r.Skala, &r.Kode, &r.Label, &r.SyncedAt)
+			list = append(list, r)
+		}
+	}
+
+	// Skala list hanya untuk SLS milik PPL ini
+	var skalaList []string
+	skRows, _ := db.DB.Query(`SELECT DISTINCT skala_usaha FROM keberadaan_usaha k JOIN sls s ON s.id=k.sls_id WHERE s.ppl_id=? AND skala_usaha != '' ORDER BY skala_usaha`, userID)
+	if skRows != nil {
+		defer skRows.Close()
+		for skRows.Next() { var s string; skRows.Scan(&s); skalaList = append(skalaList, s) }
+	}
+
+	return c.Render(http.StatusOK, "ppl_keberadaan_table.html", map[string]interface{}{
+		"Rows":      list,
+		"PageInfo":  pageInfo,
+		"SkalaList": skalaList,
+		"Skalas":    skalas,
+		"Q":         q,
+		"Label":     label,
+	})
+}
+
+// PMLKeberadaan — GET /pml/keberadaan
+func PMLKeberadaan(c echo.Context) error {
+	userID := mw.SessionUserID(c)
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page < 1 {
+		page = 1
+	}
+	q      := c.QueryParam("q")
+	label  := c.QueryParam("label")
+	skalas := c.QueryParams()["skala"]
+	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
+	like   := "%" + q + "%"
+
+	where := ` WHERE s.pml_id = ? AND (k.nama LIKE ? OR k.skala_usaha LIKE ? OR k.keberadaan_label LIKE ? OR s.nama_sls LIKE ?)`
+	args  := []interface{}{userID, like, like, like, like}
+
+	if label != "" {
+		where += ` AND k.keberadaan_label = ?`
+		args = append(args, label)
+	}
+	if len(skalas) > 0 {
+		ph := ""
+		for i, v := range skalas {
+			if i > 0 { ph += "," }
+			ph += "?"
+			args = append(args, v)
+		}
+		where += ` AND k.skala_usaha IN (` + ph + `)`
+	}
+	if pplID > 0 {
+		where += ` AND s.ppl_id = ?`
+		args = append(args, pplID)
+	}
+
+	var total int
+	countArgs := append([]interface{}{}, args...)
+	db.DB.QueryRow(`SELECT COUNT(*) FROM keberadaan_usaha k JOIN sls s ON s.id=k.sls_id`+where, countArgs...).Scan(&total)
+
+	extra := ""
+	if q != "" { extra += "&q=" + q }
+	for _, v := range skalas { extra += "&skala=" + v }
+	if label != "" { extra += "&label=" + label }
+	if pplID > 0 { extra += fmt.Sprintf("&ppl_id=%d", pplID) }
+
+	offset   := (page - 1) * models.PerPage
+	pageInfo := models.NewPageInfo(page, total, "/pml/keberadaan", "pml-keberadaan-result", extra)
+
+	queryArgs := append(args, models.PerPage, offset)
+	rows, err := db.DB.Query(`
+		SELECT k.id, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
+		       ppl.name,
+		       k.nama, k.skala_usaha,
+		       COALESCE(k.keberadaan_kode,''), COALESCE(k.keberadaan_label,''),
+		       COALESCE(DATE_FORMAT(k.synced_at,'%d/%m/%Y %H:%i'),'')
+		FROM keberadaan_usaha k
+		JOIN sls s ON s.id = k.sls_id
+		JOIN users ppl ON ppl.id = s.ppl_id`+where+`
+		ORDER BY s.nama_kec, s.nama_sls, k.nama
+		LIMIT ? OFFSET ?`, queryArgs...)
+
+	type PMLKeberadaanRow struct {
+		ID       int
+		NamaSLS  string
+		NamaKec  string
+		NamaDesa string
+		NamaPPL  string
+		Nama     string
+		Skala    string
+		Kode     string
+		Label    string
+		SyncedAt string
+	}
+	var list []PMLKeberadaanRow
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var r PMLKeberadaanRow
+			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa,
+				&r.NamaPPL, &r.Nama, &r.Skala, &r.Kode, &r.Label, &r.SyncedAt)
+			list = append(list, r)
+		}
+	}
+
+	// PPL list di bawah PML ini
+	var pplList []PPLUser
+	pplRows, _ := db.DB.Query(`SELECT u.id, u.name FROM users u JOIN sls s ON s.ppl_id=u.id WHERE s.pml_id=? GROUP BY u.id, u.name ORDER BY u.name`, userID)
+	if pplRows != nil {
+		defer pplRows.Close()
+		for pplRows.Next() { var p PPLUser; pplRows.Scan(&p.ID, &p.Name); pplList = append(pplList, p) }
+	}
+
+	// Skala list
+	var skalaList []string
+	skRows, _ := db.DB.Query(`SELECT DISTINCT skala_usaha FROM keberadaan_usaha k JOIN sls s ON s.id=k.sls_id WHERE s.pml_id=? AND skala_usaha != '' ORDER BY skala_usaha`, userID)
+	if skRows != nil {
+		defer skRows.Close()
+		for skRows.Next() { var s string; skRows.Scan(&s); skalaList = append(skalaList, s) }
+	}
+
+	return c.Render(http.StatusOK, "pml_keberadaan_table.html", map[string]interface{}{
+		"Rows":      list,
+		"PageInfo":  pageInfo,
+		"PPLList":   pplList,
+		"SkalaList": skalaList,
+		"Skalas":    skalas,
+		"Q":         q,
+		"Label":     label,
+		"PplID":     pplID,
 	})
 }
