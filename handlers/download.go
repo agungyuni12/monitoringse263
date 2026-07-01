@@ -415,6 +415,91 @@ func DownloadKendala(c echo.Context) error {
 	})
 }
 
+func DownloadKeberadaan(c echo.Context) error {
+	q := c.QueryParam("q")
+	label := c.QueryParam("label")
+	kecs := c.QueryParams()["kec"]
+	skalas := c.QueryParams()["skala"]
+	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
+	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
+	like := "%" + q + "%"
+
+	where := ` WHERE (k.nama LIKE ? OR k.skala_usaha LIKE ? OR k.keberadaan_label LIKE ? OR s.nama_sls LIKE ?)`
+	args := []interface{}{like, like, like, like}
+
+	if label != "" {
+		where += ` AND k.keberadaan_label = ?`
+		args = append(args, label)
+	}
+	inClause := func(col string, vals []string) {
+		if len(vals) == 0 {
+			return
+		}
+		ph := ""
+		for i, v := range vals {
+			if i > 0 {
+				ph += ","
+			}
+			ph += "?"
+			args = append(args, v)
+		}
+		where += ` AND ` + col + ` IN (` + ph + `)`
+	}
+	inClause("s.nama_kec", kecs)
+	inClause("k.skala_usaha", skalas)
+	if pmlID > 0 {
+		where += ` AND s.pml_id = ?`
+		args = append(args, pmlID)
+	}
+	if pplID > 0 {
+		where += ` AND s.ppl_id = ?`
+		args = append(args, pplID)
+	}
+
+	rows, err := db.DB.Query(`
+		SELECT s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
+		       ppl.name, pml.name,
+		       k.nama, k.skala_usaha,
+		       COALESCE(k.keberadaan_label,''),
+		       COALESCE(DATE_FORMAT(k.synced_at,'%d/%m/%Y %H:%i'),'')
+		FROM keberadaan_usaha k
+		JOIN sls s ON s.id = k.sls_id
+		JOIN users ppl ON ppl.id = s.ppl_id
+		JOIN users pml ON pml.id = s.pml_id`+where+`
+		ORDER BY s.nama_kec, s.nama_desa, s.nama_sls, k.nama`, args...)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+	defer rows.Close()
+
+	type row struct {
+		sls, kec, desa, ppl, pml, nama, skala, label, synced string
+	}
+	var data []row
+	for rows.Next() {
+		var r row
+		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.nama, &r.skala, &r.label, &r.synced)
+		data = append(data, r)
+	}
+
+	fname := fmt.Sprintf("monitoring_keberadaan_%s.xlsx", time.Now().In(wita).Format("20060102"))
+	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Nama Usaha", "Skala", "Status Keberadaan", "Sync Terakhir"}
+	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
+		for i, r := range data {
+			n := i + 2
+			f.SetCellValue(sheet, cell(1, n), r.sls)
+			f.SetCellValue(sheet, cell(2, n), r.kec)
+			f.SetCellValue(sheet, cell(3, n), r.desa)
+			f.SetCellValue(sheet, cell(4, n), r.ppl)
+			f.SetCellValue(sheet, cell(5, n), r.pml)
+			f.SetCellValue(sheet, cell(6, n), r.nama)
+			f.SetCellValue(sheet, cell(7, n), r.skala)
+			f.SetCellValue(sheet, cell(8, n), r.label)
+			f.SetCellValue(sheet, cell(9, n), r.synced)
+		}
+	})
+}
+
 func cell(col, row int) string {
 	name, _ := excelize.CoordinatesToCellName(col, row)
 	return name

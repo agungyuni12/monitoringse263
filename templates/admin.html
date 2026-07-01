@@ -444,6 +444,14 @@
                 <option value="">Semua PPL</option>
                 {{range .PPLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
               </select>
+              <a id="keberadaan-dl-btn" href="/admin/download/keberadaan"
+                onclick="updateKeberadaanDownload()"
+                class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+                </svg>
+                Download Excel
+              </a>
             </div>
           </div>
           <div id="keberadaan-result"
@@ -545,6 +553,30 @@
       var bar = document.getElementById('pml-filter-bar');
       var q = bar.querySelector('[name="q"]').value;
       document.getElementById('pml-dl-btn').href = '/admin/download/pml' + (q ? '?q=' + encodeURIComponent(q) : '');
+    }
+
+    // Update href download Keberadaan sesuai semua filter aktif (termasuk checkbox kec/skala)
+    function updateKeberadaanDownload() {
+      var bar = document.getElementById('keberadaan-filter-bar');
+      var result = document.getElementById('keberadaan-result');
+      var params = [];
+      var q = bar.querySelector('[name="q"]').value;
+      var label = bar.querySelector('[name="label"]').value;
+      var pmlID = bar.querySelector('[name="pml_id"]').value;
+      var pplID = bar.querySelector('[name="ppl_id"]').value;
+      if (q) params.push('q=' + encodeURIComponent(q));
+      if (label) params.push('label=' + encodeURIComponent(label));
+      if (pmlID) params.push('pml_id=' + pmlID);
+      if (pplID) params.push('ppl_id=' + pplID);
+      if (result) {
+        result.querySelectorAll('input[name="kec"]:checked').forEach(function(el) {
+          params.push('kec=' + encodeURIComponent(el.value));
+        });
+        result.querySelectorAll('input[name="skala"]:checked').forEach(function(el) {
+          params.push('skala=' + encodeURIComponent(el.value));
+        });
+      }
+      document.getElementById('keberadaan-dl-btn').href = '/admin/download/keberadaan' + (params.length ? '?' + params.join('&') : '');
     }
 
     // Pasang listener pada semua filter
