@@ -36,23 +36,24 @@ func main() {
 	// Load all templates
 	funcMap := template.FuncMap{
 		"statusLabel": models.StatusLabelOf,
+		// pct: untuk display teks — return "45,67" (koma Indonesia)
 		"pct": func(a, b int) string {
 			if b == 0 {
-				return "0"
+				return "0,00"
 			}
 			v := math.Min(float64(a)*100/float64(b), 100)
-			s := fmt.Sprintf("%.2f", v)
-			return strings.ReplaceAll(s, ".", ",")
+			return strings.ReplaceAll(fmt.Sprintf("%.2f", v), ".", ",")
 		},
+		// pctraw: untuk CSS width — return float64 (titik, valid CSS)
 		"pctraw": func(a, b int) float64 {
 			if b == 0 {
 				return 0
 			}
 			return math.Min(float64(a)*100/float64(b), 100)
 		},
+		// pctf: format float64 jadi "45,67" untuk display teks
 		"pctf": func(v float64) string {
-			s := fmt.Sprintf("%.2f", v)
-			return strings.ReplaceAll(s, ".", ",")
+			return strings.ReplaceAll(fmt.Sprintf("%.2f", v), ".", ",")
 		},
 		"add": func(a, b int) int { return a + b },
 		"inc": func(n int) int { return n + 1 },
