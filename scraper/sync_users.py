@@ -19,7 +19,6 @@ kalau proses terputus di tengah jalan.
 """
 import os, time, json
 import pymysql
-from collections import Counter
 from datetime import datetime, timezone, timedelta
 from playwright.sync_api import sync_playwright
 from playwright_stealth import Stealth
@@ -240,55 +239,88 @@ def fetch_all_assignments(sls_codes):
     return ppl_by_sls, pml_by_sls
 
 
-def _sync_role(cur, sls_map, user_map, role, id_key, email_by_sls):
-    email_updated = 0
-    reassigned    = 0
+PLACEHOLDER_NAME     = "(belum diisi)"
+PLACEHOLDER_PASSWORD = "!DISABLED-NEEDS-RESET!"  # bukan bcrypt valid -> login otomatis gagal
 
-    email_to_codes = {}
+
+def _create_user(cur, role, email):
+    """Bikin user baru placeholder (nama & password menyusul diisi manual)."""
+    username = email[:50]
+    try:
+        cur.execute(
+            "INSERT INTO users (username, password_hash, role, name, email) VALUES (%s,%s,%s,%s,%s)",
+            (username, PLACEHOLDER_PASSWORD, role, PLACEHOLDER_NAME, email),
+        )
+        return cur.lastrowid
+    except Exception as e:
+        print(f"  [WARN] {role}: gagal bikin user baru utk {email!r}: {e}", flush=True)
+        return None
+
+
+def _sync_role(cur, sls_map, id_to_email, id_to_name, email_to_id, role, id_key, email_by_sls):
+    """
+    1 SLS = 1 petugas langsung dari FASIH (get-structure-approval), jadi tiap kode SLS
+    diproses independen — tidak digabung/divote lintas SLS. Identitas local user
+    ditentukan dari users.email yang sudah terdaftar. Kalau email dari FASIH belum ada
+    match di users, dibikinkan row user baru (nama placeholder, diisi manual belakangan)
+    supaya SLS-nya tetap ke-assign ke identitas yang benar.
+    """
+    email_updated  = 0
+    reassigned     = 0
+    users_created  = 0
+
     for kode, email in email_by_sls.items():
-        email_to_codes.setdefault(email, []).append(kode)
-
-    for email, codes in email_to_codes.items():
-        code_to_id = {k: sls_map[k][id_key] for k in codes if k in sls_map}
-        if not code_to_id:
+        row = sls_map.get(kode)
+        if not row:
             continue
-        local_id = Counter(code_to_id.values()).most_common(1)[0][0]
 
-        current_email = user_map.get(local_id, "")
+        local_id = email_to_id.get(email)
+        if local_id is None:
+            local_id = _create_user(cur, role, email)
+            if local_id is None:
+                continue
+            print(f"  [{role}-new] user_id={local_id}: dibuat baru utk email {email!r} (nama menyusul)", flush=True)
+            users_created += 1
+            id_to_email[local_id] = email
+            id_to_name[local_id]  = PLACEHOLDER_NAME
+            email_to_id[email]    = local_id
+
+        nama = id_to_name.get(local_id, "?")
+        current_email = id_to_email.get(local_id, "")
         if current_email != email:
             cur.execute("UPDATE users SET email=%s WHERE id=%s AND role=%s",
                         (email, local_id, role))
             if cur.rowcount:
-                print(f"  [{role}-email] user_id={local_id}: {current_email!r} → {email!r}", flush=True)
+                print(f"  [{role}-email] user_id={local_id} ({nama}): {current_email!r} → {email!r}", flush=True)
                 email_updated += 1
-            user_map[local_id] = email
+            id_to_email[local_id] = email
 
-        for kode in codes:
-            row = sls_map.get(kode)
-            if not row or row[id_key] == local_id:
-                continue
+        if row[id_key] != local_id:
+            print(f"  [{role}-sls] {kode}: {id_key} {row[id_key]} ({id_to_name.get(row[id_key], '?')}) "
+                  f"→ {local_id} ({nama}) [{email}]", flush=True)
             cur.execute(f"UPDATE sls SET {id_key}=%s WHERE kode_sls=%s", (local_id, kode))
             if cur.rowcount:
-                print(f"  [{role}-sls] {kode}: {id_key} {row[id_key]} → {local_id}", flush=True)
                 reassigned += 1
                 row[id_key] = local_id
 
-    return email_updated, reassigned
+    return email_updated, reassigned, users_created
 
 
-def apply_sync(sls_map, user_map, ppl_by_sls, pml_by_sls):
+def apply_sync(sls_map, id_to_email, id_to_name, ppl_email_to_id, pml_email_to_id, ppl_by_sls, pml_by_sls):
     conn = connect_db()
     cur  = conn.cursor()
 
-    ppl_email_updated, ppl_reassigned = _sync_role(cur, sls_map, user_map, "ppl", "ppl_id", ppl_by_sls)
-    pml_email_updated, pml_reassigned = _sync_role(cur, sls_map, user_map, "pml", "pml_id", pml_by_sls)
+    ppl_email_updated, ppl_reassigned, ppl_created = _sync_role(
+        cur, sls_map, id_to_email, id_to_name, ppl_email_to_id, "ppl", "ppl_id", ppl_by_sls)
+    pml_email_updated, pml_reassigned, pml_created = _sync_role(
+        cur, sls_map, id_to_email, id_to_name, pml_email_to_id, "pml", "pml_id", pml_by_sls)
 
     conn.commit()
     cur.close()
     conn.close()
 
-    print(f"\n[DONE] ppl_email_updated={ppl_email_updated} | ppl_reassigned={ppl_reassigned} "
-          f"| pml_email_updated={pml_email_updated} | pml_reassigned={pml_reassigned}", flush=True)
+    print(f"\n[DONE] ppl_email_updated={ppl_email_updated} | ppl_reassigned={ppl_reassigned} | ppl_created={ppl_created} "
+          f"| pml_email_updated={pml_email_updated} | pml_reassigned={pml_reassigned} | pml_created={pml_created}", flush=True)
 
 
 def run():
@@ -301,8 +333,12 @@ def run():
     sls_map   = {r["kode_sls"]: r for r in sls_rows}
     sls_codes = list(sls_map.keys())
 
-    cur.execute("SELECT id, email FROM users WHERE role IN ('ppl', 'pml')")
-    user_map = {r["id"]: r["email"] for r in cur.fetchall()}
+    cur.execute("SELECT id, email, name, role FROM users WHERE role IN ('ppl', 'pml')")
+    user_rows       = cur.fetchall()
+    id_to_email     = {r["id"]: (r["email"] or "") for r in user_rows}
+    id_to_name      = {r["id"]: r["name"] for r in user_rows}
+    ppl_email_to_id = {r["email"]: r["id"] for r in user_rows if r["role"] == "ppl" and r["email"]}
+    pml_email_to_id = {r["email"]: r["id"] for r in user_rows if r["role"] == "pml" and r["email"]}
     cur.close()
     conn.close()
 
@@ -311,7 +347,7 @@ def run():
     print(f"\n[FASIH] hasil fetch: PPL={len(ppl_by_sls)} | PML={len(pml_by_sls)} dari {len(sls_codes)} SLS", flush=True)
 
     print(f"\n[SYNC] Mulai update DB...", flush=True)
-    apply_sync(sls_map, user_map, ppl_by_sls, pml_by_sls)
+    apply_sync(sls_map, id_to_email, id_to_name, ppl_email_to_id, pml_email_to_id, ppl_by_sls, pml_by_sls)
 
 
 if __name__ == "__main__":
