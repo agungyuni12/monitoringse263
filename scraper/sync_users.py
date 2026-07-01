@@ -19,9 +19,10 @@ FASIH_USER       = os.getenv("FASIH_USER",      "agung.yuniarta")
 FASIH_PASS       = os.getenv("FASIH_PASS",      "kelayu1998")
 BASE_URL         = "https://fasih-sm.bps.go.id"
 PERIOD_ID        = os.getenv("FASIH_PERIOD_ID", "fd68e454-ba45-4b85-8205-f3bf777ded24")
+SURVEY_ID        = "a0429e96-51a5-477b-a415-485f9c153004"
 DOMPU_REGION2_ID = "546a26bf-e388-41ab-9083-e02cbbc093d4"
 PENCACAH_ROLE_ID = "6d7d919a-45e5-4779-bb87-2905b49fd31a"
-PAGE_SIZE        = 50
+PAGE_SIZE        = 10   # server FASIH batasi max 10
 HEADLESS         = os.getenv("HEADLESS", "false").lower() == "true"
 
 DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
@@ -113,7 +114,7 @@ def fetch_all(ctx, xsrf):
             data=json.dumps(payload), headers=hdrs, timeout=60_000,
         )
         if r.status != 200:
-            print(f"  [WARN] halaman {page_num}: HTTP {r.status}", flush=True)
+            print(f"  [WARN] halaman {page_num}: HTTP {r.status} — {r.text()[:500]}", flush=True)
             return [], 0
         d = r.json()
         inner = d.get("data", {})
