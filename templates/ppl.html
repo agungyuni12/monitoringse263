@@ -95,7 +95,7 @@
         <span class="font-semibold text-green-600">{{.TotalSubmit}} / {{.TotalTarget}}</span>
       </div>
       <div class="h-3 bg-gray-100 rounded-full overflow-hidden">
-        <div class="h-full bg-green-500 rounded-full transition-all" style="width:{{pct .TotalSubmit .TotalTarget}}%"></div>
+        <div class="h-full bg-green-500 rounded-full transition-all" style="width:{{pctraw .TotalSubmit .TotalTarget}}%"></div>
       </div>
     </div>
 

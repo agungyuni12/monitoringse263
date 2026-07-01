@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 
@@ -17,7 +18,7 @@ type GeoStat struct {
 	Draft      int `json:"draft"`
 	Target     int `json:"target"`
 	FasihTotal int `json:"fasih_total"`
-	Pct        int `json:"pct"`
+	Pct        float64 `json:"pct"`
 }
 
 func AdminGeoStats(c echo.Context) error {
@@ -53,10 +54,7 @@ func AdminGeoStats(c echo.Context) error {
 		var g GeoStat
 		rows.Scan(&key, &g.Submit, &g.Draft, &g.Target, &g.FasihTotal)
 		if g.FasihTotal > 0 {
-			g.Pct = g.Submit * 100 / g.FasihTotal
-			if g.Pct > 100 {
-				g.Pct = 100
-			}
+			g.Pct = math.Min(float64(g.Submit)*100/float64(g.FasihTotal), 100)
 		}
 		result[key] = g
 	}
@@ -97,8 +95,8 @@ type AdminSummary struct {
 	TotalError      int // = TotalRejectedPengawas
 	TotalObservasi  int
 	TotalFasihTotal int
-	PctSubmit       int
-	PctDiperiksa    int
+	PctSubmit       float64
+	PctDiperiksa    float64
 }
 
 type PMLRow struct {
@@ -123,7 +121,7 @@ type PMLRow struct {
 	Diperiksa      int // = ApprovedPengawas
 	Error          int // = RejectedPengawas
 	FasihTotal     int
-	PctSubmit      int
+	PctSubmit      float64
 	Observasi      int
 	KendalaTerbuka int
 }
@@ -149,7 +147,7 @@ type PPLRow struct {
 	Diperiksa  int // = ApprovedPengawas
 	Error      int // = RejectedPengawas
 	FasihTotal int
-	PctSubmit  int
+	PctSubmit  float64
 }
 
 type PMLUser struct {
@@ -188,7 +186,7 @@ type SLSAdminRow struct {
 	JumlahError     int
 	JumlahObservasi int
 	FasihTotal      int
-	PctSubmit       int
+	PctSubmit       float64
 	StatusKendala   string
 	Kendala         string
 }
@@ -204,7 +202,7 @@ type DesaRow struct {
 	JumlahDiperiksa int
 	JumlahError     int
 	FasihTotal      int
-	PctSubmit       int
+	PctSubmit       float64
 }
 
 type KecRow struct {
@@ -217,7 +215,7 @@ type KecRow struct {
 	JumlahDiperiksa int
 	JumlahError     int
 	FasihTotal      int
-	PctSubmit       int
+	PctSubmit       float64
 }
 
 func AdminDashboard(c echo.Context) error {
@@ -250,10 +248,10 @@ func AdminDashboard(c echo.Context) error {
 	s.TotalDiperiksa = s.TotalApprovedPengawas
 	s.TotalError = s.TotalRejectedPengawas
 	if s.TotalFasihTotal > 0 {
-		s.PctSubmit = s.TotalSubmit * 100 / s.TotalFasihTotal
+		s.PctSubmit = math.Min(float64(s.TotalSubmit)*100/float64(s.TotalFasihTotal), 100)
 	}
 	if s.TotalSubmit > 0 {
-		s.PctDiperiksa = s.TotalDiperiksa * 100 / s.TotalSubmit
+		s.PctDiperiksa = math.Min(float64(s.TotalDiperiksa)*100/float64(s.TotalSubmit), 100)
 	}
 
 	pmlPage, _ := strconv.Atoi(c.QueryParam("pml_page"))
@@ -406,9 +404,9 @@ func queryAdminPML(page int, q string) ([]PMLRow, models.PageInfo) {
 		r.Diperiksa = r.ApprovedPengawas
 		r.Error = r.RejectedPengawas
 		if r.FasihTotal > 0 {
-			r.PctSubmit = r.JumlahSubmit * 100 / r.FasihTotal
+			r.PctSubmit = math.Min(float64(r.JumlahSubmit)*100/float64(r.FasihTotal), 100)
 			if r.PctSubmit > 100 {
-				r.PctSubmit = 100
+				r.PctSubmit = 100.0
 			}
 		}
 		pmls = append(pmls, r)
@@ -483,9 +481,9 @@ func queryAdminPPL(page int, q string, pmlID int) ([]PPLRow, models.PageInfo) {
 		r.Diperiksa = r.ApprovedPengawas
 		r.Error = r.RejectedPengawas
 		if r.FasihTotal > 0 {
-			r.PctSubmit = r.JumlahSubmit * 100 / r.FasihTotal
+			r.PctSubmit = math.Min(float64(r.JumlahSubmit)*100/float64(r.FasihTotal), 100)
 			if r.PctSubmit > 100 {
-				r.PctSubmit = 100
+				r.PctSubmit = 100.0
 			}
 		}
 		ppls = append(ppls, r)
@@ -544,9 +542,9 @@ func queryAdminSLS(page int, q string) ([]SLSAdminRow, models.PageInfo) {
 			&r.JumlahDiperiksa, &r.JumlahError, &r.JumlahObservasi,
 			&r.FasihTotal, &r.StatusKendala, &r.Kendala)
 		if r.FasihTotal > 0 {
-			r.PctSubmit = r.JumlahSubmit * 100 / r.FasihTotal
+			r.PctSubmit = math.Min(float64(r.JumlahSubmit)*100/float64(r.FasihTotal), 100)
 			if r.PctSubmit > 100 {
-				r.PctSubmit = 100
+				r.PctSubmit = 100.0
 			}
 		}
 		list = append(list, r)
@@ -591,9 +589,9 @@ func queryAdminSLSByDesa(page int, q string) ([]DesaRow, models.PageInfo) {
 		rows.Scan(&r.NamaDesa, &r.NamaKec, &r.JmlSLS, &r.Target,
 			&r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError, &r.FasihTotal)
 		if r.FasihTotal > 0 {
-			r.PctSubmit = r.JumlahSubmit * 100 / r.FasihTotal
+			r.PctSubmit = math.Min(float64(r.JumlahSubmit)*100/float64(r.FasihTotal), 100)
 			if r.PctSubmit > 100 {
-				r.PctSubmit = 100
+				r.PctSubmit = 100.0
 			}
 		}
 		list = append(list, r)
@@ -636,9 +634,9 @@ func queryAdminSLSByKec(page int, q string) ([]KecRow, models.PageInfo) {
 		rows.Scan(&r.NamaKec, &r.JmlSLS, &r.Target,
 			&r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError, &r.FasihTotal)
 		if r.FasihTotal > 0 {
-			r.PctSubmit = r.JumlahSubmit * 100 / r.FasihTotal
+			r.PctSubmit = math.Min(float64(r.JumlahSubmit)*100/float64(r.FasihTotal), 100)
 			if r.PctSubmit > 100 {
-				r.PctSubmit = 100
+				r.PctSubmit = 100.0
 			}
 		}
 		list = append(list, r)

@@ -102,7 +102,7 @@
       </div>
       <div class="h-3 bg-gray-100 rounded-full overflow-hidden">
         {{if gt .TotSubmit 0}}
-        <div class="h-full bg-se rounded-full transition-all" style="width:{{pct .TotDiperiksa .TotSubmit}}%"></div>
+        <div class="h-full bg-se rounded-full transition-all" style="width:{{pctraw .TotDiperiksa .TotSubmit}}%"></div>
         {{else}}
         <div class="h-full bg-gray-200 rounded-full w-0"></div>
         {{end}}

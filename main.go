@@ -5,7 +5,9 @@ import (
 	"html/template"
 	"io"
 	"log"
+	"math"
 	"net/http"
+	"strings"
 
 	"monitoringse/db"
 	"monitoringse/handlers"
@@ -34,15 +36,23 @@ func main() {
 	// Load all templates
 	funcMap := template.FuncMap{
 		"statusLabel": models.StatusLabelOf,
-		"pct": func(a, b int) int {
+		"pct": func(a, b int) string {
+			if b == 0 {
+				return "0"
+			}
+			v := math.Min(float64(a)*100/float64(b), 100)
+			s := fmt.Sprintf("%.2f", v)
+			return strings.ReplaceAll(s, ".", ",")
+		},
+		"pctraw": func(a, b int) float64 {
 			if b == 0 {
 				return 0
 			}
-			v := a * 100 / b
-			if v > 100 {
-				return 100
-			}
-			return v
+			return math.Min(float64(a)*100/float64(b), 100)
+		},
+		"pctf": func(v float64) string {
+			s := fmt.Sprintf("%.2f", v)
+			return strings.ReplaceAll(s, ".", ",")
 		},
 		"add": func(a, b int) int { return a + b },
 		"inc": func(n int) int { return n + 1 },

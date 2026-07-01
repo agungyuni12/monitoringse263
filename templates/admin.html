@@ -160,12 +160,12 @@
           </div>
           <!-- Stacked bar: Approved Pengawas (hijau) + Submit pending (kuning) + Rejected Pengawas (merah) -->
           <div class="h-4 bg-gray-100 rounded-full overflow-hidden flex">
-            <div class="h-full bg-green-600 transition-all" style="width:{{pct .Summary.TotalApprovedPengawas .Summary.TotalFasihTotal}}%" title="Approved Pengawas"></div>
-            <div class="h-full bg-blue-500 transition-all" style="width:{{pct .Summary.TotalApprovedKabupaten .Summary.TotalFasihTotal}}%" title="Approved Kabupaten"></div>
-            <div class="h-full bg-purple-500 transition-all" style="width:{{pct .Summary.TotalApprovedProvinsi .Summary.TotalFasihTotal}}%" title="Approved Provinsi"></div>
-            <div class="h-full bg-gray-600 transition-all" style="width:{{pct .Summary.TotalApprovedPusat .Summary.TotalFasihTotal}}%" title="Approved Pusat"></div>
-            <div class="h-full bg-yellow-400 transition-all" style="width:{{pct .Summary.TotalFasihSubmit .Summary.TotalFasihTotal}}%" title="Submit pending"></div>
-            <div class="h-full bg-red-500 transition-all" style="width:{{pct .Summary.TotalRejectedPengawas .Summary.TotalFasihTotal}}%" title="Rejected"></div>
+            <div class="h-full bg-green-600 transition-all" style="width:{{pctraw .Summary.TotalApprovedPengawas .Summary.TotalFasihTotal}}%" title="Approved Pengawas"></div>
+            <div class="h-full bg-blue-500 transition-all" style="width:{{pctraw .Summary.TotalApprovedKabupaten .Summary.TotalFasihTotal}}%" title="Approved Kabupaten"></div>
+            <div class="h-full bg-purple-500 transition-all" style="width:{{pctraw .Summary.TotalApprovedProvinsi .Summary.TotalFasihTotal}}%" title="Approved Provinsi"></div>
+            <div class="h-full bg-gray-600 transition-all" style="width:{{pctraw .Summary.TotalApprovedPusat .Summary.TotalFasihTotal}}%" title="Approved Pusat"></div>
+            <div class="h-full bg-yellow-400 transition-all" style="width:{{pctraw .Summary.TotalFasihSubmit .Summary.TotalFasihTotal}}%" title="Submit pending"></div>
+            <div class="h-full bg-red-500 transition-all" style="width:{{pctraw .Summary.TotalRejectedPengawas .Summary.TotalFasihTotal}}%" title="Rejected"></div>
           </div>
           <div class="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-gray-500">
             <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-green-600 inline-block"></span>Appr. Pengawas {{.Summary.TotalApprovedPengawas}}</span>
@@ -182,7 +182,7 @@
             <span class="font-semibold text-green-700">{{.Summary.TotalApprovedPengawas}} / {{.Summary.TotalSubmit}} ({{pct .Summary.TotalApprovedPengawas .Summary.TotalSubmit}}%)</span>
           </div>
           <div class="h-4 bg-gray-100 rounded-full overflow-hidden">
-            <div class="h-full bg-green-600 rounded-full transition-all" style="width:{{pct .Summary.TotalApprovedPengawas .Summary.TotalSubmit}}%"></div>
+            <div class="h-full bg-green-600 rounded-full transition-all" style="width:{{pctraw .Summary.TotalApprovedPengawas .Summary.TotalSubmit}}%"></div>
           </div>
         </div>
       </div>

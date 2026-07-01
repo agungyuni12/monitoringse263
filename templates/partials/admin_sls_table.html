@@ -44,9 +44,9 @@
         <td class="px-4 py-3 text-center min-w-[90px]">
           <div class="flex items-center gap-1.5">
             <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div class="h-full bg-green-500 rounded-full" style="width:{{.PctSubmit}}%"></div>
+              <div class="h-full bg-green-500 rounded-full" style="width:{{pctf .PctSubmit}}%"></div>
             </div>
-            <span class="text-xs {{if gt .PctSubmit 0}}text-green-600 font-semibold{{else}}text-gray-400{{end}} w-8 text-right">{{.PctSubmit}}%</span>
+            <span class="text-xs {{if gt .PctSubmit 0}}text-green-600 font-semibold{{else}}text-gray-400{{end}} w-8 text-right">{{pctf .PctSubmit}}%</span>
           </div>
         </td>
       </tr>
