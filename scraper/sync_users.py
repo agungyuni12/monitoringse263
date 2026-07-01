@@ -1,14 +1,22 @@
 """
-sync_users.py — sinkronkan email PPL dan SLS assignment dari FASIH ke DB
+sync_users.py — sinkronkan email PPL/PML dan SLS assignment dari FASIH ke DB
 
 Yang disync:
-  - users.email  : diisi dari FASIH (nama tidak diubah)
+  - users.email  : diisi dari FASIH (nama tidak diubah), untuk role ppl & pml
   - sls.ppl_id   : diupdate kalau ada perubahan assignment pencacah di FASIH
+  - sls.pml_id   : diupdate kalau ada perubahan assignment pengawas di FASIH
 
 Login sama persis dengan sync_fasih.py (ctx.request.post + XSRF).
+
+PML tidak bisa diambil lewat report-progress-by-responsibility (perlu
+surveyRoleId Pengawas yang tidak ada endpoint list-nya), jadi diambil per SLS:
+  1. get-principal-values-by-smallest-code -> assignmentId salah satu target di SLS itu
+  2. get-structure-approval?assignmentId=... -> email Pengawas (PML) & Pencacah (PPL)
+Sudah diverifikasi: PML sama untuk semua target dalam 1 SLS, jadi cukup 1 assignmentId.
 """
 import os, json, time, math
 import pymysql
+from collections import Counter
 from datetime import datetime, timezone, timedelta
 from playwright.sync_api import sync_playwright
 from playwright_stealth import Stealth
@@ -136,16 +144,65 @@ def fetch_all(ctx, xsrf):
     return all_items
 
 
-def sync(all_items):
+def fetch_pml_map(ctx, xsrf, sls_codes):
+    """kode_sls -> email Pengawas (PML) di FASIH, per SLS (2 request per kode)."""
+    hdrs = {
+        "Accept":  "application/json, */*",
+        "X-XSRF-TOKEN": xsrf,
+        "Referer": f"{BASE_URL}/app/surveys",
+    }
+    result = {}
+    total = len(sls_codes)
+    for i, kode in enumerate(sls_codes):
+        try:
+            r1 = ctx.request.get(
+                f"{BASE_URL}/app/api/assignment-general/api/assignments/get-principal-values-by-smallest-code/{PERIOD_ID}/{kode}",
+                headers=hdrs, timeout=30_000,
+            )
+            if r1.status != 200:
+                print(f"  [WARN] PML {kode}: HTTP {r1.status} (principal-values)", flush=True)
+                continue
+            items = r1.json().get("data", [])
+            if not items:
+                continue
+            assignment_id = items[0].get("assignmentId")
+            if not assignment_id:
+                continue
+
+            r2 = ctx.request.get(
+                f"{BASE_URL}/assignment-general/api/assignment-responsibility/get-structure-approval?assignmentId={assignment_id}",
+                headers=hdrs, timeout=30_000,
+            )
+            if r2.status != 200:
+                print(f"  [WARN] PML {kode}: HTTP {r2.status} (structure-approval)", flush=True)
+                continue
+            officers = r2.json().get("data", [])
+            pml_email = next(
+                (o.get("email", "").strip() for o in officers if o.get("currentSurveyRoleName") == "Pengawas"),
+                "",
+            )
+            if pml_email:
+                result[kode] = pml_email
+        except Exception as e:
+            print(f"  [WARN] PML {kode}: {e}", flush=True)
+
+        if (i + 1) % 50 == 0:
+            print(f"  ...PML lookup {i+1}/{total}", flush=True)
+
+    print(f"[FASIH] PML terambil untuk {len(result)}/{total} SLS", flush=True)
+    return result
+
+
+def sync(all_items, pml_by_code):
     conn = connect_db()
     cur  = conn.cursor()
 
-    # Load semua SLS dari DB: kode_sls → {id, ppl_id}
-    cur.execute("SELECT id, kode_sls, ppl_id FROM sls")
+    # Load semua SLS dari DB: kode_sls → {id, ppl_id, pml_id}
+    cur.execute("SELECT id, kode_sls, ppl_id, pml_id FROM sls")
     sls_map = {r["kode_sls"]: r for r in cur.fetchall()}
 
-    # Load semua users PPL: id → email
-    cur.execute("SELECT id, email FROM users WHERE role='ppl'")
+    # Load semua users PPL & PML: id → email
+    cur.execute("SELECT id, email FROM users WHERE role IN ('ppl', 'pml')")
     user_map = {r["id"]: r["email"] for r in cur.fetchall()}
 
     email_updated  = 0
@@ -181,7 +238,6 @@ def sync(all_items):
             continue
 
         # Ambil ppl_id yang paling sering muncul (mayoritas SLS)
-        from collections import Counter
         code_to_ppl = {kode: sls_map[kode]["ppl_id"] for kode in sls_codes if kode in sls_map}
         if not code_to_ppl:
             continue
@@ -210,23 +266,69 @@ def sync(all_items):
                     sls_reassigned += 1
                     row["ppl_id"] = local_ppl_id
 
+    # --- Sync PML (pengawas) per SLS ---
+    pml_email_updated  = 0
+    pml_reassigned     = 0
+
+    email_to_codes = {}
+    for kode, email in pml_by_code.items():
+        email_to_codes.setdefault(email, []).append(kode)
+
+    for pml_email, codes in email_to_codes.items():
+        code_to_pml = {kode: sls_map[kode]["pml_id"] for kode in codes if kode in sls_map}
+        if not code_to_pml:
+            continue
+        local_pml_id = Counter(code_to_pml.values()).most_common(1)[0][0]
+
+        current_email = user_map.get(local_pml_id, "")
+        if current_email != pml_email:
+            cur.execute("UPDATE users SET email=%s WHERE id=%s AND role='pml'",
+                        (pml_email, local_pml_id))
+            if cur.rowcount:
+                print(f"  [pml-email] user_id={local_pml_id}: {current_email!r} → {pml_email!r}", flush=True)
+                pml_email_updated += 1
+            user_map[local_pml_id] = pml_email
+
+        for kode in codes:
+            row = sls_map.get(kode)
+            if not row:
+                continue
+            if row["pml_id"] != local_pml_id:
+                cur.execute("UPDATE sls SET pml_id=%s WHERE kode_sls=%s",
+                            (local_pml_id, kode))
+                if cur.rowcount:
+                    print(f"  [pml-sls] {kode}: pml_id {row['pml_id']} → {local_pml_id}", flush=True)
+                    pml_reassigned += 1
+                    row["pml_id"] = local_pml_id
+
     conn.commit()
     cur.close()
     conn.close()
 
-    print(f"\n[DONE] email_updated={email_updated} | sls_reassigned={sls_reassigned} | skipped={skipped}", flush=True)
+    print(f"\n[DONE] email_updated={email_updated} | sls_reassigned={sls_reassigned} | skipped={skipped} "
+          f"| pml_email_updated={pml_email_updated} | pml_reassigned={pml_reassigned}", flush=True)
 
 
 def run():
     print(f"=== sync_users.py [{_now()}] ===", flush=True)
+
+    conn = connect_db()
+    cur  = conn.cursor()
+    cur.execute("SELECT kode_sls FROM sls")
+    sls_codes = [r["kode_sls"] for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+
     with sync_playwright() as pw:
         browser, ctx = make_browser(pw)
         xsrf      = login(ctx)
         all_items = fetch_all(ctx, xsrf)
+        print(f"\n[FASIH] Ambil PML per SLS ({len(sls_codes)} SLS)...", flush=True)
+        pml_by_code = fetch_pml_map(ctx, xsrf, sls_codes)
         browser.close()
 
     print(f"\n[SYNC] Mulai update DB...", flush=True)
-    sync(all_items)
+    sync(all_items, pml_by_code)
 
 
 if __name__ == "__main__":
