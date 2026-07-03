@@ -163,9 +163,27 @@ func AdminAnomaliTable(c echo.Context) error {
 	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
 
 	list, pageInfo := queryAnomaili(page, q, kec, pmlID, pplID, "anomali-result", "/admin/table/anomali")
+
+	var kecs []string
+	if kec != "" {
+		kecs = []string{kec}
+	}
+	pmlSelect := OOBSelect{
+		TargetID: "anomali-pml-select", Name: "pml_id", Placeholder: "Semua PML",
+		Options: queryPMLOptionsByKec(kecs), Selected: pmlID,
+		HxGet: "/admin/table/anomali", HxTarget: "#anomali-result", HxInclude: "#anomali-filter-bar",
+	}
+	pplSelect := OOBSelect{
+		TargetID: "anomali-ppl-select", Name: "ppl_id", Placeholder: "Semua PPL",
+		Options: queryPPLOptionsByFilter(kecs, pmlID), Selected: pplID,
+		HxGet: "/admin/table/anomali", HxTarget: "#anomali-result", HxInclude: "#anomali-filter-bar",
+	}
+
 	return c.Render(http.StatusOK, "anomali_table.html", map[string]interface{}{
-		"Rows":     list,
-		"PageInfo": pageInfo,
+		"Rows":      list,
+		"PageInfo":  pageInfo,
+		"PMLSelect": pmlSelect,
+		"PPLSelect": pplSelect,
 	})
 }
 

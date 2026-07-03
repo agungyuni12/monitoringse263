@@ -1,4 +1,6 @@
 {{define "anomali_table.html"}}
+{{template "oob_select" .PMLSelect}}
+{{template "oob_select" .PPLSelect}}
 <div>
   <div class="px-4 py-2 text-xs text-gray-500 border-b border-gray-100">
     Ditemukan <span class="font-semibold text-gray-700">{{.PageInfo.TotalRow}}</span> anomali

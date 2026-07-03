@@ -186,6 +186,17 @@ func AdminKeberadaanTable(c echo.Context) error {
 		}
 	}
 
+	pmlSelect := OOBSelect{
+		TargetID: "keberadaan-pml-select", Name: "pml_id", Placeholder: "Semua PML",
+		Options: queryPMLOptionsByKec(kecs), Selected: pmlID,
+		HxGet: "/admin/table/keberadaan", HxTarget: "#keberadaan-result", HxInclude: "#keberadaan-filter-bar, #keberadaan-result",
+	}
+	pplSelect := OOBSelect{
+		TargetID: "keberadaan-ppl-select", Name: "ppl_id", Placeholder: "Semua PPL",
+		Options: queryPPLOptionsByFilter(kecs, pmlID), Selected: pplID,
+		HxGet: "/admin/table/keberadaan", HxTarget: "#keberadaan-result", HxInclude: "#keberadaan-filter-bar, #keberadaan-result",
+	}
+
 	return c.Render(http.StatusOK, "keberadaan_table.html", map[string]interface{}{
 		"Rows":      list,
 		"PageInfo":  pageInfo,
@@ -193,12 +204,14 @@ func AdminKeberadaanTable(c echo.Context) error {
 		"LabelList": labelList,
 		"SkalaList": querySkalaList(),
 		"KecList":   queryKecList(),
-		"Q":      q,
-		"Kecs":   kecs,
-		"Skalas": skalas,
-		"Label":  label,
-		"PmlID":  pmlID,
-		"PplID":  pplID,
+		"Q":         q,
+		"Kecs":      kecs,
+		"Skalas":    skalas,
+		"Label":     label,
+		"PmlID":     pmlID,
+		"PplID":     pplID,
+		"PMLSelect": pmlSelect,
+		"PPLSelect": pplSelect,
 	})
 }
 
@@ -305,15 +318,26 @@ func AdminKeberadaanRekapTable(c echo.Context) error {
 		}
 	}
 
+	pplSelect := OOBSelect{
+		TargetID: "kebrekap-ppl-select", Name: "ppl_id", Placeholder: "Semua PPL",
+		Options: queryPPLOptionsByFilter(nil, pmlID), Selected: pplID,
+		HxGet: "/admin/table/keberadaan-rekap", HxTarget: "#keberadaan-rekap-result", HxInclude: "#keberadaan-rekap-filter-bar",
+	}
+	slsSelect := OOBSelect{
+		TargetID: "kebrekap-sls-select", Name: "sls_id", Placeholder: "Semua SLS",
+		Options: querySLSOptionsByFilter(nil, pmlID, pplID), Selected: slsID,
+		HxGet: "/admin/table/keberadaan-rekap", HxTarget: "#keberadaan-rekap-result", HxInclude: "#keberadaan-rekap-filter-bar",
+	}
+
 	return c.Render(http.StatusOK, "admin_keberadaan_rekap_table.html", map[string]interface{}{
-		"Rows":        list,
-		"PageInfo":    pageInfo,
-		"PMLUserList": queryPMLUsers(),
-		"PPLUserList": queryPPLUsers(),
-		"Q":           q,
-		"PmlID":       pmlID,
-		"PplID":       pplID,
-		"SlsID":       slsID,
+		"Rows":      list,
+		"PageInfo":  pageInfo,
+		"Q":         q,
+		"PmlID":     pmlID,
+		"PplID":     pplID,
+		"SlsID":     slsID,
+		"PPLSelect": pplSelect,
+		"SLSSelect": slsSelect,
 	})
 }
 

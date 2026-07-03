@@ -1,0 +1,10 @@
+{{define "oob_select"}}
+<select id="{{.TargetID}}" name="{{.Name}}" hx-swap-oob="true"
+  hx-get="{{.HxGet}}" hx-target="{{.HxTarget}}" hx-swap="innerHTML"
+  hx-trigger="change" hx-include="{{.HxInclude}}"
+  class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+  <option value="">{{.Placeholder}}</option>
+  {{$sel := .Selected}}
+  {{range .Options}}<option value="{{.ID}}" {{if eq $sel .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+</select>
+{{end}}

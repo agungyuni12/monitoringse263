@@ -391,14 +391,14 @@
               <option value="">Semua Kecamatan</option>
               {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
             </select>
-            <select name="pml_id"
+            <select name="pml_id" id="anomali-pml-select"
               hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
               hx-trigger="change" hx-include="#anomali-filter-bar"
               class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
               <option value="">Semua PML</option>
               {{range .PMLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
             </select>
-            <select name="ppl_id"
+            <select name="ppl_id" id="anomali-ppl-select"
               hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
               hx-trigger="change" hx-include="#anomali-filter-bar"
               class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
@@ -419,12 +419,12 @@
             <div class="px-4 py-3 flex flex-wrap gap-2 items-center">
               <input type="text" name="q"
                 hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
-                hx-trigger="input changed delay:400ms" hx-include="#keberadaan-filter-bar"
+                hx-trigger="input changed delay:400ms" hx-include="#keberadaan-filter-bar, #keberadaan-result"
                 placeholder="Cari nama usaha..."
                 class="w-full md:w-56 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
               <select name="label" id="keberadaan-label-filter"
                 hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
-                hx-trigger="change" hx-include="#keberadaan-filter-bar"
+                hx-trigger="change" hx-include="#keberadaan-filter-bar, #keberadaan-result"
                 class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
                 <option value="">Semua Status</option>
                 <option value="Ditemukan">✅ Ditemukan</option>
@@ -434,16 +434,16 @@
                 <option value="Ganda">⚠️ Ganda</option>
                 <option value="Non Respon">🚫 Non Respon</option>
               </select>
-              <select name="pml_id"
+              <select name="pml_id" id="keberadaan-pml-select"
                 hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
-                hx-trigger="change" hx-include="#keberadaan-filter-bar"
+                hx-trigger="change" hx-include="#keberadaan-filter-bar, #keberadaan-result"
                 class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
                 <option value="">Semua PML</option>
                 {{range .PMLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
               </select>
-              <select name="ppl_id"
+              <select name="ppl_id" id="keberadaan-ppl-select"
                 hx-get="/admin/table/keberadaan" hx-target="#keberadaan-result" hx-swap="innerHTML"
-                hx-trigger="change" hx-include="#keberadaan-filter-bar"
+                hx-trigger="change" hx-include="#keberadaan-filter-bar, #keberadaan-result"
                 class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
                 <option value="">Semua PPL</option>
                 {{range .PPLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
@@ -473,13 +473,6 @@
               hx-trigger="input changed delay:400ms" hx-include="#keberadaan-rekap-filter-bar"
               placeholder="Cari nama SLS, Desa, Kecamatan..."
               class="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
-            <select name="sls_id"
-              hx-get="/admin/table/keberadaan-rekap" hx-target="#keberadaan-rekap-result" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#keberadaan-rekap-filter-bar"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
-              <option value="">Semua SLS</option>
-              {{range .KebSLSList}}<option value="{{.ID}}">{{.Nama}}</option>{{end}}
-            </select>
             <select name="pml_id"
               hx-get="/admin/table/keberadaan-rekap" hx-target="#keberadaan-rekap-result" hx-swap="innerHTML"
               hx-trigger="change" hx-include="#keberadaan-rekap-filter-bar"
@@ -487,12 +480,19 @@
               <option value="">Semua PML</option>
               {{range .PMLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
             </select>
-            <select name="ppl_id"
+            <select name="ppl_id" id="kebrekap-ppl-select"
               hx-get="/admin/table/keberadaan-rekap" hx-target="#keberadaan-rekap-result" hx-swap="innerHTML"
               hx-trigger="change" hx-include="#keberadaan-rekap-filter-bar"
               class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
               <option value="">Semua PPL</option>
               {{range .PPLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <select name="sls_id" id="kebrekap-sls-select"
+              hx-get="/admin/table/keberadaan-rekap" hx-target="#keberadaan-rekap-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#keberadaan-rekap-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+              <option value="">Semua SLS</option>
+              {{range .KebSLSList}}<option value="{{.ID}}">{{.Nama}}</option>{{end}}
             </select>
           </div>
           <div id="keberadaan-rekap-result"
