@@ -344,13 +344,12 @@ def load_sls_map(conn):
 
 def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at):
     """
-    Upsert items anomali ke tabel anomali.
+    Upsert items anomali ke tabel anomali, lalu hapus baris lama untuk rule_key
+    yang sama tapi assignment_id-nya sudah tidak ada di daftar terbaru dari FASIH
+    (artinya anomali itu sudah resolved / tidak berlaku lagi).
     UNIQUE KEY adalah (assignment_id, rule_key) — satu baris per (assignment, tipe anomali).
-    Return (n_upserted, n_skipped).
+    Return (n_upserted, n_skipped, n_deleted).
     """
-    if not items:
-        return 0, 0
-
     cur = conn.cursor()
 
     SQL = """
@@ -366,10 +365,12 @@ def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at):
     """
 
     upserted = skipped = 0
+    current_ids = set()
     for item in items:
         assignment_id = str(item.get("assignment_id") or "").strip()
         if not assignment_id or len(assignment_id) != 36:
             continue
+        current_ids.add(assignment_id)
 
         # kode_wilayah sudah 16-digit SLS code
         kode16 = str(item.get("kode_wilayah") or item.get("level_6_code") or "").strip()
@@ -390,9 +391,20 @@ def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at):
         except Exception as e:
             print(f"      [DB ERROR] {e}", flush=True)
 
+    # Bersihkan anomali lama untuk rule_key ini yang sudah tidak muncul lagi di FASIH
+    if current_ids:
+        placeholders = ",".join(["%s"] * len(current_ids))
+        cur.execute(
+            f"DELETE FROM anomali WHERE rule_key = %s AND assignment_id NOT IN ({placeholders})",
+            (rule_key, *current_ids),
+        )
+    else:
+        cur.execute("DELETE FROM anomali WHERE rule_key = %s", (rule_key,))
+    deleted = cur.rowcount
+
     conn.commit()
     cur.close()
-    return upserted, skipped
+    return upserted, skipped, deleted
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -413,30 +425,37 @@ def run_once():
             sls_map   = load_sls_map(conn)
             synced_at = fetch_dashboard_synced_at(ctx, KODE_KAB)
             total     = 0
+            total_del = 0
 
             # Sync anomali usaha
             print(f"\n[USAHA] {len(usaha_list)} tipe...", flush=True)
             for item in usaha_list:
                 rows = fetch_anomali(ctx, KODE_KAB, item["belumKode"], item["sudahKode"], "usaha", item["no"])
-                n, skip = upsert_anomali(conn, sls_map, rows, item["rule_key"], item["short_label"], synced_at)
+                n, skip, deleted = upsert_anomali(conn, sls_map, rows, item["rule_key"], item["short_label"], synced_at)
                 total += n
+                total_del += deleted
                 if skip:
                     print(f"      {skip} skip (SLS tidak ada di DB)", flush=True)
+                if deleted:
+                    print(f"      {deleted} anomali lama dihapus (sudah resolved)", flush=True)
                 time.sleep(DELAY)
 
             # Sync anomali keluarga
             print(f"\n[KELUARGA] {len(kel_list)} tipe...", flush=True)
             for item in kel_list:
                 rows = fetch_anomali(ctx, KODE_KAB, item["belumKode"], item["sudahKode"], "keluarga", item["no"])
-                n, skip = upsert_anomali(conn, sls_map, rows, item["rule_key"], item["short_label"], synced_at)
+                n, skip, deleted = upsert_anomali(conn, sls_map, rows, item["rule_key"], item["short_label"], synced_at)
                 total += n
+                total_del += deleted
                 if skip:
                     print(f"      {skip} skip (SLS tidak ada di DB)", flush=True)
+                if deleted:
+                    print(f"      {deleted} anomali lama dihapus (sudah resolved)", flush=True)
                 time.sleep(DELAY)
 
             fill_nama_by_sls(conn, pw)
             conn.close()
-            print(f"\nSelesai! {total} baris anomali diupsert.", flush=True)
+            print(f"\nSelesai! {total} baris anomali diupsert, {total_del} dihapus (resolved).", flush=True)
 
         finally:
             browser.close()
