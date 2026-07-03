@@ -357,9 +357,9 @@ def _next_run():
         if h >= 22:
             nxt += timedelta(days=1)
         return nxt
-    # Siang → 1 jam dari sekarang
+    # Siang → 2 jam dari sekarang
     from datetime import timedelta
-    return now + timedelta(hours=1)
+    return now + timedelta(hours=2)
 
 def run_once():
     print("="*50)
