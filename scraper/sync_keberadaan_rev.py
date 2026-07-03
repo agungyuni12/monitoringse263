@@ -115,6 +115,19 @@ def _clear_progress(conn):
     conn.commit()
 
 
+def _read_frontier(conn, job):
+    """Baca posisi sls_index job lain (dipakai buat deteksi auto-stop saat forward &
+    reverse ketemu di tengah). None kalau job itu belum pernah jalan / progressnya
+    sudah bersih (selesai atau belum mulai)."""
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT sls_index FROM sync_progress WHERE job=%s", (job,))
+            row = cur.fetchone()
+            return row["sls_index"] if row else None
+    except Exception:
+        return None
+
+
 def _make_browser(pw):
     browser = pw.chromium.launch(
         headless=HEADLESS,
@@ -292,6 +305,14 @@ def run_once():
         browser = _make_browser(pw)
 
         for chunk_start in chunks_to_do:
+            # Auto-stop kalau sudah ketemu proses forward (dia jalan dari SLS
+            # pertama ke akhir) — hindari dua proses balapan memproses ulang area sama.
+            fwd_frontier = _read_frontier(conn, "keberadaan")
+            if fwd_frontier is not None and chunk_start < fwd_frontier:
+                print(f"\n[{_now_wita()}] Ketemu proses forward di SLS {chunk_start} "
+                      f"(forward sudah sampai {fwd_frontier}) — auto-stop, gabungan sudah cover semua SLS.", flush=True)
+                break
+
             chunk    = sls_list[chunk_start : chunk_start + CHUNK_SIZE]
             chunk_no = total_chunks - all_starts.index(chunk_start)
             print(f"\n[chunk ↑{chunk_no}/{total_chunks} | SLS {chunk_start}-{chunk_start+len(chunk)-1}] Login...", flush=True)

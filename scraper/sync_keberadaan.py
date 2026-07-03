@@ -326,6 +326,19 @@ def _clear_progress(conn):
     conn.commit()
 
 
+def _read_frontier(conn, job):
+    """Baca posisi sls_index job lain (dipakai buat deteksi auto-stop saat forward &
+    reverse ketemu di tengah). None kalau job itu belum pernah jalan / progressnya
+    sudah bersih (selesai atau belum mulai)."""
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT sls_index FROM sync_progress WHERE job=%s", (job,))
+            row = cur.fetchone()
+            return row["sls_index"] if row else None
+    except Exception:
+        return None
+
+
 def run_once():
     synced_at = _now_wita()
     conn      = _connect_db()
@@ -351,6 +364,15 @@ def run_once():
         for chunk_i, chunk_start in enumerate(range(0, total_sls, CHUNK_SIZE)):
             if chunk_start < resume_from:
                 continue
+
+            # Auto-stop kalau sudah ketemu proses REV (dia jalan dari SLS terakhir
+            # ke awal) — hindari dua proses balapan memproses ulang area yang sama.
+            rev_frontier = _read_frontier(conn, "keberadaan_rev")
+            if rev_frontier is not None and chunk_start >= rev_frontier:
+                print(f"\n[{_now_wita()}] Ketemu proses REV di SLS {chunk_start} "
+                      f"(REV sudah sampai {rev_frontier}) — auto-stop, gabungan sudah cover semua SLS.", flush=True)
+                break
+
             chunk = sls_list[chunk_start : chunk_start + CHUNK_SIZE]
             print(f"\n[chunk {chunk_i+1}/{total_chunks}] Login...", flush=True)
 
@@ -420,9 +442,9 @@ def run_once():
                 time.sleep(CHUNK_DELAY)
 
         browser.close()
-    conn.close()
 
     _clear_progress(conn)  # hapus progress di DB, run berikutnya mulai dari awal
+    conn.close()
     print(f"\n[{_now_wita()}] Selesai: total={total_asgn} ok={ok} null={null_count}", flush=True)
 
 
