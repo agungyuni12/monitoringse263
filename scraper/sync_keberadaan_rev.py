@@ -52,26 +52,30 @@ def load_sls_map(conn):
 
 
 def upsert_keberadaan(conn, sls_id, assignment_id, nama, skala_usaha,
-                      kode, label, synced_at):
+                      kode, label, gate_label, assignment_status, synced_at):
     with conn.cursor() as cur:
         cur.execute("""
             INSERT INTO keberadaan_usaha
               (sls_id, assignment_id, nama, skala_usaha,
-               keberadaan_kode, keberadaan_label, synced_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s)
+               keberadaan_kode, keberadaan_label, gate_label, assignment_status, synced_at)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON DUPLICATE KEY UPDATE
-              sls_id           = VALUES(sls_id),
-              nama             = IF(VALUES(nama) != '' AND VALUES(nama) IS NOT NULL,
-                                    VALUES(nama), nama),
-              skala_usaha      = IF(VALUES(skala_usaha) != '' AND VALUES(skala_usaha) IS NOT NULL,
-                                    VALUES(skala_usaha), skala_usaha),
-              keberadaan_kode  = IF(VALUES(keberadaan_kode) IS NOT NULL,
-                                    VALUES(keberadaan_kode), keberadaan_kode),
-              keberadaan_label = IF(VALUES(keberadaan_label) IS NOT NULL,
-                                    VALUES(keberadaan_label), keberadaan_label),
-              synced_at        = VALUES(synced_at)
+              sls_id            = VALUES(sls_id),
+              nama              = IF(VALUES(nama) != '' AND VALUES(nama) IS NOT NULL,
+                                     VALUES(nama), nama),
+              skala_usaha       = IF(VALUES(skala_usaha) != '' AND VALUES(skala_usaha) IS NOT NULL,
+                                     VALUES(skala_usaha), skala_usaha),
+              keberadaan_kode   = IF(VALUES(keberadaan_kode) IS NOT NULL,
+                                     VALUES(keberadaan_kode), keberadaan_kode),
+              keberadaan_label  = IF(VALUES(keberadaan_label) IS NOT NULL,
+                                     VALUES(keberadaan_label), keberadaan_label),
+              gate_label        = IF(VALUES(gate_label) IS NOT NULL,
+                                     VALUES(gate_label), gate_label),
+              assignment_status = IF(VALUES(assignment_status) IS NOT NULL,
+                                     VALUES(assignment_status), assignment_status),
+              synced_at         = VALUES(synced_at)
         """, (sls_id, assignment_id, nama or "", skala_usaha or "",
-              kode, label, synced_at))
+              kode, label, gate_label, assignment_status, synced_at))
     conn.commit()
 
 
@@ -199,44 +203,62 @@ def fetch_assignments_per_sls(page, kode_sls):
     return results
 
 
-def _parse_keberadaan(raw_r):
+def _parse_assignment(raw_r):
+    """Parse satu JSON response get-by-assignment-id →
+    (kode, label, gate_label, assignment_status). Lihat sync_keberadaan.py untuk detail."""
     if not raw_r:
-        return None, None
+        return None, None, None, None
     data_obj = raw_r.get("data") if isinstance(raw_r, dict) else None
     if not data_obj:
-        return None, None
+        return None, None, None, None
+
+    assignment_status = data_obj.get("assignment_status_alias")
+
     data_str = data_obj.get("data") or ""
     if not data_str:
-        return None, None
+        return None, None, None, assignment_status
     try:
         inner = json.loads(data_str) if isinstance(data_str, str) else data_str
     except Exception:
-        return None, None
+        return None, None, None, assignment_status
+
+    kode, label, gate_label = None, None, None
+
     for item in (inner.get("answers") or []):
         if not isinstance(item, dict):
             continue
-        if not item.get("dataKey", "").startswith("keberadaan_usaha#"):
-            continue
+        key = item.get("dataKey", "") or ""
         ans = item.get("answer")
         if not ans:
             continue
-        if isinstance(ans, list) and ans:
+
+        if key.startswith("keberadaan_usaha#"):
+            if isinstance(ans, list) and ans:
+                first = ans[0]
+                if isinstance(first, dict):
+                    label_raw   = (first.get("label") or "").strip()
+                    value_raw   = str(first.get("value") or "").strip()
+                    label_clean = label_raw.split(". ", 1)[1].strip() if ". " in label_raw else label_raw
+                    kode, label = value_raw, label_clean
+            elif isinstance(ans, str):
+                kode, label = None, ans.strip()
+            continue
+
+        if gate_label is None and isinstance(ans, list) and len(ans) == 1:
             first = ans[0]
             if isinstance(first, dict):
-                label_raw   = (first.get("label") or "").strip()
-                value_raw   = str(first.get("value") or "").strip()
-                label_clean = label_raw.split(". ", 1)[1].strip() if ". " in label_raw else label_raw
-                return value_raw, label_clean
-        elif isinstance(ans, str):
-            return None, ans.strip()
-    return None, None
+                gl = (first.get("label") or "")
+                if "(stop)" in gl.lower():
+                    gate_label = gl.strip()
+
+    return kode, label, gate_label, assignment_status
 
 
 def fetch_keberadaan_batch(page, assignment_ids):
     base    = f"{FASIH_URL}/app/api/assignment-general/api/assignment/get-by-assignment-id?assignmentId="
     urls    = [base + aid for aid in assignment_ids]
     results = _page_fetch_batch(page, urls)
-    return [_parse_keberadaan(r) for r in results]
+    return [_parse_assignment(r) for r in results]
 
 
 def run_once():
@@ -293,8 +315,8 @@ def run_once():
                     batch           = pending[start : start + BATCH_SIZE]
                     ids             = [a["assignment_id"] for a in batch]
                     keberadaan_list = fetch_keberadaan_batch(page, ids)
-                    for asgn, (kode, label) in zip(batch, keberadaan_list):
-                        if kode is None and label is None:
+                    for asgn, (kode, label, gate_label, assignment_status) in zip(batch, keberadaan_list):
+                        if kode is None and label is None and gate_label is None:
                             null_count += 1
                             chunk_null += 1
                         else:
@@ -302,13 +324,15 @@ def run_once():
                             chunk_ok += 1
                         upsert_keberadaan(
                             conn,
-                            sls_id        = asgn["sls_id"],
-                            assignment_id = asgn["assignment_id"],
-                            nama          = asgn["nama"],
-                            skala_usaha   = asgn["skala_usaha"],
-                            kode          = kode,
-                            label         = label,
-                            synced_at     = synced_at,
+                            sls_id            = asgn["sls_id"],
+                            assignment_id     = asgn["assignment_id"],
+                            nama              = asgn["nama"],
+                            skala_usaha       = asgn["skala_usaha"],
+                            kode              = kode,
+                            label             = label,
+                            gate_label        = gate_label,
+                            assignment_status = assignment_status,
+                            synced_at         = synced_at,
                         )
                 total_asgn += len(pending)
 

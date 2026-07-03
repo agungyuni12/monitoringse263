@@ -15,6 +15,7 @@
         {{else if eq .Kode "4"}}bg-purple-50 border-purple-300 text-purple-700 hover:bg-purple-100
         {{else if eq .Kode "9"}}bg-orange-50 border-orange-300 text-orange-700 hover:bg-orange-100
         {{else if eq .Kode "0" "00"}}bg-slate-100 border-slate-400 text-slate-700 hover:bg-slate-200
+        {{else if eq .Kode "GATE"}}bg-indigo-50 border-indigo-300 text-indigo-700 hover:bg-indigo-100
         {{else}}bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200{{end}}"
       data-label="{{.Label}}">
       <span class="font-bold">{{.Total}}</span>
@@ -147,8 +148,15 @@
                 <span class="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block"></span>{{$r.Label}}
               </span>
               {{end}}
+            {{else if $r.GateLabel}}
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700 whitespace-nowrap" title="{{$r.GateLabel}}">
+              <span class="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block"></span>Kel/Bgn Tidak Ditemukan
+            </span>
             {{else}}
             <span class="text-gray-400 italic">Belum diisi</span>
+            {{end}}
+            {{if $r.AssignmentStatus}}
+            <div class="text-[10px] text-gray-400 mt-0.5">{{$r.AssignmentStatus}}</div>
             {{end}}
           </td>
           <td class="px-3 py-2 text-center text-gray-400 whitespace-nowrap">{{$r.SyncedAt}}</td>

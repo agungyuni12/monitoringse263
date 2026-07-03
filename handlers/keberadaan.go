@@ -14,17 +14,19 @@ import (
 )
 
 type KeberadaanRow struct {
-	ID       int
-	NamaSLS  string
-	NamaKec  string
-	NamaDesa string
-	NamaPPL  string
-	NamaPML  string
-	Nama     string
-	Skala    string
-	Kode     string
-	Label    string
-	SyncedAt string
+	ID               int
+	NamaSLS          string
+	NamaKec          string
+	NamaDesa         string
+	NamaPPL          string
+	NamaPML          string
+	Nama             string
+	Skala            string
+	Kode             string
+	Label            string
+	GateLabel        string // alasan gate keluarga/bangunan stop (kalau keberadaan_usaha# tidak pernah ditanya)
+	AssignmentStatus string // status submit assignment di FASIH
+	SyncedAt         string
 }
 
 type KeberadaanStat struct {
@@ -32,6 +34,13 @@ type KeberadaanStat struct {
 	Kode  string
 	Total int
 }
+
+// Label sintetis untuk keberadaan_usaha yang keberadaan_label-nya kosong: dua kondisi
+// berbeda yang sebelumnya sama-sama tercampur sebagai "Belum diisi".
+const (
+	LabelBelumDiisi = "Belum diisi"
+	LabelGateStop   = "Kel/Bgn Tidak Ditemukan"
+)
 
 type SLSOption struct {
 	ID   int
@@ -70,7 +79,14 @@ func AdminKeberadaanTable(c echo.Context) error {
 	where := ` WHERE (k.nama LIKE ? OR k.skala_usaha LIKE ? OR k.keberadaan_label LIKE ? OR s.nama_sls LIKE ?)`
 	args  := []interface{}{like, like, like, like}
 
-	if label != "" {
+	switch label {
+	case "":
+		// tidak ada filter status
+	case LabelBelumDiisi:
+		where += ` AND (k.keberadaan_label IS NULL OR k.keberadaan_label = '') AND (k.gate_label IS NULL OR k.gate_label = '')`
+	case LabelGateStop:
+		where += ` AND (k.keberadaan_label IS NULL OR k.keberadaan_label = '') AND k.gate_label IS NOT NULL AND k.gate_label != ''`
+	default:
 		where += ` AND k.keberadaan_label = ?`
 		args = append(args, label)
 	}
@@ -132,6 +148,7 @@ func AdminKeberadaanTable(c echo.Context) error {
 		       ppl.name, pml.name,
 		       k.nama, k.skala_usaha,
 		       COALESCE(k.keberadaan_kode,''), COALESCE(k.keberadaan_label,''),
+		       COALESCE(k.gate_label,''), COALESCE(k.assignment_status,''),
 		       COALESCE(DATE_FORMAT(k.synced_at,'%d/%m/%Y %H:%i'),'')
 		FROM keberadaan_usaha k
 		JOIN sls s ON s.id = k.sls_id
@@ -147,20 +164,32 @@ func AdminKeberadaanTable(c echo.Context) error {
 			var r KeberadaanRow
 			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa,
 				&r.NamaPPL, &r.NamaPML,
-				&r.Nama, &r.Skala, &r.Kode, &r.Label, &r.SyncedAt)
+				&r.Nama, &r.Skala, &r.Kode, &r.Label,
+				&r.GateLabel, &r.AssignmentStatus, &r.SyncedAt)
 			list = append(list, r)
 		}
 	}
 
 	// Summary per label (untuk chart ringkasan di atas tabel)
+	// Entri yang gate-nya stop (keluarga/bangunan tidak ditemukan) dipisah dari
+	// "Belum diisi" yang genuine karena statusnya sebenarnya sudah selesai.
 	var stats []KeberadaanStat
-	statRows, err := db.DB.Query(`
-		SELECT COALESCE(keberadaan_label,'Belum diisi') as lbl,
-		       COALESCE(keberadaan_kode,'') as kode,
-		       COUNT(*) as tot
+	statRows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT
+		  CASE
+		    WHEN keberadaan_label IS NOT NULL AND keberadaan_label != '' THEN keberadaan_label
+		    WHEN gate_label IS NOT NULL AND gate_label != '' THEN '%s'
+		    ELSE '%s'
+		  END as lbl,
+		  CASE
+		    WHEN keberadaan_label IS NOT NULL AND keberadaan_label != '' THEN COALESCE(keberadaan_kode,'')
+		    WHEN gate_label IS NOT NULL AND gate_label != '' THEN 'GATE'
+		    ELSE ''
+		  END as kode,
+		  COUNT(*) as tot
 		FROM keberadaan_usaha
-		GROUP BY keberadaan_kode, keberadaan_label
-		ORDER BY tot DESC`)
+		GROUP BY lbl, kode
+		ORDER BY tot DESC`, LabelGateStop, LabelBelumDiisi))
 	if err == nil {
 		defer statRows.Close()
 		for statRows.Next() {
@@ -224,6 +253,7 @@ type KeberadaanRekapRow struct {
 	NamaPML        string
 	Total          int
 	BelumDiisi     int
+	GateStop       int // keluarga/bangunan tidak ditemukan -> keberadaan_usaha# tidak pernah ditanya
 	Ditemukan      int
 	TidakDitemukan int
 	Baru           int
@@ -287,7 +317,13 @@ func AdminKeberadaanRekapTable(c echo.Context) error {
 		SELECT s.id, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
 		       ppl.name, pml.name,
 		       COUNT(k.id) AS total,
-		       SUM(CASE WHEN k.id IS NOT NULL AND (k.keberadaan_label IS NULL OR k.keberadaan_label = '') THEN 1 ELSE 0 END) AS belum_diisi,
+		       SUM(CASE WHEN k.id IS NOT NULL
+		                 AND (k.keberadaan_label IS NULL OR k.keberadaan_label = '')
+		                 AND (k.gate_label IS NULL OR k.gate_label = '')
+		                THEN 1 ELSE 0 END) AS belum_diisi,
+		       SUM(CASE WHEN (k.keberadaan_label IS NULL OR k.keberadaan_label = '')
+		                 AND k.gate_label IS NOT NULL AND k.gate_label != ''
+		                THEN 1 ELSE 0 END) AS gate_stop,
 		       SUM(CASE WHEN k.keberadaan_label = 'Ditemukan' THEN 1 ELSE 0 END) AS ditemukan,
 		       SUM(CASE WHEN k.keberadaan_label = 'Tidak Ditemukan' THEN 1 ELSE 0 END) AS tidak_ditemukan,
 		       SUM(CASE WHEN k.keberadaan_label = 'Baru' THEN 1 ELSE 0 END) AS baru,
@@ -308,9 +344,11 @@ func AdminKeberadaanRekapTable(c echo.Context) error {
 		for rows.Next() {
 			var r KeberadaanRekapRow
 			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML,
-				&r.Total, &r.BelumDiisi, &r.Ditemukan, &r.TidakDitemukan,
+				&r.Total, &r.BelumDiisi, &r.GateStop, &r.Ditemukan, &r.TidakDitemukan,
 				&r.Baru, &r.Tutup, &r.Ganda, &r.NonRespon)
-			denom := r.Total - r.Baru
+			// Baru & gate-stop dikecualikan dari penyebut: keduanya sudah "selesai"
+			// (bukan lagi pekerjaan yang tersisa untuk PPL).
+			denom := r.Total - r.Baru - r.GateStop
 			if denom > 0 {
 				r.PctBelumDiisi = math.Min(float64(r.BelumDiisi)*100/float64(denom), 100)
 			}
@@ -393,6 +431,7 @@ func PPLKeberadaan(c echo.Context) error {
 		SELECT k.id, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
 		       k.nama, k.skala_usaha,
 		       COALESCE(k.keberadaan_kode,''), COALESCE(k.keberadaan_label,''),
+		       COALESCE(k.gate_label,''), COALESCE(k.assignment_status,''),
 		       COALESCE(DATE_FORMAT(k.synced_at,'%d/%m/%Y %H:%i'),'')
 		FROM keberadaan_usaha k
 		JOIN sls s ON s.id = k.sls_id`+where+`
@@ -400,15 +439,17 @@ func PPLKeberadaan(c echo.Context) error {
 		LIMIT ? OFFSET ?`, queryArgs...)
 
 	type PPLKeberadaanRow struct {
-		ID      int
-		NamaSLS string
-		NamaKec string
-		NamaDesa string
-		Nama    string
-		Skala   string
-		Kode    string
-		Label   string
-		SyncedAt string
+		ID               int
+		NamaSLS          string
+		NamaKec          string
+		NamaDesa         string
+		Nama             string
+		Skala            string
+		Kode             string
+		Label            string
+		GateLabel        string
+		AssignmentStatus string
+		SyncedAt         string
 	}
 	var list []PPLKeberadaanRow
 	if err == nil {
@@ -416,7 +457,8 @@ func PPLKeberadaan(c echo.Context) error {
 		for rows.Next() {
 			var r PPLKeberadaanRow
 			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa,
-				&r.Nama, &r.Skala, &r.Kode, &r.Label, &r.SyncedAt)
+				&r.Nama, &r.Skala, &r.Kode, &r.Label,
+				&r.GateLabel, &r.AssignmentStatus, &r.SyncedAt)
 			list = append(list, r)
 		}
 	}
@@ -509,6 +551,7 @@ func PMLKeberadaan(c echo.Context) error {
 		       ppl.name,
 		       k.nama, k.skala_usaha,
 		       COALESCE(k.keberadaan_kode,''), COALESCE(k.keberadaan_label,''),
+		       COALESCE(k.gate_label,''), COALESCE(k.assignment_status,''),
 		       COALESCE(DATE_FORMAT(k.synced_at,'%d/%m/%Y %H:%i'),'')
 		FROM keberadaan_usaha k
 		JOIN sls s ON s.id = k.sls_id
@@ -517,16 +560,18 @@ func PMLKeberadaan(c echo.Context) error {
 		LIMIT ? OFFSET ?`, queryArgs...)
 
 	type PMLKeberadaanRow struct {
-		ID       int
-		NamaSLS  string
-		NamaKec  string
-		NamaDesa string
-		NamaPPL  string
-		Nama     string
-		Skala    string
-		Kode     string
-		Label    string
-		SyncedAt string
+		ID               int
+		NamaSLS          string
+		NamaKec          string
+		NamaDesa         string
+		NamaPPL          string
+		Nama             string
+		Skala            string
+		Kode             string
+		Label            string
+		GateLabel        string
+		AssignmentStatus string
+		SyncedAt         string
 	}
 	var list []PMLKeberadaanRow
 	if err == nil {
@@ -534,7 +579,8 @@ func PMLKeberadaan(c echo.Context) error {
 		for rows.Next() {
 			var r PMLKeberadaanRow
 			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa,
-				&r.NamaPPL, &r.Nama, &r.Skala, &r.Kode, &r.Label, &r.SyncedAt)
+				&r.NamaPPL, &r.Nama, &r.Skala, &r.Kode, &r.Label,
+				&r.GateLabel, &r.AssignmentStatus, &r.SyncedAt)
 			list = append(list, r)
 		}
 	}

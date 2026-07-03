@@ -461,6 +461,7 @@ func DownloadKeberadaan(c echo.Context) error {
 		       ppl.name, pml.name,
 		       k.nama, k.skala_usaha,
 		       COALESCE(k.keberadaan_label,''),
+		       COALESCE(k.gate_label,''), COALESCE(k.assignment_status,''),
 		       COALESCE(DATE_FORMAT(k.synced_at,'%d/%m/%Y %H:%i'),'')
 		FROM keberadaan_usaha k
 		JOIN sls s ON s.id = k.sls_id
@@ -473,17 +474,18 @@ func DownloadKeberadaan(c echo.Context) error {
 	defer rows.Close()
 
 	type row struct {
-		sls, kec, desa, ppl, pml, nama, skala, label, synced string
+		sls, kec, desa, ppl, pml, nama, skala, label, gateLabel, assignmentStatus, synced string
 	}
 	var data []row
 	for rows.Next() {
 		var r row
-		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.nama, &r.skala, &r.label, &r.synced)
+		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.nama, &r.skala, &r.label,
+			&r.gateLabel, &r.assignmentStatus, &r.synced)
 		data = append(data, r)
 	}
 
 	fname := fmt.Sprintf("monitoring_keberadaan_%s.xlsx", time.Now().In(wita).Format("20060102"))
-	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Nama Usaha", "Skala", "Status Keberadaan", "Sync Terakhir"}
+	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Nama Usaha", "Skala", "Status Keberadaan", "Keterangan Gate", "Status Assignment", "Sync Terakhir"}
 	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
 		for i, r := range data {
 			n := i + 2
@@ -495,7 +497,9 @@ func DownloadKeberadaan(c echo.Context) error {
 			f.SetCellValue(sheet, cell(6, n), r.nama)
 			f.SetCellValue(sheet, cell(7, n), r.skala)
 			f.SetCellValue(sheet, cell(8, n), r.label)
-			f.SetCellValue(sheet, cell(9, n), r.synced)
+			f.SetCellValue(sheet, cell(9, n), r.gateLabel)
+			f.SetCellValue(sheet, cell(10, n), r.assignmentStatus)
+			f.SetCellValue(sheet, cell(11, n), r.synced)
 		}
 	})
 }
