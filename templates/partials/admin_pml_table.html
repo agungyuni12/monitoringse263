@@ -12,6 +12,7 @@
         <th class="px-4 py-3 font-medium text-center">Approved</th>
         <th class="px-4 py-3 font-medium text-center">Rejected</th>
         <th class="px-4 py-3 font-medium text-center">% Progres</th>
+        <th class="px-4 py-3 font-medium text-center">% Terverifikasi</th>
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-100">
@@ -41,9 +42,17 @@
             <span class="text-xs text-gray-500 w-8 text-right">{{pctf .PctSubmit}}%</span>
           </div>
         </td>
+        <td class="px-4 py-3">
+          <div class="flex items-center gap-2">
+            <div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden min-w-16">
+              <div class="h-full bg-blue-500 rounded-full" style="width:{{.PctTerverifikasi}}%"></div>
+            </div>
+            <span class="text-xs text-gray-500 w-8 text-right">{{pctf .PctTerverifikasi}}%</span>
+          </div>
+        </td>
       </tr>
       {{else}}
-      <tr><td colspan="9" class="px-4 py-8 text-center text-gray-400">Belum ada data PML.</td></tr>
+      <tr><td colspan="10" class="px-4 py-8 text-center text-gray-400">Belum ada data PML.</td></tr>
       {{end}}
     </tbody>
   </table>

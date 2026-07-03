@@ -124,6 +124,9 @@ type PMLRow struct {
 	PctSubmit      float64
 	Observasi      int
 	KendalaTerbuka int
+	// Terverifikasi = semua status kecuali open, submit, draft (approved+rejected+revoked di semua level)
+	Terverifikasi    int
+	PctTerverifikasi float64
 }
 
 type PPLRow struct {
@@ -408,6 +411,14 @@ func queryAdminPML(page int, q string) ([]PMLRow, models.PageInfo) {
 			if r.PctSubmit > 100 {
 				r.PctSubmit = 100.0
 			}
+		}
+		// Terverifikasi = semua status kecuali open, submit, draft
+		r.Terverifikasi = r.ApprovedPengawas + r.RejectedPengawas + r.RevokedPengawas +
+			r.ApprovedKabupaten + r.RejectedKabupaten +
+			r.ApprovedProvinsi + r.RejectedProvinsi +
+			r.ApprovedPusat + r.RejectedPusat
+		if r.FasihTotal > 0 {
+			r.PctTerverifikasi = math.Min(float64(r.Terverifikasi)*100/float64(r.FasihTotal), 100)
 		}
 		pmls = append(pmls, r)
 	}

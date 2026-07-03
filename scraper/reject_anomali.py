@@ -249,17 +249,15 @@ def process_assignment(page, assignment_id, idx, total):
             reject_btn.click()
             time.sleep(1.5)
 
-            # Konfirmasi dialog jika ada
+            # Konfirmasi dialog Reject — wajib, jangan silent-skip
             try:
-                confirm = page.locator(
-                    "button:has-text('Ya'), button:has-text('Konfirmasi'), "
-                    "button:has-text('OK'), button:has-text('Iya')"
-                ).first
-                confirm.wait_for(state="visible", timeout=4_000)
+                confirm = page.get_by_role("button", name="Konfirmasi", exact=True).last
+                confirm.wait_for(state="visible", timeout=8_000)
                 confirm.click()
                 time.sleep(1)
             except PWTimeout:
-                pass
+                print(f"  {prefix} ⚠ Tombol Konfirmasi Reject tidak ditemukan", flush=True)
+                return "error"
 
         except PWTimeout:
             print(f"  {prefix} ⚠ Tombol Reject tidak ditemukan", flush=True)
