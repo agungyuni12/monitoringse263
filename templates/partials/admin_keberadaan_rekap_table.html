@@ -1,0 +1,83 @@
+{{define "admin_keberadaan_rekap_table.html"}}
+<div>
+  <div class="px-4 py-2 text-xs text-gray-500 border-b border-gray-100">
+    Ditemukan <span class="font-semibold text-gray-700">{{.PageInfo.TotalRow}}</span> SLS
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="w-full text-xs">
+      <thead>
+        <tr class="bg-orange-50 text-gray-600 text-left uppercase tracking-wide">
+          <th class="px-3 py-2.5 font-medium text-center w-8">No</th>
+          <th class="px-3 py-2.5 font-medium">Lokasi (Kec / Desa / SLS)</th>
+          <th class="px-3 py-2.5 font-medium">Petugas</th>
+          <th class="px-3 py-2.5 font-medium text-center">Total</th>
+          <th class="px-3 py-2.5 font-medium text-center">Belum Diisi</th>
+          <th class="px-3 py-2.5 font-medium text-center">Ditemukan</th>
+          <th class="px-3 py-2.5 font-medium text-center">Tdk Ditemukan</th>
+          <th class="px-3 py-2.5 font-medium text-center">Baru</th>
+          <th class="px-3 py-2.5 font-medium text-center">Tutup</th>
+          <th class="px-3 py-2.5 font-medium text-center">Ganda</th>
+          <th class="px-3 py-2.5 font-medium text-center">Non Respon</th>
+          <th class="px-3 py-2.5 font-medium">% Belum Diisi</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {{range $i, $r := .Rows}}
+        <tr class="hover:bg-orange-50/20 transition-colors">
+          <td class="px-3 py-2 text-center text-gray-400">{{add $.PageInfo.From $i}}</td>
+          <td class="px-3 py-2 whitespace-nowrap">
+            <div class="text-gray-400">{{$r.NamaKec}} › {{$r.NamaDesa}}</div>
+            <div class="font-medium text-gray-700">{{$r.NamaSLS}}</div>
+          </td>
+          <td class="px-3 py-2 whitespace-nowrap">
+            <div class="text-gray-600">PPL: {{$r.NamaPPL}}</div>
+            <div class="text-gray-400">PML: {{$r.NamaPML}}</div>
+          </td>
+          <td class="px-3 py-2 text-center text-gray-700 font-medium">{{$r.Total}}</td>
+          <td class="px-3 py-2 text-center">
+            <span class="{{if gt $r.BelumDiisi 0}}text-gray-500 font-semibold{{else}}text-gray-300{{end}}">{{$r.BelumDiisi}}</span>
+          </td>
+          <td class="px-3 py-2 text-center">
+            <span class="{{if gt $r.Ditemukan 0}}text-green-600 font-semibold{{else}}text-gray-300{{end}}">{{$r.Ditemukan}}</span>
+          </td>
+          <td class="px-3 py-2 text-center">
+            <span class="{{if gt $r.TidakDitemukan 0}}text-red-600 font-semibold{{else}}text-gray-300{{end}}">{{$r.TidakDitemukan}}</span>
+          </td>
+          <td class="px-3 py-2 text-center">
+            <span class="{{if gt $r.Baru 0}}text-blue-600 font-semibold{{else}}text-gray-300{{end}}">{{$r.Baru}}</span>
+          </td>
+          <td class="px-3 py-2 text-center">
+            <span class="{{if gt $r.Tutup 0}}text-slate-600 font-semibold{{else}}text-gray-300{{end}}">{{$r.Tutup}}</span>
+          </td>
+          <td class="px-3 py-2 text-center">
+            <span class="{{if gt $r.Ganda 0}}text-purple-600 font-semibold{{else}}text-gray-300{{end}}">{{$r.Ganda}}</span>
+          </td>
+          <td class="px-3 py-2 text-center">
+            <span class="{{if gt $r.NonRespon 0}}text-orange-600 font-semibold{{else}}text-gray-300{{end}}">{{$r.NonRespon}}</span>
+          </td>
+          <td class="px-3 py-2 min-w-[110px]">
+            <div class="flex items-center gap-1.5">
+              <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div class="h-full bg-gray-400 rounded-full" style="width:{{$r.PctBelumDiisi}}%"></div>
+              </div>
+              <span class="text-xs {{if gt $r.PctBelumDiisi 0.0}}text-gray-600 font-semibold{{else}}text-green-600 font-semibold{{end}} w-10 text-right">{{pctf $r.PctBelumDiisi}}%</span>
+            </div>
+          </td>
+        </tr>
+        {{else}}
+        <tr><td colspan="12" class="px-4 py-10 text-center text-gray-400">
+          <div class="flex flex-col items-center gap-2">
+            <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+            </svg>
+            <span class="text-sm">Belum ada data SLS</span>
+          </div>
+        </td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{template "pagination" .PageInfo}}
+</div>
+{{end}}

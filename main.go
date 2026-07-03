@@ -112,6 +112,7 @@ func main() {
 	adminGrp.GET("/table/organik", handlers.AdminTableOrganik)
 	adminGrp.GET("/table/anomali", handlers.AdminAnomaliTable)
 	adminGrp.GET("/table/keberadaan", handlers.AdminKeberadaanTable)
+	adminGrp.GET("/table/keberadaan-rekap", handlers.AdminKeberadaanRekapTable)
 	adminGrp.GET("/geo/stats", handlers.AdminGeoStats)
 	adminGrp.GET("/geo/geojson", handlers.AdminGeoJSON)
 	adminGrp.GET("/download/pml", handlers.DownloadPML)

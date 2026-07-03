@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 
@@ -30,6 +31,26 @@ type KeberadaanStat struct {
 	Label string
 	Kode  string
 	Total int
+}
+
+type SLSOption struct {
+	ID   int
+	Nama string
+}
+
+func querySLSOptions() []SLSOption {
+	rows, err := db.DB.Query(`SELECT id, nama_sls FROM sls ORDER BY nama_sls`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var list []SLSOption
+	for rows.Next() {
+		var s SLSOption
+		rows.Scan(&s.ID, &s.Nama)
+		list = append(list, s)
+	}
+	return list
 }
 
 // AdminKeberadaanTable — GET /admin/table/keberadaan
@@ -178,6 +199,121 @@ func AdminKeberadaanTable(c echo.Context) error {
 		"Label":  label,
 		"PmlID":  pmlID,
 		"PplID":  pplID,
+	})
+}
+
+type KeberadaanRekapRow struct {
+	ID             int
+	NamaSLS        string
+	NamaKec        string
+	NamaDesa       string
+	NamaPPL        string
+	NamaPML        string
+	Total          int
+	BelumDiisi     int
+	Ditemukan      int
+	TidakDitemukan int
+	Baru           int
+	Tutup          int
+	Ganda          int
+	NonRespon      int
+	PctBelumDiisi  float64
+}
+
+// AdminKeberadaanRekapTable — GET /admin/table/keberadaan-rekap
+// Rekap keberadaan usaha per SLS: jumlah per status + progres (belum diisi / total kecuali baru).
+func AdminKeberadaanRekapTable(c echo.Context) error {
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page < 1 {
+		page = 1
+	}
+	q := c.QueryParam("q")
+	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
+	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
+	slsID, _ := strconv.Atoi(c.QueryParam("sls_id"))
+	like := "%" + q + "%"
+
+	where := ` WHERE (s.nama_sls LIKE ? OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?)`
+	args := []interface{}{like, like, like}
+	if pmlID > 0 {
+		where += ` AND s.pml_id = ?`
+		args = append(args, pmlID)
+	}
+	if pplID > 0 {
+		where += ` AND s.ppl_id = ?`
+		args = append(args, pplID)
+	}
+	if slsID > 0 {
+		where += ` AND s.id = ?`
+		args = append(args, slsID)
+	}
+
+	var total int
+	countArgs := append([]interface{}{}, args...)
+	db.DB.QueryRow(`SELECT COUNT(*) FROM sls s`+where, countArgs...).Scan(&total)
+
+	extra := ""
+	if q != "" {
+		extra += "&q=" + q
+	}
+	if pmlID > 0 {
+		extra += fmt.Sprintf("&pml_id=%d", pmlID)
+	}
+	if pplID > 0 {
+		extra += fmt.Sprintf("&ppl_id=%d", pplID)
+	}
+	if slsID > 0 {
+		extra += fmt.Sprintf("&sls_id=%d", slsID)
+	}
+
+	offset := (page - 1) * models.PerPage
+	pageInfo := models.NewPageInfo(page, total, "/admin/table/keberadaan-rekap", "keberadaan-rekap-result", extra)
+
+	queryArgs := append(args, models.PerPage, offset)
+	rows, err := db.DB.Query(`
+		SELECT s.id, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
+		       ppl.name, pml.name,
+		       COUNT(k.id) AS total,
+		       SUM(CASE WHEN k.id IS NOT NULL AND (k.keberadaan_label IS NULL OR k.keberadaan_label = '') THEN 1 ELSE 0 END) AS belum_diisi,
+		       SUM(CASE WHEN k.keberadaan_label = 'Ditemukan' THEN 1 ELSE 0 END) AS ditemukan,
+		       SUM(CASE WHEN k.keberadaan_label = 'Tidak Ditemukan' THEN 1 ELSE 0 END) AS tidak_ditemukan,
+		       SUM(CASE WHEN k.keberadaan_label = 'Baru' THEN 1 ELSE 0 END) AS baru,
+		       SUM(CASE WHEN k.keberadaan_label = 'Tutup' THEN 1 ELSE 0 END) AS tutup,
+		       SUM(CASE WHEN k.keberadaan_label = 'Ganda' THEN 1 ELSE 0 END) AS ganda,
+		       SUM(CASE WHEN k.keberadaan_label = 'Non Respon' THEN 1 ELSE 0 END) AS non_respon
+		FROM sls s
+		JOIN users ppl ON ppl.id = s.ppl_id
+		JOIN users pml ON pml.id = s.pml_id
+		LEFT JOIN keberadaan_usaha k ON k.sls_id = s.id`+where+`
+		GROUP BY s.id, s.nama_sls, s.nama_kec, s.nama_desa, ppl.name, pml.name
+		ORDER BY s.nama_kec, s.nama_desa, s.nama_sls
+		LIMIT ? OFFSET ?`, queryArgs...)
+
+	var list []KeberadaanRekapRow
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var r KeberadaanRekapRow
+			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML,
+				&r.Total, &r.BelumDiisi, &r.Ditemukan, &r.TidakDitemukan,
+				&r.Baru, &r.Tutup, &r.Ganda, &r.NonRespon)
+			denom := r.Total - r.Baru
+			if denom > 0 {
+				r.PctBelumDiisi = math.Min(float64(r.BelumDiisi)*100/float64(denom), 100)
+			}
+			list = append(list, r)
+		}
+	}
+
+	return c.Render(http.StatusOK, "admin_keberadaan_rekap_table.html", map[string]interface{}{
+		"Rows":        list,
+		"PageInfo":    pageInfo,
+		"PMLUserList": queryPMLUsers(),
+		"PPLUserList": queryPPLUsers(),
+		"Q":           q,
+		"PmlID":       pmlID,
+		"PplID":       pplID,
+		"SlsID":       slsID,
 	})
 }
 

@@ -298,6 +298,7 @@ func AdminDashboard(c echo.Context) error {
 		"KecList":     queryKecList(),
 		"SkalaList":   querySkalaList(),
 		"LastSync":    LastSyncFromDB(),
+		"KebSLSList":  querySLSOptions(),
 	})
 }
 
