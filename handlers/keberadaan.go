@@ -465,7 +465,7 @@ func PPLKeberadaan(c echo.Context) error {
 
 	// Skala list hanya untuk SLS milik PPL ini
 	var skalaList []string
-	skRows, _ := db.DB.Query(`SELECT DISTINCT skala_usaha FROM keberadaan_usaha k JOIN sls s ON s.id=k.sls_id WHERE s.ppl_id=? AND skala_usaha != '' ORDER BY skala_usaha`, userID)
+	skRows, _ := db.DB.Query(`SELECT DISTINCT COALESCE(skala_usaha, '') AS skala_usaha FROM keberadaan_usaha k JOIN sls s ON s.id=k.sls_id WHERE s.ppl_id=? ORDER BY skala_usaha`, userID)
 	if skRows != nil {
 		defer skRows.Close()
 		for skRows.Next() { var s string; skRows.Scan(&s); skalaList = append(skalaList, s) }
@@ -595,7 +595,7 @@ func PMLKeberadaan(c echo.Context) error {
 
 	// Skala list
 	var skalaList []string
-	skRows, _ := db.DB.Query(`SELECT DISTINCT skala_usaha FROM keberadaan_usaha k JOIN sls s ON s.id=k.sls_id WHERE s.pml_id=? AND skala_usaha != '' ORDER BY skala_usaha`, userID)
+	skRows, _ := db.DB.Query(`SELECT DISTINCT COALESCE(skala_usaha, '') AS skala_usaha FROM keberadaan_usaha k JOIN sls s ON s.id=k.sls_id WHERE s.pml_id=? ORDER BY skala_usaha`, userID)
 	if skRows != nil {
 		defer skRows.Close()
 		for skRows.Next() { var s string; skRows.Scan(&s); skalaList = append(skalaList, s) }

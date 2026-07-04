@@ -35,7 +35,7 @@
                   hx-get="/ppl/keberadaan" hx-target="#ppl-keberadaan-result" hx-swap="innerHTML"
                   hx-trigger="change" hx-include="#ppl-keberadaan-filter, #ppl-keberadaan-result"
                   class="sr-only peer">
-                <span class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors text-gray-600 hover:bg-gray-50 peer-checked:bg-orange-50 peer-checked:text-orange-700">{{.}}</span>
+                <span class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors text-gray-600 hover:bg-gray-50 peer-checked:bg-orange-50 peer-checked:text-orange-700">{{if .}}{{.}}{{else}}(Kosong){{end}}</span>
               </label>
               {{end}}
             </div>

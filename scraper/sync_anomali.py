@@ -344,24 +344,30 @@ def load_sls_map(conn):
 
 def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at):
     """
-    Upsert items anomali ke tabel anomali, lalu hapus baris lama untuk rule_key
-    yang sama tapi assignment_id-nya sudah tidak ada di daftar terbaru dari FASIH
-    (artinya anomali itu sudah resolved / tidak berlaku lagi).
+    Upsert items anomali ke tabel anomali. Baris lama untuk rule_key yang sama tapi
+    assignment_id-nya sudah tidak ada di daftar terbaru dari FASIH TIDAK dihapus —
+    cuma ditandai lewat kolom sudah_ditindaklanjuti_sigempar (baris tetap ada, jadi
+    reject_anomali.py yang masih baca semua baris dari tabel anomali tidak kehilangan
+    assignment_id apapun; histori juga tetap kesimpan).
+    Kalau assignment yang sama muncul lagi di fetch berikutnya, sudah_ditindaklanjuti_sigempar
+    otomatis di-reset ke NULL lagi (dianggap aktif kembali).
     UNIQUE KEY adalah (assignment_id, rule_key) — satu baris per (assignment, tipe anomali).
-    Return (n_upserted, n_skipped, n_deleted).
+    Return (n_upserted, n_skipped, n_resolved).
     """
     cur = conn.cursor()
 
     SQL = """
         INSERT INTO anomali
-          (sls_id, assignment_id, nama, jenis, rule_key, rule_msg, rule_type, synced_at)
-        VALUES (%s, %s, %s, %s, %s, %s, 1, %s)
+          (sls_id, assignment_id, nama, jenis, rule_key, rule_msg, rule_type, synced_at,
+           sudah_ditindaklanjuti_sigempar)
+        VALUES (%s, %s, %s, %s, %s, %s, 1, %s, NULL)
         ON DUPLICATE KEY UPDATE
           sls_id    = VALUES(sls_id),
           nama      = IF(VALUES(nama) != '' AND VALUES(nama) IS NOT NULL, VALUES(nama), nama),
           jenis     = VALUES(jenis),
           rule_msg  = VALUES(rule_msg),
-          synced_at = VALUES(synced_at)
+          synced_at = VALUES(synced_at),
+          sudah_ditindaklanjuti_sigempar = NULL
     """
 
     upserted = skipped = 0
@@ -391,20 +397,24 @@ def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at):
         except Exception as e:
             print(f"      [DB ERROR] {e}", flush=True)
 
-    # Bersihkan anomali lama untuk rule_key ini yang sudah tidak muncul lagi di FASIH
+    # Tandai (bukan hapus) anomali lama untuk rule_key ini yang sudah tidak muncul lagi.
+    # Cuma tandai yang belum pernah ditandai (WHERE ... IS NULL) supaya timestamp
+    # resolved pertama kali tidak ke-overwrite tiap sync berikutnya.
+    mark_sql = """
+        UPDATE anomali
+        SET sudah_ditindaklanjuti_sigempar = %s
+        WHERE rule_key = %s AND sudah_ditindaklanjuti_sigempar IS NULL
+    """
     if current_ids:
         placeholders = ",".join(["%s"] * len(current_ids))
-        cur.execute(
-            f"DELETE FROM anomali WHERE rule_key = %s AND assignment_id NOT IN ({placeholders})",
-            (rule_key, *current_ids),
-        )
+        cur.execute(mark_sql + f" AND assignment_id NOT IN ({placeholders})", (synced_at, rule_key, *current_ids))
     else:
-        cur.execute("DELETE FROM anomali WHERE rule_key = %s", (rule_key,))
-    deleted = cur.rowcount
+        cur.execute(mark_sql, (synced_at, rule_key))
+    resolved = cur.rowcount
 
     conn.commit()
     cur.close()
-    return upserted, skipped, deleted
+    return upserted, skipped, resolved
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -425,37 +435,37 @@ def run_once():
             sls_map   = load_sls_map(conn)
             synced_at = fetch_dashboard_synced_at(ctx, KODE_KAB)
             total     = 0
-            total_del = 0
+            total_res = 0
 
             # Sync anomali usaha
             print(f"\n[USAHA] {len(usaha_list)} tipe...", flush=True)
             for item in usaha_list:
                 rows = fetch_anomali(ctx, KODE_KAB, item["belumKode"], item["sudahKode"], "usaha", item["no"])
-                n, skip, deleted = upsert_anomali(conn, sls_map, rows, item["rule_key"], item["short_label"], synced_at)
+                n, skip, resolved = upsert_anomali(conn, sls_map, rows, item["rule_key"], item["short_label"], synced_at)
                 total += n
-                total_del += deleted
+                total_res += resolved
                 if skip:
                     print(f"      {skip} skip (SLS tidak ada di DB)", flush=True)
-                if deleted:
-                    print(f"      {deleted} anomali lama dihapus (sudah resolved)", flush=True)
+                if resolved:
+                    print(f"      {resolved} ditandai sudah ditindaklanjuti (sigempar)", flush=True)
                 time.sleep(DELAY)
 
             # Sync anomali keluarga
             print(f"\n[KELUARGA] {len(kel_list)} tipe...", flush=True)
             for item in kel_list:
                 rows = fetch_anomali(ctx, KODE_KAB, item["belumKode"], item["sudahKode"], "keluarga", item["no"])
-                n, skip, deleted = upsert_anomali(conn, sls_map, rows, item["rule_key"], item["short_label"], synced_at)
+                n, skip, resolved = upsert_anomali(conn, sls_map, rows, item["rule_key"], item["short_label"], synced_at)
                 total += n
-                total_del += deleted
+                total_res += resolved
                 if skip:
                     print(f"      {skip} skip (SLS tidak ada di DB)", flush=True)
-                if deleted:
-                    print(f"      {deleted} anomali lama dihapus (sudah resolved)", flush=True)
+                if resolved:
+                    print(f"      {resolved} ditandai sudah ditindaklanjuti (sigempar)", flush=True)
                 time.sleep(DELAY)
 
             fill_nama_by_sls(conn, pw)
             conn.close()
-            print(f"\nSelesai! {total} baris anomali diupsert, {total_del} dihapus (resolved).", flush=True)
+            print(f"\nSelesai! {total} baris anomali diupsert, {total_res} ditandai sudah ditindaklanjuti (sigempar).", flush=True)
 
         finally:
             browser.close()

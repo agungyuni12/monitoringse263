@@ -88,7 +88,7 @@
                   <span class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors
                     text-gray-600 hover:bg-gray-50
                     peer-checked:bg-orange-50 peer-checked:text-orange-700">
-                    {{.}}
+                    {{if .}}{{.}}{{else}}(Kosong){{end}}
                   </span>
                 </label>
                 {{end}}

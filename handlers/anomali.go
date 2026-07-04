@@ -62,7 +62,9 @@ func queryKecList() []string {
 }
 
 func querySkalaList() []string {
-	rows, err := db.DB.Query(`SELECT DISTINCT skala_usaha FROM keberadaan_usaha WHERE skala_usaha != '' ORDER BY skala_usaha`)
+	// Termasuk skala_usaha kosong/NULL — kalau dikecualikan, checkbox "pilih semua"
+	// di UI diam-diam jadi filter yang malah membuang baris berskala kosong.
+	rows, err := db.DB.Query(`SELECT DISTINCT COALESCE(skala_usaha, '') AS skala_usaha FROM keberadaan_usaha ORDER BY skala_usaha`)
 	if err != nil {
 		return nil
 	}

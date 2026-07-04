@@ -243,6 +243,11 @@ def fetch_assignments_per_sls(page, kode_sls):
     return results
 
 
+# Lihat sync_keberadaan.py untuk detail: ada_keluarga (gate keluarga, label "...(STOP)")
+# vs pilih_umkm (gate bangunan/usaha non-keluarga, label cuma "Tidak Ditemukan").
+GATE_FIELDS = ("ada_keluarga", "pilih_umkm")
+
+
 def _parse_assignment(raw_r):
     """Parse satu JSON response get-by-assignment-id →
     (kode, label, gate_label, assignment_status). Lihat sync_keberadaan.py untuk detail."""
@@ -284,11 +289,12 @@ def _parse_assignment(raw_r):
                 kode, label = None, ans.strip()
             continue
 
-        if gate_label is None and isinstance(ans, list) and len(ans) == 1:
+        if key in GATE_FIELDS and gate_label is None and isinstance(ans, list) and ans:
             first = ans[0]
             if isinstance(first, dict):
                 gl = (first.get("label") or "")
-                if "(stop)" in gl.lower():
+                gl_lower = gl.lower()
+                if "(stop)" in gl_lower or "tidak ditemukan" in gl_lower:
                     gate_label = gl.strip()
 
     return kode, label, gate_label, assignment_status

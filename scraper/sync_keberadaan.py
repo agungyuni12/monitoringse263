@@ -216,16 +216,24 @@ def fetch_assignments_per_sls(page, kode_sls):
     return results
 
 
+#  ada_keluarga : gate keberadaan KELUARGA — jawaban "Tidak Ditemukan (STOP)" kalau
+#                 keluarga sudah tidak ada di lokasi.
+#  pilih_umkm   : gate keberadaan BANGUNAN/USAHA non-keluarga (bangunan khusus usaha,
+#                 kantor, bangunan kosong, dll) — jawabannya cuma "Tidak Ditemukan"
+#                 (tanpa "(STOP)" di labelnya, beda dari ada_keluarga).
+# Keduanya sama-sama berarti: alur kuesioner berhenti di situ, pertanyaan
+# keberadaan_usaha# tidak pernah muncul.
+GATE_FIELDS = ("ada_keluarga", "pilih_umkm")
+
+
 def _parse_assignment(raw_r):
     """
     Parse satu JSON response get-by-assignment-id →
     (kode, label, gate_label, assignment_status).
 
     kode/label        : jawaban pertanyaan keberadaan_usaha#N (existing behaviour).
-    gate_label        : alasan berhenti di pertanyaan gate keluarga/bangunan (mis.
-                         "Tidak Ditemukan (STOP)") — FASIH menandai jawaban yang
-                         menghentikan alur kuesioner dengan literal "(STOP)" di label-nya.
-                         None kalau tidak ada gate-stop.
+    gate_label        : alasan berhenti di pertanyaan gate keluarga/bangunan — lihat
+                         GATE_FIELDS. None kalau tidak ada gate-stop.
     assignment_status : assignment_status_alias dari FASIH (OPEN, SUBMITTED BY Pencacah,
                          APPROVED BY Pengawas, dst).
     """
@@ -267,14 +275,13 @@ def _parse_assignment(raw_r):
                 kode, label = None, ans.strip()
             continue
 
-        # Gate keluarga/bangunan: ambil jawaban single-select pertama yang
-        # label-nya ditandai FASIH dengan "(STOP)" — itu titik kuesioner berhenti
-        # sebelum sempat sampai ke pertanyaan keberadaan_usaha#.
-        if gate_label is None and isinstance(ans, list) and len(ans) == 1:
+        # Gate keluarga (ada_keluarga) / gate bangunan-usaha (pilih_umkm) — lihat GATE_FIELDS.
+        if key in GATE_FIELDS and gate_label is None and isinstance(ans, list) and ans:
             first = ans[0]
             if isinstance(first, dict):
                 gl = (first.get("label") or "")
-                if "(stop)" in gl.lower():
+                gl_lower = gl.lower()
+                if "(stop)" in gl_lower or "tidak ditemukan" in gl_lower:
                     gate_label = gl.strip()
 
     return kode, label, gate_label, assignment_status

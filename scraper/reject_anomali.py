@@ -78,6 +78,48 @@ def get_assignment_ids():
     return ids
 
 
+def connect_log_db():
+    return pymysql.connect(
+        host=DB_HOST, port=DB_PORT, user=DB_USER,
+        password=DB_PASS, database=DB_NAME, charset="utf8mb4",
+        cursorclass=pymysql.cursors.DictCursor,
+    )
+
+
+def ensure_reject_log_table(conn):
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS anomali_reject_log (
+              id            INT NOT NULL AUTO_INCREMENT,
+              assignment_id VARCHAR(36) NOT NULL,
+              status        VARCHAR(20) NOT NULL,
+              reason        VARCHAR(255) DEFAULT NULL,
+              processed_at  DATETIME NOT NULL,
+              PRIMARY KEY (id),
+              UNIQUE KEY uk_assignment_id (assignment_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+    conn.commit()
+
+
+def log_reject_result(conn, assignment_id, status, reason):
+    """Catat hasil proses 1 assignment (ok/skip/error) + alasannya ke DB.
+    Upsert supaya aman dijalankan ulang."""
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO anomali_reject_log (assignment_id, status, reason, processed_at)
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                  status       = VALUES(status),
+                  reason       = VALUES(reason),
+                  processed_at = VALUES(processed_at)
+            """, (assignment_id, status, reason, datetime.now(WITA).replace(tzinfo=None)))
+        conn.commit()
+    except Exception as e:
+        print(f"  [DB ERROR] gagal catat log reject untuk {assignment_id}: {e}", flush=True)
+
+
 # ── Browser ───────────────────────────────────────────────────────────────────
 
 def make_browser(pw):
@@ -129,7 +171,7 @@ def process_assignment(page, assignment_id, idx, total):
             page.locator("button[aria-label='Open menu']").first.wait_for(state="visible", timeout=20_000)
         except PWTimeout:
             print(f"  {prefix} ⚠ Halaman tidak load, skip", flush=True)
-            return "skip"
+            return "skip", "Halaman assignment tidak load"
 
         # 2. Klik tombol "+" untuk buka menu FAB
         page.locator("button[aria-label='Open menu']").first.click()
@@ -144,7 +186,7 @@ def process_assignment(page, assignment_id, idx, total):
             time.sleep(1.5)
         except PWTimeout:
             print(f"  {prefix} ⚠ Link Edit Assignment tidak ditemukan, skip", flush=True)
-            return "skip"
+            return "skip", "Link Edit Assignment tidak ditemukan"
 
         # 4a. Klik "CATATAN" di sidebar kiri untuk tampilkan form catatan
         try:
@@ -197,6 +239,17 @@ def process_assignment(page, assignment_id, idx, total):
         except PWTimeout:
             pass
 
+        # Kalau submit gagal karena validasi (toast "Gagal melakukan pengiriman..."),
+        # data assignment ini bermasalah di sisi FASIH — lewati, jangan lanjut ke
+        # langkah berikutnya (state halaman sudah tidak sesuai alur normal).
+        try:
+            error_toast = page.locator("text=Gagal melakukan pengiriman").first
+            if error_toast.is_visible(timeout=2_000):
+                print(f"  {prefix} ⚠ Validasi gagal saat submit, skip ke assignment berikutnya", flush=True)
+                return "skip", "Validasi gagal saat submit (perlu perbaikan data manual)"
+        except PWTimeout:
+            pass
+
         # 5c. Klik "Konfirmasi" di dialog
         try:
             konfirmasi = page.get_by_role("button", name="Konfirmasi", exact=True).last
@@ -218,7 +271,7 @@ def process_assignment(page, assignment_id, idx, total):
             time.sleep(1)
         except PWTimeout:
             print(f"  {prefix} ⚠ Tombol Kembali ke preview tidak ditemukan", flush=True)
-            return "error"
+            return "error", "Tombol 'Kembali ke preview assignment' tidak ditemukan"
 
         # 5e. Klik "Tinggalkan" untuk keluar dari mode edit
         try:
@@ -228,24 +281,25 @@ def process_assignment(page, assignment_id, idx, total):
             time.sleep(1.5)
         except PWTimeout:
             print(f"  {prefix} ⚠ Tombol Tinggalkan tidak ditemukan", flush=True)
-            return "error"
+            return "error", "Tombol 'Tinggalkan' tidak ditemukan"
 
         # 6. Tunggu FAB "Open menu" muncul lagi lalu buka menu
+        #    (halaman reload/settle setelah Tinggalkan — kasih waktu lebih lama)
         try:
             fab2 = page.locator("button[aria-label='Open menu']").first
-            fab2.wait_for(state="visible", timeout=20_000)
+            fab2.wait_for(state="visible", timeout=45_000)
             fab2.click()
             time.sleep(1)
         except PWTimeout:
             print(f"  {prefix} ⚠ FAB tidak muncul setelah Tinggalkan", flush=True)
-            return "error"
+            return "error", "Tombol 'Open menu' tidak muncul setelah Tinggalkan"
 
         # 7. Klik "Reject" — button[aria-haspopup='dialog'] di dalam .fab-item
         try:
             reject_btn = page.locator(
                 ".fab-item button[aria-haspopup='dialog']"
             ).first
-            reject_btn.wait_for(state="visible", timeout=8_000)
+            reject_btn.wait_for(state="visible", timeout=15_000)
             reject_btn.click()
             time.sleep(1.5)
 
@@ -257,21 +311,21 @@ def process_assignment(page, assignment_id, idx, total):
                 time.sleep(1)
             except PWTimeout:
                 print(f"  {prefix} ⚠ Tombol Konfirmasi Reject tidak ditemukan", flush=True)
-                return "error"
+                return "error", "Tombol 'Konfirmasi' Reject tidak ditemukan"
 
         except PWTimeout:
             print(f"  {prefix} ⚠ Tombol Reject tidak ditemukan", flush=True)
-            return "error"
+            return "error", "Tombol 'Reject' tidak ditemukan"
 
         print(f"  {prefix} ✓ [{_now()}]", flush=True)
-        return "ok"
+        return "ok", None
 
     except PWTimeout as e:
         print(f"  {prefix} ✗ Timeout: {e}", flush=True)
-        return "error"
+        return "error", f"Timeout: {e}"[:255]
     except Exception as e:
         print(f"  {prefix} ✗ Error: {e}", flush=True)
-        return "error"
+        return "error", f"Error: {e}"[:255]
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -295,17 +349,22 @@ def run():
         remaining = remaining[START_FROM:]
         print(f"Mulai dari urutan {START_FROM}", flush=True)
 
-    stats = {"ok": 0, "skip": 0, "error": 0}
+    stats  = {"ok": 0, "skip": 0, "error": 0}
+    logdb  = connect_log_db()
+    ensure_reject_log_table(logdb)
 
     with sync_playwright() as pw:
         browser, ctx = make_browser(pw)
         page = login(ctx)
         time.sleep(2)
 
+        done_at_start = len(done)  # snapshot — `done` terus bertambah selama loop,
+                                    # jangan pakai len(done) langsung supaya idx gak lompat 2x
         for i, assignment_id in enumerate(remaining, 1):
-            idx = len(done) + i
-            result = process_assignment(page, assignment_id, idx, total)
+            idx = done_at_start + i
+            result, reason = process_assignment(page, assignment_id, idx, total)
             stats[result] = stats.get(result, 0) + 1
+            log_reject_result(logdb, assignment_id, result, reason)
 
             if result in ("ok", "skip"):
                 save_progress(assignment_id)
@@ -320,6 +379,7 @@ def run():
 
         browser.close()
 
+    logdb.close()
     print(f"\n=== SELESAI === ok:{stats['ok']} | skip:{stats['skip']} | error:{stats['error']}", flush=True)
 
 
