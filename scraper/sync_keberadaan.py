@@ -276,13 +276,21 @@ def _parse_assignment(raw_r):
             continue
 
         # Gate keluarga (ada_keluarga) / gate bangunan-usaha (pilih_umkm) — lihat GATE_FIELDS.
-        if key in GATE_FIELDS and gate_label is None and isinstance(ans, list) and ans:
+        # Jawabannya bisa berupa "Tidak Ditemukan"/"...(STOP)" (alur berhenti, tidak ada
+        # padanan status biasa → gate_label) ATAU "Baru" (entitas baru di luar prelisting —
+        # ini SAMA statusnya dengan jawaban keberadaan_usaha# = Baru, jadi diisi ke kode/label
+        # langsung, bukan gate_label, supaya konsisten dengan kategori "Baru" yang sudah ada).
+        if key in GATE_FIELDS and kode is None and gate_label is None and isinstance(ans, list) and ans:
             first = ans[0]
             if isinstance(first, dict):
-                gl = (first.get("label") or "")
-                gl_lower = gl.lower()
+                label_raw = (first.get("label") or "").strip()
+                value_raw = str(first.get("value") or "").strip()
+                gl_lower = label_raw.lower()
                 if "(stop)" in gl_lower or "tidak ditemukan" in gl_lower:
-                    gate_label = gl.strip()
+                    gate_label = label_raw
+                elif "baru" in gl_lower:
+                    label_clean = label_raw.split(". ", 1)[1].strip() if ". " in label_raw else label_raw
+                    kode, label = value_raw, label_clean
 
     return kode, label, gate_label, assignment_status
 

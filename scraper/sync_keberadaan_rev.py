@@ -289,13 +289,19 @@ def _parse_assignment(raw_r):
                 kode, label = None, ans.strip()
             continue
 
-        if key in GATE_FIELDS and gate_label is None and isinstance(ans, list) and ans:
+        # Lihat sync_keberadaan.py: "Tidak Ditemukan"/"(STOP)" → gate_label; "Baru" →
+        # perlakukan sebagai kode/label biasa (sama seperti keberadaan_usaha# = Baru).
+        if key in GATE_FIELDS and kode is None and gate_label is None and isinstance(ans, list) and ans:
             first = ans[0]
             if isinstance(first, dict):
-                gl = (first.get("label") or "")
-                gl_lower = gl.lower()
+                label_raw = (first.get("label") or "").strip()
+                value_raw = str(first.get("value") or "").strip()
+                gl_lower = label_raw.lower()
                 if "(stop)" in gl_lower or "tidak ditemukan" in gl_lower:
-                    gate_label = gl.strip()
+                    gate_label = label_raw
+                elif "baru" in gl_lower:
+                    label_clean = label_raw.split(". ", 1)[1].strip() if ". " in label_raw else label_raw
+                    kode, label = value_raw, label_clean
 
     return kode, label, gate_label, assignment_status
 
