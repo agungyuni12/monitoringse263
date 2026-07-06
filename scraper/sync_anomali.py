@@ -359,15 +359,16 @@ def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at):
     SQL = """
         INSERT INTO anomali
           (sls_id, assignment_id, nama, jenis, rule_key, rule_msg, rule_type, synced_at,
-           sudah_ditindaklanjuti_sigempar)
-        VALUES (%s, %s, %s, %s, %s, %s, 1, %s, NULL)
+           sudah_ditindaklanjuti_sigempar, is_resolved_fasih)
+        VALUES (%s, %s, %s, %s, %s, %s, 1, %s, NULL, %s)
         ON DUPLICATE KEY UPDATE
           sls_id    = VALUES(sls_id),
           nama      = IF(VALUES(nama) != '' AND VALUES(nama) IS NOT NULL, VALUES(nama), nama),
           jenis     = VALUES(jenis),
           rule_msg  = VALUES(rule_msg),
           synced_at = VALUES(synced_at),
-          sudah_ditindaklanjuti_sigempar = NULL
+          sudah_ditindaklanjuti_sigempar = NULL,
+          is_resolved_fasih = VALUES(is_resolved_fasih)
     """
 
     upserted = skipped = 0
@@ -387,11 +388,12 @@ def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at):
 
         nama     = str(item.get("nama_tercantum") or "").strip()[:255]
         rule_msg = str(item.get("anomali_title") or "").strip()
+        is_resolved_fasih = 1 if item.get("is_resolved") else 0
 
         try:
             cur.execute(SQL, (
                 sls_id, assignment_id, nama, short_label,
-                rule_key, rule_msg, synced_at,
+                rule_key, rule_msg, synced_at, is_resolved_fasih,
             ))
             upserted += 1
         except Exception as e:

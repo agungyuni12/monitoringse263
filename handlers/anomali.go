@@ -13,17 +13,19 @@ import (
 )
 
 type AnomaliRow struct {
-	ID       int
-	NamaSLS  string
-	NamaKec  string
-	NamaDesa string
-	NamaPPL  string
-	NamaPML  string
-	Nama     string // nama usaha/KRT
-	Jenis    string // short_label
-	RuleKey  string
-	RuleMsg  string
-	SyncedAt string
+	ID            int
+	NamaSLS       string
+	NamaKec       string
+	NamaDesa      string
+	NamaPPL       string
+	NamaPML       string
+	Nama          string // nama usaha/KRT
+	Jenis         string // short_label
+	RuleKey       string
+	RuleMsg       string
+	SyncedAt      string
+	SigemparAt    string // kapan ditandai sudah ditindaklanjuti SIGEMPAR, kosong = belum
+	ResolvedFasih bool   // status is_resolved asli dari API FASIH/dashboard
 }
 
 type PPLUser struct {
@@ -78,7 +80,7 @@ func querySkalaList() []string {
 	return list
 }
 
-func queryAnomaili(page int, q, kec string, pmlID, pplID int, targetID, baseURL string) ([]AnomaliRow, models.PageInfo) {
+func queryAnomaili(page int, q, kec, status, fasih string, pmlID, pplID int, targetID, baseURL string) ([]AnomaliRow, models.PageInfo) {
 	like := "%" + q + "%"
 
 	// Build WHERE clause
@@ -96,6 +98,16 @@ func queryAnomaili(page int, q, kec string, pmlID, pplID int, targetID, baseURL 
 	if pplID > 0 {
 		where += " AND s.ppl_id = ?"
 		args = append(args, pplID)
+	}
+	if status == "belum" {
+		where += " AND a.sudah_ditindaklanjuti_sigempar IS NULL"
+	} else if status == "sudah" {
+		where += " AND a.sudah_ditindaklanjuti_sigempar IS NOT NULL"
+	}
+	if fasih == "belum" {
+		where += " AND a.is_resolved_fasih = 0"
+	} else if fasih == "sudah" {
+		where += " AND a.is_resolved_fasih = 1"
 	}
 
 	var total int
@@ -117,6 +129,12 @@ func queryAnomaili(page int, q, kec string, pmlID, pplID int, targetID, baseURL 
 	if pplID > 0 {
 		extra += fmt.Sprintf("&ppl_id=%d", pplID)
 	}
+	if status != "" {
+		extra += "&status=" + status
+	}
+	if fasih != "" {
+		extra += "&fasih=" + fasih
+	}
 
 	offset := (page - 1) * models.PerPage
 	queryArgs := make([]interface{}, len(args))
@@ -127,7 +145,9 @@ func queryAnomaili(page int, q, kec string, pmlID, pplID int, targetID, baseURL 
 		SELECT a.id, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
 		       ppl.name, pml.name,
 		       a.nama, a.jenis, a.rule_key, COALESCE(a.rule_msg,''),
-		       COALESCE(DATE_FORMAT(a.synced_at,'%d/%m/%Y %H:%i'),'')
+		       COALESCE(DATE_FORMAT(a.synced_at,'%d/%m/%Y %H:%i'),''),
+		       COALESCE(DATE_FORMAT(a.sudah_ditindaklanjuti_sigempar,'%d/%m/%Y %H:%i'),''),
+		       a.is_resolved_fasih
 		FROM anomali a
 		JOIN sls s ON s.id = a.sls_id
 		JOIN users ppl ON ppl.id = s.ppl_id
@@ -147,7 +167,7 @@ func queryAnomaili(page int, q, kec string, pmlID, pplID int, targetID, baseURL 
 		var r AnomaliRow
 		rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa,
 			&r.NamaPPL, &r.NamaPML,
-			&r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.SyncedAt)
+			&r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.SyncedAt, &r.SigemparAt, &r.ResolvedFasih)
 		list = append(list, r)
 	}
 	return list, pageInfo
@@ -161,10 +181,12 @@ func AdminAnomaliTable(c echo.Context) error {
 	}
 	q := c.QueryParam("q")
 	kec := c.QueryParam("kec")
+	status := c.QueryParam("status")
+	fasih := c.QueryParam("fasih")
 	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
 	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
 
-	list, pageInfo := queryAnomaili(page, q, kec, pmlID, pplID, "anomali-result", "/admin/table/anomali")
+	list, pageInfo := queryAnomaili(page, q, kec, status, fasih, pmlID, pplID, "anomali-result", "/admin/table/anomali")
 
 	var kecs []string
 	if kec != "" {
@@ -196,13 +218,15 @@ func PPLAnomali(c echo.Context) error {
 	if page < 1 {
 		page = 1
 	}
-	q     := c.QueryParam("q")
+	q := c.QueryParam("q")
 	jenis := c.QueryParam("jenis")
+	status := c.QueryParam("status")
+	fasih := c.QueryParam("fasih")
 	slsID, _ := strconv.Atoi(c.QueryParam("sls_id"))
-	like  := "%" + q + "%"
+	like := "%" + q + "%"
 
 	where := `WHERE s.ppl_id=? AND (a.nama LIKE ? OR a.jenis LIKE ? OR a.rule_msg LIKE ? OR s.nama_sls LIKE ?)`
-	args  := []interface{}{userID, like, like, like, like}
+	args := []interface{}{userID, like, like, like, like}
 	if jenis != "" {
 		where += ` AND a.jenis = ?`
 		args = append(args, jenis)
@@ -211,48 +235,74 @@ func PPLAnomali(c echo.Context) error {
 		where += ` AND s.id = ?`
 		args = append(args, slsID)
 	}
+	if status == "belum" {
+		where += ` AND a.sudah_ditindaklanjuti_sigempar IS NULL`
+	} else if status == "sudah" {
+		where += ` AND a.sudah_ditindaklanjuti_sigempar IS NOT NULL`
+	}
+	if fasih == "belum" {
+		where += ` AND a.is_resolved_fasih = 0`
+	} else if fasih == "sudah" {
+		where += ` AND a.is_resolved_fasih = 1`
+	}
 
 	var total int
 	countArgs := append([]interface{}{}, args...)
 	db.DB.QueryRow(`SELECT COUNT(*) FROM anomali a JOIN sls s ON s.id=a.sls_id `+where, countArgs...).Scan(&total)
 
 	extra := ""
-	if q != "" { extra += "&q=" + q }
-	if jenis != "" { extra += "&jenis=" + jenis }
-	if slsID > 0 { extra += fmt.Sprintf("&sls_id=%d", slsID) }
+	if q != "" {
+		extra += "&q=" + q
+	}
+	if jenis != "" {
+		extra += "&jenis=" + jenis
+	}
+	if slsID > 0 {
+		extra += fmt.Sprintf("&sls_id=%d", slsID)
+	}
+	if status != "" {
+		extra += "&status=" + status
+	}
+	if fasih != "" {
+		extra += "&fasih=" + fasih
+	}
 
-	offset  := (page - 1) * models.PerPage
+	offset := (page - 1) * models.PerPage
 	pageInfo := models.NewPageInfo(page, total, "/ppl/anomali", "ppl-anomali-result", extra)
 
 	queryArgs := append(args, models.PerPage, offset)
 	rows, err := db.DB.Query(`
 		SELECT a.id, s.nama_sls, a.nama, a.jenis, a.rule_key,
 		       COALESCE(a.rule_msg,''),
-		       COALESCE(DATE_FORMAT(a.synced_at,'%d/%m/%Y %H:%i'),'')
+		       COALESCE(DATE_FORMAT(a.synced_at,'%d/%m/%Y %H:%i'),''),
+		       COALESCE(DATE_FORMAT(a.sudah_ditindaklanjuti_sigempar,'%d/%m/%Y %H:%i'),''),
+		       a.is_resolved_fasih
 		FROM anomali a JOIN sls s ON s.id=a.sls_id `+where+`
 		ORDER BY s.nama_sls, a.jenis, a.rule_key
 		LIMIT ? OFFSET ?`, queryArgs...)
 
 	type Row struct {
-		ID       int
-		NamaSLS  string
-		Nama     string
-		Jenis    string
-		RuleKey  string
-		RuleMsg  string
-		SyncedAt string
+		ID            int
+		NamaSLS       string
+		Nama          string
+		Jenis         string
+		RuleKey       string
+		RuleMsg       string
+		SyncedAt      string
+		SigemparAt    string
+		ResolvedFasih bool
 	}
 	var list []Row
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
 			var r Row
-			rows.Scan(&r.ID, &r.NamaSLS, &r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.SyncedAt)
+			rows.Scan(&r.ID, &r.NamaSLS, &r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.SyncedAt, &r.SigemparAt, &r.ResolvedFasih)
 			list = append(list, r)
 		}
 	}
 	return c.Render(http.StatusOK, "ppl_anomali.html", map[string]interface{}{
-		"Rows": list, "PageInfo": pageInfo, "Q": q, "Jenis": jenis, "SlsID": slsID, "Total": total,
+		"Rows": list, "PageInfo": pageInfo, "Q": q, "Jenis": jenis, "SlsID": slsID, "Status": status, "Fasih": fasih, "Total": total,
 	})
 }
 
@@ -263,13 +313,15 @@ func PMLAnomali(c echo.Context) error {
 	if page < 1 {
 		page = 1
 	}
-	q     := c.QueryParam("q")
+	q := c.QueryParam("q")
 	jenis := c.QueryParam("jenis")
+	status := c.QueryParam("status")
+	fasih := c.QueryParam("fasih")
 	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
-	like  := "%" + q + "%"
+	like := "%" + q + "%"
 
 	where := `WHERE s.pml_id=? AND (a.nama LIKE ? OR a.jenis LIKE ? OR a.rule_msg LIKE ? OR s.nama_sls LIKE ?)`
-	args  := []interface{}{userID, like, like, like, like}
+	args := []interface{}{userID, like, like, like, like}
 	if jenis != "" {
 		where += ` AND a.jenis = ?`
 		args = append(args, jenis)
@@ -278,17 +330,39 @@ func PMLAnomali(c echo.Context) error {
 		where += ` AND s.ppl_id = ?`
 		args = append(args, pplID)
 	}
+	if status == "belum" {
+		where += ` AND a.sudah_ditindaklanjuti_sigempar IS NULL`
+	} else if status == "sudah" {
+		where += ` AND a.sudah_ditindaklanjuti_sigempar IS NOT NULL`
+	}
+	if fasih == "belum" {
+		where += ` AND a.is_resolved_fasih = 0`
+	} else if fasih == "sudah" {
+		where += ` AND a.is_resolved_fasih = 1`
+	}
 
 	var total int
 	countArgs := append([]interface{}{}, args...)
 	db.DB.QueryRow(`SELECT COUNT(*) FROM anomali a JOIN sls s ON s.id=a.sls_id `+where, countArgs...).Scan(&total)
 
 	extra := ""
-	if q != "" { extra += "&q=" + q }
-	if jenis != "" { extra += "&jenis=" + jenis }
-	if pplID > 0 { extra += fmt.Sprintf("&ppl_id=%d", pplID) }
+	if q != "" {
+		extra += "&q=" + q
+	}
+	if jenis != "" {
+		extra += "&jenis=" + jenis
+	}
+	if pplID > 0 {
+		extra += fmt.Sprintf("&ppl_id=%d", pplID)
+	}
+	if status != "" {
+		extra += "&status=" + status
+	}
+	if fasih != "" {
+		extra += "&fasih=" + fasih
+	}
 
-	offset  := (page - 1) * models.PerPage
+	offset := (page - 1) * models.PerPage
 	pageInfo := models.NewPageInfo(page, total, "/pml/anomali", "pml-anomali-result", extra)
 
 	queryArgs := append(args, models.PerPage, offset)
@@ -296,7 +370,9 @@ func PMLAnomali(c echo.Context) error {
 		SELECT a.id, s.nama_sls, ppl.name,
 		       a.nama, a.jenis, a.rule_key,
 		       COALESCE(a.rule_msg,''),
-		       COALESCE(DATE_FORMAT(a.synced_at,'%d/%m/%Y %H:%i'),'')
+		       COALESCE(DATE_FORMAT(a.synced_at,'%d/%m/%Y %H:%i'),''),
+		       COALESCE(DATE_FORMAT(a.sudah_ditindaklanjuti_sigempar,'%d/%m/%Y %H:%i'),''),
+		       a.is_resolved_fasih
 		FROM anomali a
 		JOIN sls s ON s.id=a.sls_id
 		JOIN users ppl ON ppl.id=s.ppl_id `+where+`
@@ -304,25 +380,27 @@ func PMLAnomali(c echo.Context) error {
 		LIMIT ? OFFSET ?`, queryArgs...)
 
 	type PMLAnomaliRow struct {
-		ID       int
-		NamaSLS  string
-		NamaPPL  string
-		Nama     string
-		Jenis    string
-		RuleKey  string
-		RuleMsg  string
-		SyncedAt string
+		ID            int
+		NamaSLS       string
+		NamaPPL       string
+		Nama          string
+		Jenis         string
+		RuleKey       string
+		RuleMsg       string
+		SyncedAt      string
+		SigemparAt    string
+		ResolvedFasih bool
 	}
 	var list []PMLAnomaliRow
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
 			var r PMLAnomaliRow
-			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaPPL, &r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.SyncedAt)
+			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaPPL, &r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.SyncedAt, &r.SigemparAt, &r.ResolvedFasih)
 			list = append(list, r)
 		}
 	}
 	return c.Render(http.StatusOK, "pml_anomali.html", map[string]interface{}{
-		"Rows": list, "PageInfo": pageInfo, "Q": q, "Jenis": jenis, "PplID": pplID, "Total": total,
+		"Rows": list, "PageInfo": pageInfo, "Q": q, "Jenis": jenis, "PplID": pplID, "Status": status, "Fasih": fasih, "Total": total,
 	})
 }
