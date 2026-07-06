@@ -124,6 +124,10 @@
           class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
           Keberadaan
         </button>
+        <button onclick="switchTab('progres-ppl')" id="tab-progres-ppl"
+          class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
+          Progres PPL
+        </button>
       </div>
 
       <!-- TAB: Ringkasan (SLS list) -->
@@ -204,6 +208,21 @@
         <div id="pml-keberadaan-result"
           hx-get="/pml/keberadaan" hx-trigger="load" hx-swap="innerHTML">
           <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data keberadaan...</div>
+        </div>
+      </div>
+
+      <!-- TAB: Progres PPL -->
+      <div id="panel-progres-ppl" class="tab-panel">
+        <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center" id="pml-progres-ppl-filter">
+          <input type="text" name="q"
+            hx-get="/pml/progres-ppl" hx-target="#pml-progres-ppl-result" hx-swap="innerHTML"
+            hx-trigger="input changed delay:400ms" hx-include="#pml-progres-ppl-filter"
+            placeholder="Cari nama PPL..."
+            class="w-full md:w-56 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+        </div>
+        <div id="pml-progres-ppl-result"
+          hx-get="/pml/progres-ppl" hx-trigger="load" hx-swap="innerHTML">
+          <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat progres PPL...</div>
         </div>
       </div>
     </div>

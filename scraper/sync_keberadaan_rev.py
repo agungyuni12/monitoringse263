@@ -206,18 +206,20 @@ def _page_fetch(page, url):
 
 
 def _page_fetch_batch(page, urls):
+    """Kalau gagal, hasil per-URL diisi {"__fetch_error": "<alasan>"} — bukan None diam-diam —
+    supaya caller bisa log kenapa gagalnya (HTTP error/timeout/exception)."""
     urls_js = json.dumps(urls)
     try:
         return page.evaluate(f"""async () => {{
             const urls = {urls_js};
             return await Promise.all(urls.map(u =>
                 fetch(u, {{credentials:'include'}})
-                .then(r => r.ok ? r.json() : null)
-                .catch(() => null)
+                .then(r => r.ok ? r.json() : {{__fetch_error: 'HTTP ' + r.status}})
+                .catch(e => ({{__fetch_error: String(e)}}))
             ));
         }}""")
-    except Exception:
-        return [None] * len(urls)
+    except Exception as e:
+        return [{"__fetch_error": f"batch exception: {e}"}] * len(urls)
 
 
 def fetch_assignments_per_sls(page, kode_sls):
@@ -289,19 +291,16 @@ def _parse_assignment(raw_r):
                 kode, label = None, ans.strip()
             continue
 
-        # Lihat sync_keberadaan.py: "Tidak Ditemukan"/"(STOP)" → gate_label; "Baru" →
-        # perlakukan sebagai kode/label biasa (sama seperti keberadaan_usaha# = Baru).
-        if key in GATE_FIELDS and kode is None and gate_label is None and isinstance(ans, list) and ans:
+        # Lihat sync_keberadaan.py: gate berhenti untuk "Tidak Ditemukan"/"(STOP)" ATAU "Baru"
+        # — keduanya disimpan apa adanya ke gate_label (bukan kode/label), supaya "Baru" di
+        # level keluarga/bangunan tetap terpisah dari "Baru" di level roster usaha.
+        if key in GATE_FIELDS and gate_label is None and isinstance(ans, list) and ans:
             first = ans[0]
             if isinstance(first, dict):
                 label_raw = (first.get("label") or "").strip()
-                value_raw = str(first.get("value") or "").strip()
                 gl_lower = label_raw.lower()
-                if "(stop)" in gl_lower or "tidak ditemukan" in gl_lower:
+                if "(stop)" in gl_lower or "tidak ditemukan" in gl_lower or "baru" in gl_lower:
                     gate_label = label_raw
-                elif "baru" in gl_lower:
-                    label_clean = label_raw.split(". ", 1)[1].strip() if ". " in label_raw else label_raw
-                    kode, label = value_raw, label_clean
 
     return kode, label, gate_label, assignment_status
 
@@ -310,7 +309,14 @@ def fetch_keberadaan_batch(page, assignment_ids):
     base    = f"{FASIH_URL}/app/api/assignment-general/api/assignment/get-by-assignment-id?assignmentId="
     urls    = [base + aid for aid in assignment_ids]
     results = _page_fetch_batch(page, urls)
-    return [_parse_assignment(r) for r in results]
+    parsed = []
+    for aid, r in zip(assignment_ids, results):
+        if isinstance(r, dict) and "__fetch_error" in r:
+            print(f"      [FETCH FAIL] {aid[:8]}… : {r['__fetch_error']}", flush=True)
+            parsed.append((None, None, None, None))
+        else:
+            parsed.append(_parse_assignment(r))
+    return parsed
 
 
 def run_once():

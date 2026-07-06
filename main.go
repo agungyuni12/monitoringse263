@@ -58,6 +58,9 @@ func main() {
 		"add": func(a, b int) int { return a + b },
 		"inc": func(n int) int { return n + 1 },
 		"dec": func(n int) int { return n - 1 },
+		"containsCI": func(s, substr string) bool {
+			return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
+		},
 	}
 
 	tmpl := template.New("").Funcs(funcMap)
@@ -102,6 +105,7 @@ func main() {
 	pmlGrp.POST("/sls/:id/save", handlers.PMLSaveVerif)
 	pmlGrp.GET("/anomali", handlers.PMLAnomali)
 	pmlGrp.GET("/keberadaan", handlers.PMLKeberadaan)
+	pmlGrp.GET("/progres-ppl", handlers.PMLProgresPPL)
 
 	// Admin routes
 	adminGrp := e.Group("/admin", mw.RequireAuth, mw.RequireRole("admin"))

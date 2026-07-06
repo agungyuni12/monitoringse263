@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 
@@ -35,12 +36,21 @@ type KeberadaanStat struct {
 	Total int
 }
 
-// Label sintetis untuk keberadaan_usaha yang keberadaan_label-nya kosong: dua kondisi
-// berbeda yang sebelumnya sama-sama tercampur sebagai "Belum diisi".
+// Label sintetis untuk keberadaan_usaha yang keberadaan_label-nya kosong: tiga kondisi
+// berbeda yang sebelumnya sama-sama tercampur sebagai "Belum diisi". gate_label sendiri
+// menyimpan teks jawaban gate apa adanya ("Tidak Ditemukan"/"...(STOP)" atau "...Baru") —
+// LabelGateStop/LabelGateBaru di sini cuma dipakai sebagai nilai filter "label" sintetis.
 const (
 	LabelBelumDiisi = "Belum diisi"
 	LabelGateStop   = "Kel/Bgn Tidak Ditemukan"
+	LabelGateBaru   = "Kel/Bgn Baru"
 )
+
+// isGateBaru menentukan apakah teks gate_label berarti "keluarga/bangunan baru"
+// (bukan "tidak ditemukan").
+func isGateBaru(gateLabel string) bool {
+	return strings.Contains(strings.ToLower(gateLabel), "baru")
+}
 
 type SLSOption struct {
 	ID   int
@@ -85,7 +95,9 @@ func AdminKeberadaanTable(c echo.Context) error {
 	case LabelBelumDiisi:
 		where += ` AND (k.keberadaan_label IS NULL OR k.keberadaan_label = '') AND (k.gate_label IS NULL OR k.gate_label = '')`
 	case LabelGateStop:
-		where += ` AND (k.keberadaan_label IS NULL OR k.keberadaan_label = '') AND k.gate_label IS NOT NULL AND k.gate_label != ''`
+		where += ` AND (k.keberadaan_label IS NULL OR k.keberadaan_label = '') AND k.gate_label IS NOT NULL AND k.gate_label != '' AND LOWER(k.gate_label) NOT LIKE '%baru%'`
+	case LabelGateBaru:
+		where += ` AND (k.keberadaan_label IS NULL OR k.keberadaan_label = '') AND LOWER(k.gate_label) LIKE '%baru%'`
 	default:
 		where += ` AND k.keberadaan_label = ?`
 		args = append(args, label)
@@ -171,25 +183,27 @@ func AdminKeberadaanTable(c echo.Context) error {
 	}
 
 	// Summary per label (untuk chart ringkasan di atas tabel)
-	// Entri yang gate-nya stop (keluarga/bangunan tidak ditemukan) dipisah dari
+	// Entri yang gate-nya stop (keluarga/bangunan tidak ditemukan ATAU baru) dipisah dari
 	// "Belum diisi" yang genuine karena statusnya sebenarnya sudah selesai.
 	var stats []KeberadaanStat
 	statRows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT
 		  CASE
 		    WHEN keberadaan_label IS NOT NULL AND keberadaan_label != '' THEN keberadaan_label
+		    WHEN gate_label IS NOT NULL AND gate_label != '' AND LOWER(gate_label) LIKE '%%baru%%' THEN '%s'
 		    WHEN gate_label IS NOT NULL AND gate_label != '' THEN '%s'
 		    ELSE '%s'
 		  END as lbl,
 		  CASE
 		    WHEN keberadaan_label IS NOT NULL AND keberadaan_label != '' THEN COALESCE(keberadaan_kode,'')
+		    WHEN gate_label IS NOT NULL AND gate_label != '' AND LOWER(gate_label) LIKE '%%baru%%' THEN 'GATE_BARU'
 		    WHEN gate_label IS NOT NULL AND gate_label != '' THEN 'GATE'
 		    ELSE ''
 		  END as kode,
 		  COUNT(*) as tot
 		FROM keberadaan_usaha
 		GROUP BY lbl, kode
-		ORDER BY tot DESC`, LabelGateStop, LabelBelumDiisi))
+		ORDER BY tot DESC`, LabelGateBaru, LabelGateStop, LabelBelumDiisi))
 	if err == nil {
 		defer statRows.Close()
 		for statRows.Next() {
@@ -254,6 +268,7 @@ type KeberadaanRekapRow struct {
 	Total          int
 	BelumDiisi     int
 	GateStop       int // keluarga/bangunan tidak ditemukan -> keberadaan_usaha# tidak pernah ditanya
+	GateBaru       int // keluarga/bangunan baru (di luar prelisting) -> keberadaan_usaha# tidak pernah ditanya
 	Ditemukan      int
 	TidakDitemukan int
 	Baru           int
@@ -323,7 +338,11 @@ func AdminKeberadaanRekapTable(c echo.Context) error {
 		                THEN 1 ELSE 0 END) AS belum_diisi,
 		       SUM(CASE WHEN (k.keberadaan_label IS NULL OR k.keberadaan_label = '')
 		                 AND k.gate_label IS NOT NULL AND k.gate_label != ''
+		                 AND LOWER(k.gate_label) NOT LIKE '%baru%'
 		                THEN 1 ELSE 0 END) AS gate_stop,
+		       SUM(CASE WHEN (k.keberadaan_label IS NULL OR k.keberadaan_label = '')
+		                 AND LOWER(k.gate_label) LIKE '%baru%'
+		                THEN 1 ELSE 0 END) AS gate_baru,
 		       SUM(CASE WHEN k.keberadaan_label = 'Ditemukan' THEN 1 ELSE 0 END) AS ditemukan,
 		       SUM(CASE WHEN k.keberadaan_label = 'Tidak Ditemukan' THEN 1 ELSE 0 END) AS tidak_ditemukan,
 		       SUM(CASE WHEN k.keberadaan_label = 'Baru' THEN 1 ELSE 0 END) AS baru,
@@ -344,11 +363,11 @@ func AdminKeberadaanRekapTable(c echo.Context) error {
 		for rows.Next() {
 			var r KeberadaanRekapRow
 			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML,
-				&r.Total, &r.BelumDiisi, &r.GateStop, &r.Ditemukan, &r.TidakDitemukan,
+				&r.Total, &r.BelumDiisi, &r.GateStop, &r.GateBaru, &r.Ditemukan, &r.TidakDitemukan,
 				&r.Baru, &r.Tutup, &r.Ganda, &r.NonRespon)
-			// Baru & gate-stop dikecualikan dari penyebut: keduanya sudah "selesai"
-			// (bukan lagi pekerjaan yang tersisa untuk PPL).
-			denom := r.Total - r.Baru - r.GateStop
+			// Baru, gate-stop, & gate-baru dikecualikan dari penyebut: semuanya sudah
+			// "selesai" (bukan lagi pekerjaan yang tersisa untuk PPL).
+			denom := r.Total - r.Baru - r.GateStop - r.GateBaru
 			if denom > 0 {
 				r.PctBelumDiisi = math.Min(float64(r.BelumDiisi)*100/float64(denom), 100)
 			}

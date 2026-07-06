@@ -16,6 +16,7 @@
         {{else if eq .Kode "9"}}bg-orange-50 border-orange-300 text-orange-700 hover:bg-orange-100
         {{else if eq .Kode "0" "00"}}bg-slate-100 border-slate-400 text-slate-700 hover:bg-slate-200
         {{else if eq .Kode "GATE"}}bg-indigo-50 border-indigo-300 text-indigo-700 hover:bg-indigo-100
+        {{else if eq .Kode "GATE_BARU"}}bg-cyan-50 border-cyan-300 text-cyan-700 hover:bg-cyan-100
         {{else}}bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200{{end}}"
       data-label="{{.Label}}">
       <span class="font-bold">{{.Total}}</span>
@@ -96,6 +97,7 @@
             </details>
           </th>
           <th class="px-3 py-2.5 font-medium">Status Keberadaan</th>
+          <th class="px-3 py-2.5 font-medium">Status Assignment</th>
           <th class="px-3 py-2.5 font-medium text-center">Sync</th>
         </tr>
       </thead>
@@ -149,20 +151,44 @@
               </span>
               {{end}}
             {{else if $r.GateLabel}}
-            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700 whitespace-nowrap" title="{{$r.GateLabel}}">
-              <span class="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block"></span>Kel/Bgn Tidak Ditemukan
-            </span>
+              {{if containsCI $r.GateLabel "baru"}}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium bg-cyan-100 text-cyan-700 whitespace-nowrap" title="{{$r.GateLabel}}">
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-500 inline-block"></span>Kel/Bgn Baru
+              </span>
+              {{else}}
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700 whitespace-nowrap" title="{{$r.GateLabel}}">
+                <span class="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block"></span>Kel/Bgn Tidak Ditemukan
+              </span>
+              {{end}}
             {{else}}
             <span class="text-gray-400 italic">Belum diisi</span>
             {{end}}
+          </td>
+          <td class="px-3 py-2">
             {{if $r.AssignmentStatus}}
-            <div class="text-[10px] text-gray-400 mt-0.5">{{$r.AssignmentStatus}}</div>
+              {{if containsCI $r.AssignmentStatus "approved"}}
+              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+              {{else if containsCI $r.AssignmentStatus "rejected"}}
+              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+              {{else if containsCI $r.AssignmentStatus "revoked"}}
+              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+              {{else if containsCI $r.AssignmentStatus "submitted"}}
+              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+              {{else if containsCI $r.AssignmentStatus "draft"}}
+              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+              {{else if containsCI $r.AssignmentStatus "open"}}
+              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+              {{else}}
+              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+              {{end}}
+            {{else}}
+            <span class="text-gray-300">-</span>
             {{end}}
           </td>
           <td class="px-3 py-2 text-center text-gray-400 whitespace-nowrap">{{$r.SyncedAt}}</td>
         </tr>
         {{else}}
-        <tr><td colspan="7" class="px-4 py-10 text-center text-gray-400">
+        <tr><td colspan="8" class="px-4 py-10 text-center text-gray-400">
           <div class="flex flex-col items-center gap-2">
             <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -65,6 +66,81 @@ func pmlQueryList(userID, page int) ([]models.SLSProgress, error) {
 		list = append(list, sp)
 	}
 	return list, nil
+}
+
+// PMLProgresPPL — GET /pml/progres-ppl
+// Rekap progres FASIH (submit/draft/approved/rejected per level) per PPL di
+// bawah PML ini. Sama polanya dengan queryAdminPPL di admin.go, tapi pml_id
+// dikunci ke PML yang login (bukan filter yang bisa diganti-ganti).
+func PMLProgresPPL(c echo.Context) error {
+	userID := mw.SessionUserID(c)
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page < 1 {
+		page = 1
+	}
+	q := c.QueryParam("q")
+	like := "%" + q + "%"
+
+	extra := ""
+	if q != "" {
+		extra = "&q=" + q
+	}
+
+	var total int
+	db.DB.QueryRow(`SELECT COUNT(DISTINCT u.id) FROM users u JOIN sls s ON s.ppl_id=u.id WHERE u.role='ppl' AND s.pml_id=? AND u.name LIKE ?`, userID, like).Scan(&total)
+
+	offset := (page - 1) * models.PerPage
+	pageInfo := models.NewPageInfo(page, total, "/pml/progres-ppl", "pml-progres-ppl-result", extra)
+
+	rows, err := db.DB.Query(`
+		SELECT u.id, u.name,
+		       COUNT(s.id),
+		       COALESCE(SUM(p.fasih_submitted),0),
+		       COALESCE(SUM(p.jumlah_submit),0),
+		       COALESCE(SUM(p.jumlah_draft),0),
+		       COALESCE(SUM(p.fasih_approved_pengawas),0),
+		       COALESCE(SUM(p.fasih_rejected_pengawas),0),
+		       COALESCE(SUM(p.fasih_approved_kabupaten),0),
+		       COALESCE(SUM(p.fasih_rejected_kabupaten),0),
+		       COALESCE(SUM(p.fasih_approved_provinsi),0),
+		       COALESCE(SUM(p.fasih_rejected_provinsi),0),
+		       COALESCE(SUM(p.fasih_approved_pusat),0),
+		       COALESCE(SUM(p.fasih_rejected_pusat),0),
+		       COALESCE(SUM(p.fasih_total),0)
+		FROM users u
+		JOIN sls s ON s.ppl_id = u.id
+		LEFT JOIN progress p ON p.sls_id = s.id
+		WHERE u.role = 'ppl' AND s.pml_id = ? AND u.name LIKE ?
+		GROUP BY u.id, u.name
+		ORDER BY u.name
+		LIMIT ? OFFSET ?`, userID, like, models.PerPage, offset)
+
+	var ppls []PPLRow
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var r PPLRow
+			rows.Scan(&r.ID, &r.Name, &r.JmlSLS,
+				&r.Submit, &r.JumlahSubmit, &r.Draft,
+				&r.ApprovedPengawas, &r.RejectedPengawas,
+				&r.ApprovedKabupaten, &r.RejectedKabupaten,
+				&r.ApprovedProvinsi, &r.RejectedProvinsi,
+				&r.ApprovedPusat, &r.RejectedPusat,
+				&r.FasihTotal)
+			r.Diperiksa = r.ApprovedPengawas
+			r.Error = r.RejectedPengawas
+			if r.FasihTotal > 0 {
+				r.PctSubmit = math.Min(float64(r.JumlahSubmit)*100/float64(r.FasihTotal), 100)
+			}
+			ppls = append(ppls, r)
+		}
+	}
+
+	return c.Render(http.StatusOK, "pml_ppl_progress_table.html", map[string]interface{}{
+		"PPLs":    ppls,
+		"PPLPage": pageInfo,
+		"Q":       q,
+	})
 }
 
 func PMLDashboard(c echo.Context) error {
