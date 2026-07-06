@@ -52,13 +52,15 @@ def load_sls_map(conn):
 
 
 def upsert_keberadaan(conn, sls_id, assignment_id, nama, skala_usaha,
-                      kode, label, gate_label, assignment_status, synced_at):
+                      kode, label, gate_label, assignment_status, synced_at,
+                      sync_keterangan=None):
     with conn.cursor() as cur:
         cur.execute("""
             INSERT INTO keberadaan_usaha
               (sls_id, assignment_id, nama, skala_usaha,
-               keberadaan_kode, keberadaan_label, gate_label, assignment_status, synced_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               keberadaan_kode, keberadaan_label, gate_label, assignment_status, synced_at,
+               sync_keterangan)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             ON DUPLICATE KEY UPDATE
               sls_id            = VALUES(sls_id),
               nama              = IF(VALUES(nama) != '' AND VALUES(nama) IS NOT NULL,
@@ -73,9 +75,10 @@ def upsert_keberadaan(conn, sls_id, assignment_id, nama, skala_usaha,
                                      VALUES(gate_label), gate_label),
               assignment_status = IF(VALUES(assignment_status) IS NOT NULL,
                                      VALUES(assignment_status), assignment_status),
-              synced_at         = VALUES(synced_at)
+              synced_at         = VALUES(synced_at),
+              sync_keterangan   = VALUES(sync_keterangan)
         """, (sls_id, assignment_id, nama or "", skala_usaha or "",
-              kode, label, gate_label, assignment_status, synced_at))
+              kode, label, gate_label, assignment_status, synced_at, sync_keterangan))
     conn.commit()
 
 
@@ -313,9 +316,10 @@ def fetch_keberadaan_batch(page, assignment_ids):
     for aid, r in zip(assignment_ids, results):
         if isinstance(r, dict) and "__fetch_error" in r:
             print(f"      [FETCH FAIL] {aid[:8]}… : {r['__fetch_error']}", flush=True)
-            parsed.append((None, None, None, None))
+            parsed.append((None, None, None, None, f"Gagal: {r['__fetch_error']}"))
         else:
-            parsed.append(_parse_assignment(r))
+            kode, label, gate_label, assignment_status = _parse_assignment(r)
+            parsed.append((kode, label, gate_label, assignment_status, None))
     return parsed
 
 
@@ -381,7 +385,7 @@ def run_once():
                     batch           = pending[start : start + BATCH_SIZE]
                     ids             = [a["assignment_id"] for a in batch]
                     keberadaan_list = fetch_keberadaan_batch(page, ids)
-                    for asgn, (kode, label, gate_label, assignment_status) in zip(batch, keberadaan_list):
+                    for asgn, (kode, label, gate_label, assignment_status, sync_keterangan) in zip(batch, keberadaan_list):
                         if kode is None and label is None and gate_label is None:
                             null_count += 1
                             chunk_null += 1
@@ -399,6 +403,7 @@ def run_once():
                             gate_label        = gate_label,
                             assignment_status = assignment_status,
                             synced_at         = synced_at,
+                            sync_keterangan   = sync_keterangan,
                         )
                 total_asgn += len(pending)
 

@@ -12,24 +12,24 @@ import (
 )
 
 type PPLDetailData struct {
-	SP           models.SLSProgress
-	FasihOpen    int
-	FasihSubmit  int
+	SP          models.SLSProgress
+	FasihOpen   int
+	FasihSubmit int
 	// Breakdown per level
-	FasihApprove          int // = ApprovedPengawas (alias lama)
-	FasihReject           int // = RejectedPengawas (alias lama)
-	FasihRevoke           int // = RevokedPengawas (alias lama)
-	ApprovedPengawas      int
-	RejectedPengawas      int
-	RevokedPengawas       int
-	ApprovedKabupaten     int
-	RejectedKabupaten     int
-	ApprovedProvinsi      int
-	RejectedProvinsi      int
-	ApprovedPusat         int
-	RejectedPusat         int
-	FasihTotal   int
-	SyncedAt     string
+	FasihApprove      int // = ApprovedPengawas (alias lama)
+	FasihReject       int // = RejectedPengawas (alias lama)
+	FasihRevoke       int // = RevokedPengawas (alias lama)
+	ApprovedPengawas  int
+	RejectedPengawas  int
+	RevokedPengawas   int
+	ApprovedKabupaten int
+	RejectedKabupaten int
+	ApprovedProvinsi  int
+	RejectedProvinsi  int
+	ApprovedPusat     int
+	RejectedPusat     int
+	FasihTotal        int
+	SyncedAt          string
 }
 
 // laporanCols membaca dari tabel progress (data FASIH)
@@ -42,17 +42,27 @@ const laporanCols = `
 	CASE WHEN p.id IS NOT NULL THEN 1 ELSE 0 END,
 	COALESCE(DATE_FORMAT(p.fasih_synced_at,'%Y-%m-%d'),'')`
 
-func pplQueryList(userID, page int) ([]models.SLSProgress, error) {
+var pplTableSortCols = map[string]string{
+	"nama_sls": "s.nama_sls",
+	"lokasi":   "s.nama_kec, s.nama_desa",
+	"target":   "s.target",
+	"submit":   "COALESCE(p.jumlah_submit,0)",
+	"draft":    "COALESCE(p.jumlah_draft,0)",
+	"sync":     "p.fasih_synced_at",
+}
+
+func pplQueryList(userID, page int, sort, dir string) ([]models.SLSProgress, string, string, error) {
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, pplTableSortCols, "s.kode_kec, s.kode_desa, s.kode_sls")
 	offset := (page - 1) * models.PerPage
 	rows, err := db.DB.Query(`
 		SELECT `+laporanCols+`
 		FROM sls s
 		LEFT JOIN progress p ON p.sls_id = s.id
 		WHERE s.ppl_id = ?
-		ORDER BY s.kode_kec, s.kode_desa, s.kode_sls
+		`+orderBy+`
 		LIMIT ? OFFSET ?`, userID, models.PerPage, offset)
 	if err != nil {
-		return nil, err
+		return nil, sortCol, sortDir, err
 	}
 	defer rows.Close()
 	var list []models.SLSProgress
@@ -66,7 +76,7 @@ func pplQueryList(userID, page int) ([]models.SLSProgress, error) {
 		)
 		list = append(list, sp)
 	}
-	return list, nil
+	return list, sortCol, sortDir, nil
 }
 
 func querySPByID(slsID int) models.SLSProgress {
@@ -95,7 +105,7 @@ func PPLDashboard(c echo.Context) error {
 	var totalRow int
 	db.DB.QueryRow("SELECT COUNT(*) FROM sls WHERE ppl_id=?", userID).Scan(&totalRow)
 
-	list, err := pplQueryList(userID, page)
+	list, _, _, err := pplQueryList(userID, page, "", "")
 	if err != nil {
 		return err
 	}
@@ -126,7 +136,10 @@ func PPLDashboard(c echo.Context) error {
 	}
 	// SLS unik untuk dropdown filter
 	slsRows, _ := db.DB.Query(`SELECT id, nama_sls FROM sls WHERE ppl_id=? ORDER BY nama_sls`, userID)
-	type SlsOpt struct{ ID int; Nama string }
+	type SlsOpt struct {
+		ID   int
+		Nama string
+	}
 	var slsList []SlsOpt
 	if slsRows != nil {
 		for slsRows.Next() {
@@ -155,14 +168,19 @@ func PPLTable(c echo.Context) error {
 	if page < 1 {
 		page = 1
 	}
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
 	var totalRow int
 	db.DB.QueryRow("SELECT COUNT(*) FROM sls WHERE ppl_id=?", userID).Scan(&totalRow)
 
-	list, err := pplQueryList(userID, page)
+	list, sortCol, sortDir, err := pplQueryList(userID, page, sort, dir)
 	if err != nil {
 		return err
 	}
-	pageInfo := models.NewPageInfo(page, totalRow, "/ppl/table", "ppl-table-wrap", "")
+	pageInfo := models.NewPageInfo(page, totalRow, "/ppl/table", "ppl-table-wrap", models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = ""
 
 	return c.Render(http.StatusOK, "ppl_table.html", map[string]interface{}{
 		"List": list,

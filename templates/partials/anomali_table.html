@@ -10,14 +10,14 @@
       <thead>
         <tr class="bg-orange-50 text-gray-600 text-left uppercase tracking-wide">
           <th class="px-3 py-2.5 font-medium text-center w-8">No</th>
-          <th class="px-3 py-2.5 font-medium">Lokasi (Kec / Desa / SLS)</th>
-          <th class="px-3 py-2.5 font-medium">Petugas</th>
-          <th class="px-3 py-2.5 font-medium">Nama Responden</th>
-          <th class="px-3 py-2.5 font-medium">Jenis Anomali</th>
-          <th class="px-3 py-2.5 font-medium">Keterangan</th>
-          <th class="px-3 py-2.5 font-medium text-center">Sync</th>
-          <th class="px-3 py-2.5 font-medium text-center">Status SIGEMPAR</th>
-          <th class="px-3 py-2.5 font-medium text-center">Status FASIH</th>
+          {{template "sortable_th" dict "Label" "Lokasi (Kec / Desa / SLS)" "Col" "lokasi" "PageInfo" $.PageInfo}}
+          {{template "sortable_th" dict "Label" "Petugas" "Col" "petugas" "PageInfo" $.PageInfo}}
+          {{template "sortable_th" dict "Label" "Nama Responden" "Col" "nama" "PageInfo" $.PageInfo}}
+          {{template "sortable_th" dict "Label" "Jenis Anomali" "Col" "jenis" "PageInfo" $.PageInfo}}
+          {{template "sortable_th" dict "Label" "Keterangan" "Col" "keterangan" "PageInfo" $.PageInfo}}
+          {{template "sortable_th" dict "Label" "Sync" "Col" "sync" "PageInfo" $.PageInfo "Center" true}}
+          {{template "sortable_th" dict "Label" "Status SIGEMPAR" "Col" "sigempar" "PageInfo" $.PageInfo "Center" true}}
+          {{template "sortable_th" dict "Label" "Status FASIH" "Col" "fasih" "PageInfo" $.PageInfo "Center" true}}
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">

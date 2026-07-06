@@ -4,13 +4,13 @@
   <table class="w-full text-sm">
     <thead>
       <tr class="bg-orange-50 text-gray-600 text-left text-xs uppercase tracking-wide">
-        <th class="px-4 py-3 font-medium">SLS</th>
-        <th class="px-4 py-3 font-medium">PPL</th>
-        <th class="px-4 py-3 font-medium text-center">Target</th>
-        <th class="px-4 py-3 font-medium text-center">Submit</th>
-        <th class="px-4 py-3 font-medium text-center">Draft</th>
-        <th class="px-4 py-3 font-medium text-center">Approved</th>
-        <th class="px-4 py-3 font-medium text-center">Rejected</th>
+        {{template "sortable_th" dict "Label" "SLS" "Col" "sls" "PageInfo" .Page "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "PPL" "Col" "ppl" "PageInfo" .Page "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Target" "Col" "target" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Submit" "Col" "submit" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Draft" "Col" "draft" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Approved" "Col" "approved" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Rejected" "Col" "rejected" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
         <th class="px-4 py-3 font-medium text-center">Aksi</th>
       </tr>
     </thead>

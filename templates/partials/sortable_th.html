@@ -1,0 +1,37 @@
+{{/*
+  sortable_th — <th> header yang bisa diklik buat sort. Butuh dict:
+    Label    : teks kolom
+    Col      : kunci sort (harus match key di whitelist `allowed` handler)
+    PageInfo : instance models.PageInfo yang sudah diisi .Sort/.Dir/.FilterExtra
+    Class    : (opsional) class tambahan untuk <th>, default "px-3 py-2.5 font-medium"
+    Center   : (opsional) true untuk text-center
+*/}}
+{{define "sortable_th"}}
+{{$active := eq .PageInfo.Sort .Col}}
+{{$nextDir := "asc"}}{{if and $active (eq .PageInfo.Dir "asc")}}{{$nextDir = "desc"}}{{end}}
+<th class="{{if .Class}}{{.Class}}{{else}}px-3 py-2.5 font-medium{{end}}{{if .Center}} text-center{{end}}">
+  <a href="#"
+     hx-get="{{.PageInfo.BaseURL}}?page=1&sort={{.Col}}&dir={{$nextDir}}{{.PageInfo.FilterExtra}}"
+     hx-target="#{{.PageInfo.TargetID}}" hx-swap="innerHTML"
+     class="inline-flex items-center gap-1 hover:text-se transition-colors whitespace-nowrap{{if $active}} text-se{{end}}">
+    {{.Label}}
+    {{if $active}}{{if eq .PageInfo.Dir "asc"}}<span>▲</span>{{else}}<span>▼</span>{{end}}{{else}}<span class="text-gray-300">⇅</span>{{end}}
+  </a>
+</th>
+{{end}}
+
+{{/*
+  sort_icon — ikon panah kecil buat ditempel di samping header yang sudah
+  punya konten sendiri (mis. dropdown filter). Butuh dict yang sama minus Label/Class/Center.
+*/}}
+{{define "sort_icon"}}
+{{$active := eq .PageInfo.Sort .Col}}
+{{$nextDir := "asc"}}{{if and $active (eq .PageInfo.Dir "asc")}}{{$nextDir = "desc"}}{{end}}
+<a href="#"
+   hx-get="{{.PageInfo.BaseURL}}?page=1&sort={{.Col}}&dir={{$nextDir}}{{.PageInfo.FilterExtra}}"
+   hx-target="#{{.PageInfo.TargetID}}" hx-swap="innerHTML"
+   onclick="event.stopPropagation()"
+   class="inline-flex items-center hover:text-se transition-colors{{if $active}} text-se{{else}} text-gray-300{{end}}">
+  {{if $active}}{{if eq .PageInfo.Dir "asc"}}▲{{else}}▼{{end}}{{else}}⇅{{end}}
+</a>
+{{end}}

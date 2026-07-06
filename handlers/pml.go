@@ -37,7 +37,18 @@ const verifCols = `
 	COALESCE((SELECT vh2.status_kendala FROM verifikasi_harian vh2 WHERE vh2.sls_id=s.id ORDER BY vh2.tanggal DESC LIMIT 1),'open'),
 	COALESCE((SELECT vh2.tindak_lanjut_pml FROM verifikasi_harian vh2 WHERE vh2.sls_id=s.id ORDER BY vh2.tanggal DESC LIMIT 1),'')`
 
-func pmlQueryList(userID, page int) ([]models.SLSProgress, error) {
+var pmlTableSortCols = map[string]string{
+	"sls":      "s.nama_sls",
+	"ppl":      "u.name",
+	"target":   "s.target",
+	"submit":   "COALESCE(p.jumlah_submit,0)",
+	"draft":    "COALESCE(p.jumlah_draft,0)",
+	"approved": "COALESCE(p.fasih_approved_pengawas,0)",
+	"rejected": "COALESCE(p.fasih_rejected_pengawas,0)",
+}
+
+func pmlQueryList(userID, page int, sort, dir string) ([]models.SLSProgress, string, string, error) {
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, pmlTableSortCols, "s.kode_kec, s.kode_desa, u.name, s.kode_sls")
 	offset := (page - 1) * models.PerPage
 	rows, err := db.DB.Query(`
 		SELECT `+verifCols+`
@@ -45,10 +56,10 @@ func pmlQueryList(userID, page int) ([]models.SLSProgress, error) {
 		JOIN users u ON u.id = s.ppl_id
 		LEFT JOIN progress p ON p.sls_id = s.id
 		WHERE s.pml_id = ?
-		ORDER BY s.kode_kec, s.kode_desa, u.name, s.kode_sls
+		`+orderBy+`
 		LIMIT ? OFFSET ?`, userID, models.PerPage, offset)
 	if err != nil {
-		return nil, err
+		return nil, sortCol, sortDir, err
 	}
 	defer rows.Close()
 	var list []models.SLSProgress
@@ -65,7 +76,18 @@ func pmlQueryList(userID, page int) ([]models.SLSProgress, error) {
 		)
 		list = append(list, sp)
 	}
-	return list, nil
+	return list, sortCol, sortDir, nil
+}
+
+var pmlProgresPPLSortCols = map[string]string{
+	"nama":     "u.name",
+	"jml_sls":  "COUNT(s.id)",
+	"total":    "COALESCE(SUM(p.fasih_total),0)",
+	"submit":   "COALESCE(SUM(p.fasih_submitted),0)",
+	"draft":    "COALESCE(SUM(p.jumlah_draft),0)",
+	"approved": "COALESCE(SUM(p.fasih_approved_pengawas),0)",
+	"rejected": "COALESCE(SUM(p.fasih_rejected_pengawas),0)",
+	"progres":  "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
 }
 
 // PMLProgresPPL — GET /pml/progres-ppl
@@ -79,6 +101,8 @@ func PMLProgresPPL(c echo.Context) error {
 		page = 1
 	}
 	q := c.QueryParam("q")
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
 	like := "%" + q + "%"
 
 	extra := ""
@@ -89,8 +113,13 @@ func PMLProgresPPL(c echo.Context) error {
 	var total int
 	db.DB.QueryRow(`SELECT COUNT(DISTINCT u.id) FROM users u JOIN sls s ON s.ppl_id=u.id WHERE u.role='ppl' AND s.pml_id=? AND u.name LIKE ?`, userID, like).Scan(&total)
 
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, pmlProgresPPLSortCols, "u.name")
+
 	offset := (page - 1) * models.PerPage
-	pageInfo := models.NewPageInfo(page, total, "/pml/progres-ppl", "pml-progres-ppl-result", extra)
+	pageInfo := models.NewPageInfo(page, total, "/pml/progres-ppl", "pml-progres-ppl-result", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
 
 	rows, err := db.DB.Query(`
 		SELECT u.id, u.name,
@@ -112,7 +141,7 @@ func PMLProgresPPL(c echo.Context) error {
 		LEFT JOIN progress p ON p.sls_id = s.id
 		WHERE u.role = 'ppl' AND s.pml_id = ? AND u.name LIKE ?
 		GROUP BY u.id, u.name
-		ORDER BY u.name
+		`+orderBy+`
 		LIMIT ? OFFSET ?`, userID, like, models.PerPage, offset)
 
 	var ppls []PPLRow
@@ -153,7 +182,7 @@ func PMLDashboard(c echo.Context) error {
 	var totalRow int
 	db.DB.QueryRow("SELECT COUNT(*) FROM sls WHERE pml_id=?", userID).Scan(&totalRow)
 
-	list, err := pmlQueryList(userID, page)
+	list, _, _, err := pmlQueryList(userID, page, "", "")
 	if err != nil {
 		return err
 	}
@@ -187,7 +216,10 @@ func PMLDashboard(c echo.Context) error {
 	// PPL di bawah PML ini untuk dropdown filter
 	pplRows, _ := db.DB.Query(
 		`SELECT u.id, u.name FROM users u JOIN sls s ON s.ppl_id=u.id WHERE s.pml_id=? GROUP BY u.id, u.name ORDER BY u.name`, userID)
-	type PplOpt struct{ ID int; Name string }
+	type PplOpt struct {
+		ID   int
+		Name string
+	}
 	var pplList []PplOpt
 	if pplRows != nil {
 		for pplRows.Next() {
@@ -218,14 +250,19 @@ func PMLTable(c echo.Context) error {
 	if page < 1 {
 		page = 1
 	}
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
 	var totalRow int
 	db.DB.QueryRow("SELECT COUNT(*) FROM sls WHERE pml_id=?", userID).Scan(&totalRow)
 
-	list, err := pmlQueryList(userID, page)
+	list, sortCol, sortDir, err := pmlQueryList(userID, page, sort, dir)
 	if err != nil {
 		return err
 	}
-	pageInfo := models.NewPageInfo(page, totalRow, "/pml/table", "pml-table-wrap", "")
+	pageInfo := models.NewPageInfo(page, totalRow, "/pml/table", "pml-table-wrap", models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = ""
 
 	return c.Render(http.StatusOK, "pml_table.html", map[string]interface{}{
 		"List":       list,
@@ -308,8 +345,8 @@ func PMLSaveVerif(c echo.Context) error {
 	}
 
 	kendala := c.FormValue("kendala")
-	solusi   := c.FormValue("solusi_sementara")
-	tanggal  := c.FormValue("tanggal")
+	solusi := c.FormValue("solusi_sementara")
+	tanggal := c.FormValue("tanggal")
 	if tanggal == "" {
 		tanggal = time.Now().Format("2006-01-02")
 	}

@@ -80,7 +80,18 @@ func querySkalaList() []string {
 	return list
 }
 
-func queryAnomaili(page int, q, kec, status, fasih string, pmlID, pplID int, targetID, baseURL string) ([]AnomaliRow, models.PageInfo) {
+var anomaliSortCols = map[string]string{
+	"lokasi":     "s.nama_kec, s.nama_desa, s.nama_sls",
+	"petugas":    "ppl.name",
+	"nama":       "a.nama",
+	"jenis":      "a.rule_key",
+	"keterangan": "a.rule_msg",
+	"sync":       "a.synced_at",
+	"sigempar":   "a.sudah_ditindaklanjuti_sigempar",
+	"fasih":      "a.is_resolved_fasih",
+}
+
+func queryAnomaili(page int, q, kec, status, fasih, sort, dir string, pmlID, pplID int, targetID, baseURL string) ([]AnomaliRow, models.PageInfo) {
 	like := "%" + q + "%"
 
 	// Build WHERE clause
@@ -136,6 +147,8 @@ func queryAnomaili(page int, q, kec, status, fasih string, pmlID, pplID int, tar
 		extra += "&fasih=" + fasih
 	}
 
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, anomaliSortCols, "s.nama_kec, s.nama_desa, s.nama_sls, a.rule_key")
+
 	offset := (page - 1) * models.PerPage
 	queryArgs := make([]interface{}, len(args))
 	copy(queryArgs, args)
@@ -153,10 +166,13 @@ func queryAnomaili(page int, q, kec, status, fasih string, pmlID, pplID int, tar
 		JOIN users ppl ON ppl.id = s.ppl_id
 		JOIN users pml ON pml.id = s.pml_id`+
 		where+`
-		ORDER BY s.nama_kec, s.nama_desa, s.nama_sls, a.rule_key
+		`+orderBy+`
 		LIMIT ? OFFSET ?`, queryArgs...)
 
-	pageInfo := models.NewPageInfo(page, total, baseURL, targetID, extra)
+	pageInfo := models.NewPageInfo(page, total, baseURL, targetID, extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
 	if err != nil {
 		return nil, pageInfo
 	}
@@ -183,10 +199,12 @@ func AdminAnomaliTable(c echo.Context) error {
 	kec := c.QueryParam("kec")
 	status := c.QueryParam("status")
 	fasih := c.QueryParam("fasih")
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
 	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
 	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
 
-	list, pageInfo := queryAnomaili(page, q, kec, status, fasih, pmlID, pplID, "anomali-result", "/admin/table/anomali")
+	list, pageInfo := queryAnomaili(page, q, kec, status, fasih, sort, dir, pmlID, pplID, "anomali-result", "/admin/table/anomali")
 
 	var kecs []string
 	if kec != "" {
@@ -222,6 +240,8 @@ func PPLAnomali(c echo.Context) error {
 	jenis := c.QueryParam("jenis")
 	status := c.QueryParam("status")
 	fasih := c.QueryParam("fasih")
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
 	slsID, _ := strconv.Atoi(c.QueryParam("sls_id"))
 	like := "%" + q + "%"
 
@@ -267,8 +287,22 @@ func PPLAnomali(c echo.Context) error {
 		extra += "&fasih=" + fasih
 	}
 
+	pplAnomaliSortCols := map[string]string{
+		"sls":        "s.nama_sls",
+		"nama":       "a.nama",
+		"jenis":      "a.rule_key",
+		"keterangan": "a.rule_msg",
+		"sync":       "a.synced_at",
+		"sigempar":   "a.sudah_ditindaklanjuti_sigempar",
+		"fasih":      "a.is_resolved_fasih",
+	}
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, pplAnomaliSortCols, "s.nama_sls, a.jenis, a.rule_key")
+
 	offset := (page - 1) * models.PerPage
-	pageInfo := models.NewPageInfo(page, total, "/ppl/anomali", "ppl-anomali-result", extra)
+	pageInfo := models.NewPageInfo(page, total, "/ppl/anomali", "ppl-anomali-result", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
 
 	queryArgs := append(args, models.PerPage, offset)
 	rows, err := db.DB.Query(`
@@ -278,7 +312,7 @@ func PPLAnomali(c echo.Context) error {
 		       COALESCE(DATE_FORMAT(a.sudah_ditindaklanjuti_sigempar,'%d/%m/%Y %H:%i'),''),
 		       a.is_resolved_fasih
 		FROM anomali a JOIN sls s ON s.id=a.sls_id `+where+`
-		ORDER BY s.nama_sls, a.jenis, a.rule_key
+		`+orderBy+`
 		LIMIT ? OFFSET ?`, queryArgs...)
 
 	type Row struct {
@@ -317,6 +351,8 @@ func PMLAnomali(c echo.Context) error {
 	jenis := c.QueryParam("jenis")
 	status := c.QueryParam("status")
 	fasih := c.QueryParam("fasih")
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
 	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
 	like := "%" + q + "%"
 
@@ -362,8 +398,23 @@ func PMLAnomali(c echo.Context) error {
 		extra += "&fasih=" + fasih
 	}
 
+	pmlAnomaliSortCols := map[string]string{
+		"ppl":        "ppl.name",
+		"sls":        "s.nama_sls",
+		"nama":       "a.nama",
+		"jenis":      "a.rule_key",
+		"keterangan": "a.rule_msg",
+		"sync":       "a.synced_at",
+		"sigempar":   "a.sudah_ditindaklanjuti_sigempar",
+		"fasih":      "a.is_resolved_fasih",
+	}
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, pmlAnomaliSortCols, "ppl.name, s.nama_sls, a.jenis, a.rule_key")
+
 	offset := (page - 1) * models.PerPage
-	pageInfo := models.NewPageInfo(page, total, "/pml/anomali", "pml-anomali-result", extra)
+	pageInfo := models.NewPageInfo(page, total, "/pml/anomali", "pml-anomali-result", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
 
 	queryArgs := append(args, models.PerPage, offset)
 	rows, err := db.DB.Query(`
@@ -376,7 +427,7 @@ func PMLAnomali(c echo.Context) error {
 		FROM anomali a
 		JOIN sls s ON s.id=a.sls_id
 		JOIN users ppl ON ppl.id=s.ppl_id `+where+`
-		ORDER BY ppl.name, s.nama_sls, a.jenis, a.rule_key
+		`+orderBy+`
 		LIMIT ? OFFSET ?`, queryArgs...)
 
 	type PMLAnomaliRow struct {

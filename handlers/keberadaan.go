@@ -28,6 +28,7 @@ type KeberadaanRow struct {
 	GateLabel        string // alasan gate keluarga/bangunan stop (kalau keberadaan_usaha# tidak pernah ditanya)
 	AssignmentStatus string // status submit assignment di FASIH
 	SyncedAt         string
+	SyncKeterangan   string // NULL/kosong = sync terakhir berhasil; terisi = pesan error fetch terakhir
 }
 
 type KeberadaanStat struct {
@@ -72,22 +73,34 @@ func querySLSOptions() []SLSOption {
 	return list
 }
 
+var keberadaanSortCols = map[string]string{
+	"lokasi":            "s.nama_kec, s.nama_desa, s.nama_sls",
+	"petugas":           "ppl.name",
+	"nama":              "k.nama",
+	"skala":             "k.skala_usaha",
+	"status_keberadaan": "k.keberadaan_label",
+	"status_assignment": "k.assignment_status",
+	"sync":              "k.synced_at",
+}
+
 // AdminKeberadaanTable — GET /admin/table/keberadaan
 func AdminKeberadaanTable(c echo.Context) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
 		page = 1
 	}
-	q      := c.QueryParam("q")
-	label  := c.QueryParam("label")
-	kecs   := c.QueryParams()["kec"]
+	q := c.QueryParam("q")
+	label := c.QueryParam("label")
+	kecs := c.QueryParams()["kec"]
 	skalas := c.QueryParams()["skala"]
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
 	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
 	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
-	like   := "%" + q + "%"
+	like := "%" + q + "%"
 
 	where := ` WHERE (k.nama LIKE ? OR k.skala_usaha LIKE ? OR k.keberadaan_label LIKE ? OR s.nama_sls LIKE ?)`
-	args  := []interface{}{like, like, like, like}
+	args := []interface{}{like, like, like, like}
 
 	switch label {
 	case "":
@@ -151,8 +164,13 @@ func AdminKeberadaanTable(c echo.Context) error {
 		extra += fmt.Sprintf("&ppl_id=%d", pplID)
 	}
 
-	offset   := (page - 1) * models.PerPage
-	pageInfo := models.NewPageInfo(page, total, "/admin/table/keberadaan", "keberadaan-result", extra)
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, keberadaanSortCols, "s.nama_kec, s.nama_desa, s.nama_sls, k.nama")
+
+	offset := (page - 1) * models.PerPage
+	pageInfo := models.NewPageInfo(page, total, "/admin/table/keberadaan", "keberadaan-result", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
 
 	queryArgs := append(args, models.PerPage, offset)
 	rows, err := db.DB.Query(`
@@ -161,12 +179,13 @@ func AdminKeberadaanTable(c echo.Context) error {
 		       k.nama, k.skala_usaha,
 		       COALESCE(k.keberadaan_kode,''), COALESCE(k.keberadaan_label,''),
 		       COALESCE(k.gate_label,''), COALESCE(k.assignment_status,''),
-		       COALESCE(DATE_FORMAT(k.synced_at,'%d/%m/%Y %H:%i'),'')
+		       COALESCE(DATE_FORMAT(k.synced_at,'%d/%m/%Y %H:%i'),''),
+		       COALESCE(k.sync_keterangan,'')
 		FROM keberadaan_usaha k
 		JOIN sls s ON s.id = k.sls_id
 		JOIN users ppl ON ppl.id = s.ppl_id
 		JOIN users pml ON pml.id = s.pml_id`+where+`
-		ORDER BY s.nama_kec, s.nama_desa, s.nama_sls, k.nama
+		`+orderBy+`
 		LIMIT ? OFFSET ?`, queryArgs...)
 
 	var list []KeberadaanRow
@@ -177,7 +196,7 @@ func AdminKeberadaanTable(c echo.Context) error {
 			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa,
 				&r.NamaPPL, &r.NamaPML,
 				&r.Nama, &r.Skala, &r.Kode, &r.Label,
-				&r.GateLabel, &r.AssignmentStatus, &r.SyncedAt)
+				&r.GateLabel, &r.AssignmentStatus, &r.SyncedAt, &r.SyncKeterangan)
 			list = append(list, r)
 		}
 	}
@@ -278,6 +297,22 @@ type KeberadaanRekapRow struct {
 	PctBelumDiisi  float64
 }
 
+var keberadaanRekapSortCols = map[string]string{
+	"lokasi":          "s.nama_kec, s.nama_desa, s.nama_sls",
+	"petugas":         "ppl.name",
+	"total":           "total",
+	"belum_diisi":     "belum_diisi",
+	"gate_stop":       "gate_stop",
+	"gate_baru":       "gate_baru",
+	"ditemukan":       "ditemukan",
+	"tidak_ditemukan": "tidak_ditemukan",
+	"baru":            "baru",
+	"tutup":           "tutup",
+	"ganda":           "ganda",
+	"non_respon":      "non_respon",
+	"progres":         "(CASE WHEN (total - baru - gate_stop - gate_baru) <= 0 THEN 0 ELSE belum_diisi / (total - baru - gate_stop - gate_baru) END)",
+}
+
 // AdminKeberadaanRekapTable — GET /admin/table/keberadaan-rekap
 // Rekap keberadaan usaha per SLS: jumlah per status + progres (belum diisi / total kecuali baru).
 func AdminKeberadaanRekapTable(c echo.Context) error {
@@ -286,6 +321,8 @@ func AdminKeberadaanRekapTable(c echo.Context) error {
 		page = 1
 	}
 	q := c.QueryParam("q")
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
 	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
 	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
 	slsID, _ := strconv.Atoi(c.QueryParam("sls_id"))
@@ -324,8 +361,13 @@ func AdminKeberadaanRekapTable(c echo.Context) error {
 		extra += fmt.Sprintf("&sls_id=%d", slsID)
 	}
 
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, keberadaanRekapSortCols, "s.nama_kec, s.nama_desa, s.nama_sls")
+
 	offset := (page - 1) * models.PerPage
-	pageInfo := models.NewPageInfo(page, total, "/admin/table/keberadaan-rekap", "keberadaan-rekap-result", extra)
+	pageInfo := models.NewPageInfo(page, total, "/admin/table/keberadaan-rekap", "keberadaan-rekap-result", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
 
 	queryArgs := append(args, models.PerPage, offset)
 	rows, err := db.DB.Query(`
@@ -354,7 +396,7 @@ func AdminKeberadaanRekapTable(c echo.Context) error {
 		JOIN users pml ON pml.id = s.pml_id
 		LEFT JOIN keberadaan_usaha k ON k.sls_id = s.id`+where+`
 		GROUP BY s.id, s.nama_sls, s.nama_kec, s.nama_desa, ppl.name, pml.name
-		ORDER BY s.nama_kec, s.nama_desa, s.nama_sls
+		`+orderBy+`
 		LIMIT ? OFFSET ?`, queryArgs...)
 
 	var list []KeberadaanRekapRow
@@ -405,14 +447,16 @@ func PPLKeberadaan(c echo.Context) error {
 	if page < 1 {
 		page = 1
 	}
-	q      := c.QueryParam("q")
-	label  := c.QueryParam("label")
+	q := c.QueryParam("q")
+	label := c.QueryParam("label")
 	skalas := c.QueryParams()["skala"]
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
 	slsID, _ := strconv.Atoi(c.QueryParam("sls_id"))
-	like   := "%" + q + "%"
+	like := "%" + q + "%"
 
 	where := ` WHERE s.ppl_id = ? AND (k.nama LIKE ? OR k.skala_usaha LIKE ? OR k.keberadaan_label LIKE ? OR s.nama_sls LIKE ?)`
-	args  := []interface{}{userID, like, like, like, like}
+	args := []interface{}{userID, like, like, like, like}
 
 	if label != "" {
 		where += ` AND k.keberadaan_label = ?`
@@ -425,7 +469,9 @@ func PPLKeberadaan(c echo.Context) error {
 	if len(skalas) > 0 {
 		ph := ""
 		for i, v := range skalas {
-			if i > 0 { ph += "," }
+			if i > 0 {
+				ph += ","
+			}
 			ph += "?"
 			args = append(args, v)
 		}
@@ -437,13 +483,34 @@ func PPLKeberadaan(c echo.Context) error {
 	db.DB.QueryRow(`SELECT COUNT(*) FROM keberadaan_usaha k JOIN sls s ON s.id=k.sls_id`+where, countArgs...).Scan(&total)
 
 	extra := ""
-	if q != "" { extra += "&q=" + q }
-	for _, v := range skalas { extra += "&skala=" + v }
-	if label != "" { extra += "&label=" + label }
-	if slsID > 0 { extra += fmt.Sprintf("&sls_id=%d", slsID) }
+	if q != "" {
+		extra += "&q=" + q
+	}
+	for _, v := range skalas {
+		extra += "&skala=" + v
+	}
+	if label != "" {
+		extra += "&label=" + label
+	}
+	if slsID > 0 {
+		extra += fmt.Sprintf("&sls_id=%d", slsID)
+	}
 
-	offset   := (page - 1) * models.PerPage
-	pageInfo := models.NewPageInfo(page, total, "/ppl/keberadaan", "ppl-keberadaan-result", extra)
+	pplKeberadaanSortCols := map[string]string{
+		"sls":               "s.nama_sls",
+		"nama":              "k.nama",
+		"skala":             "k.skala_usaha",
+		"status_keberadaan": "k.keberadaan_label",
+		"status_assignment": "k.assignment_status",
+		"sync":              "k.synced_at",
+	}
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, pplKeberadaanSortCols, "s.nama_sls, k.nama")
+
+	offset := (page - 1) * models.PerPage
+	pageInfo := models.NewPageInfo(page, total, "/ppl/keberadaan", "ppl-keberadaan-result", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
 
 	queryArgs := append(args, models.PerPage, offset)
 	rows, err := db.DB.Query(`
@@ -454,7 +521,7 @@ func PPLKeberadaan(c echo.Context) error {
 		       COALESCE(DATE_FORMAT(k.synced_at,'%d/%m/%Y %H:%i'),'')
 		FROM keberadaan_usaha k
 		JOIN sls s ON s.id = k.sls_id`+where+`
-		ORDER BY s.nama_sls, k.nama
+		`+orderBy+`
 		LIMIT ? OFFSET ?`, queryArgs...)
 
 	type PPLKeberadaanRow struct {
@@ -487,16 +554,27 @@ func PPLKeberadaan(c echo.Context) error {
 	skRows, _ := db.DB.Query(`SELECT DISTINCT COALESCE(skala_usaha, '') AS skala_usaha FROM keberadaan_usaha k JOIN sls s ON s.id=k.sls_id WHERE s.ppl_id=? ORDER BY skala_usaha`, userID)
 	if skRows != nil {
 		defer skRows.Close()
-		for skRows.Next() { var s string; skRows.Scan(&s); skalaList = append(skalaList, s) }
+		for skRows.Next() {
+			var s string
+			skRows.Scan(&s)
+			skalaList = append(skalaList, s)
+		}
 	}
 
 	// SLS list milik PPL ini
-	type SLSOpt struct{ ID int; Nama string }
+	type SLSOpt struct {
+		ID   int
+		Nama string
+	}
 	var slsList []SLSOpt
 	slsRows, _ := db.DB.Query(`SELECT id, nama_sls FROM sls WHERE ppl_id=? ORDER BY nama_sls`, userID)
 	if slsRows != nil {
 		defer slsRows.Close()
-		for slsRows.Next() { var s SLSOpt; slsRows.Scan(&s.ID, &s.Nama); slsList = append(slsList, s) }
+		for slsRows.Next() {
+			var s SLSOpt
+			slsRows.Scan(&s.ID, &s.Nama)
+			slsList = append(slsList, s)
+		}
 	}
 
 	return c.Render(http.StatusOK, "ppl_keberadaan_table.html", map[string]interface{}{
@@ -518,15 +596,17 @@ func PMLKeberadaan(c echo.Context) error {
 	if page < 1 {
 		page = 1
 	}
-	q      := c.QueryParam("q")
-	label  := c.QueryParam("label")
+	q := c.QueryParam("q")
+	label := c.QueryParam("label")
 	skalas := c.QueryParams()["skala"]
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
 	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
 	slsID, _ := strconv.Atoi(c.QueryParam("sls_id"))
-	like   := "%" + q + "%"
+	like := "%" + q + "%"
 
 	where := ` WHERE s.pml_id = ? AND (k.nama LIKE ? OR k.skala_usaha LIKE ? OR k.keberadaan_label LIKE ? OR s.nama_sls LIKE ?)`
-	args  := []interface{}{userID, like, like, like, like}
+	args := []interface{}{userID, like, like, like, like}
 
 	if label != "" {
 		where += ` AND k.keberadaan_label = ?`
@@ -543,7 +623,9 @@ func PMLKeberadaan(c echo.Context) error {
 	if len(skalas) > 0 {
 		ph := ""
 		for i, v := range skalas {
-			if i > 0 { ph += "," }
+			if i > 0 {
+				ph += ","
+			}
 			ph += "?"
 			args = append(args, v)
 		}
@@ -555,14 +637,38 @@ func PMLKeberadaan(c echo.Context) error {
 	db.DB.QueryRow(`SELECT COUNT(*) FROM keberadaan_usaha k JOIN sls s ON s.id=k.sls_id`+where, countArgs...).Scan(&total)
 
 	extra := ""
-	if q != "" { extra += "&q=" + q }
-	for _, v := range skalas { extra += "&skala=" + v }
-	if label != "" { extra += "&label=" + label }
-	if pplID > 0 { extra += fmt.Sprintf("&ppl_id=%d", pplID) }
-	if slsID > 0 { extra += fmt.Sprintf("&sls_id=%d", slsID) }
+	if q != "" {
+		extra += "&q=" + q
+	}
+	for _, v := range skalas {
+		extra += "&skala=" + v
+	}
+	if label != "" {
+		extra += "&label=" + label
+	}
+	if pplID > 0 {
+		extra += fmt.Sprintf("&ppl_id=%d", pplID)
+	}
+	if slsID > 0 {
+		extra += fmt.Sprintf("&sls_id=%d", slsID)
+	}
 
-	offset   := (page - 1) * models.PerPage
-	pageInfo := models.NewPageInfo(page, total, "/pml/keberadaan", "pml-keberadaan-result", extra)
+	pmlKeberadaanSortCols := map[string]string{
+		"sls":               "s.nama_sls",
+		"ppl":               "ppl.name",
+		"nama":              "k.nama",
+		"skala":             "k.skala_usaha",
+		"status_keberadaan": "k.keberadaan_label",
+		"status_assignment": "k.assignment_status",
+		"sync":              "k.synced_at",
+	}
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, pmlKeberadaanSortCols, "s.nama_kec, s.nama_sls, k.nama")
+
+	offset := (page - 1) * models.PerPage
+	pageInfo := models.NewPageInfo(page, total, "/pml/keberadaan", "pml-keberadaan-result", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
 
 	queryArgs := append(args, models.PerPage, offset)
 	rows, err := db.DB.Query(`
@@ -575,7 +681,7 @@ func PMLKeberadaan(c echo.Context) error {
 		FROM keberadaan_usaha k
 		JOIN sls s ON s.id = k.sls_id
 		JOIN users ppl ON ppl.id = s.ppl_id`+where+`
-		ORDER BY s.nama_kec, s.nama_sls, k.nama
+		`+orderBy+`
 		LIMIT ? OFFSET ?`, queryArgs...)
 
 	type PMLKeberadaanRow struct {
@@ -609,7 +715,11 @@ func PMLKeberadaan(c echo.Context) error {
 	pplRows, _ := db.DB.Query(`SELECT u.id, u.name FROM users u JOIN sls s ON s.ppl_id=u.id WHERE s.pml_id=? GROUP BY u.id, u.name ORDER BY u.name`, userID)
 	if pplRows != nil {
 		defer pplRows.Close()
-		for pplRows.Next() { var p PPLUser; pplRows.Scan(&p.ID, &p.Name); pplList = append(pplList, p) }
+		for pplRows.Next() {
+			var p PPLUser
+			pplRows.Scan(&p.ID, &p.Name)
+			pplList = append(pplList, p)
+		}
 	}
 
 	// Skala list
@@ -617,11 +727,18 @@ func PMLKeberadaan(c echo.Context) error {
 	skRows, _ := db.DB.Query(`SELECT DISTINCT COALESCE(skala_usaha, '') AS skala_usaha FROM keberadaan_usaha k JOIN sls s ON s.id=k.sls_id WHERE s.pml_id=? ORDER BY skala_usaha`, userID)
 	if skRows != nil {
 		defer skRows.Close()
-		for skRows.Next() { var s string; skRows.Scan(&s); skalaList = append(skalaList, s) }
+		for skRows.Next() {
+			var s string
+			skRows.Scan(&s)
+			skalaList = append(skalaList, s)
+		}
 	}
 
 	// SLS list — filter berdasarkan PPL yang dipilih (jika ada)
-	type SLSOpt struct{ ID int; Nama string }
+	type SLSOpt struct {
+		ID   int
+		Nama string
+	}
 	var slsList []SLSOpt
 	slsQ := `SELECT id, nama_sls FROM sls WHERE pml_id=?`
 	slsArgs := []interface{}{userID}
@@ -632,7 +749,11 @@ func PMLKeberadaan(c echo.Context) error {
 	slsRows, _ := db.DB.Query(slsQ+` ORDER BY nama_sls`, slsArgs...)
 	if slsRows != nil {
 		defer slsRows.Close()
-		for slsRows.Next() { var s SLSOpt; slsRows.Scan(&s.ID, &s.Nama); slsList = append(slsList, s) }
+		for slsRows.Next() {
+			var s SLSOpt
+			slsRows.Scan(&s.ID, &s.Nama)
+			slsList = append(slsList, s)
+		}
 	}
 
 	return c.Render(http.StatusOK, "pml_keberadaan_table.html", map[string]interface{}{

@@ -4,14 +4,14 @@
   <table class="w-full text-sm">
     <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
       <tr>
-        <th class="px-4 py-3 text-left">Tanggal</th>
-        <th class="px-4 py-3 text-left">Organik</th>
-        <th class="px-4 py-3 text-left">SLS / Lokasi</th>
-        <th class="px-4 py-3 text-left">PPL</th>
-        <th class="px-4 py-3 text-left">PML</th>
-        <th class="px-4 py-3 text-center">Diawasi</th>
-        <th class="px-4 py-3 text-left">Kendala</th>
-        <th class="px-4 py-3 text-left">Solusi</th>
+        {{template "sortable_th" dict "Label" "Tanggal" "Col" "tanggal" "PageInfo" .OrganikPage "Class" "px-4 py-3"}}
+        {{template "sortable_th" dict "Label" "Organik" "Col" "organik" "PageInfo" .OrganikPage "Class" "px-4 py-3"}}
+        {{template "sortable_th" dict "Label" "SLS / Lokasi" "Col" "sls" "PageInfo" .OrganikPage "Class" "px-4 py-3"}}
+        {{template "sortable_th" dict "Label" "PPL" "Col" "ppl" "PageInfo" .OrganikPage "Class" "px-4 py-3"}}
+        {{template "sortable_th" dict "Label" "PML" "Col" "pml" "PageInfo" .OrganikPage "Class" "px-4 py-3"}}
+        {{template "sortable_th" dict "Label" "Diawasi" "Col" "diawasi" "PageInfo" .OrganikPage "Class" "px-4 py-3" "Center" true}}
+        {{template "sortable_th" dict "Label" "Kendala" "Col" "kendala" "PageInfo" .OrganikPage "Class" "px-4 py-3"}}
+        {{template "sortable_th" dict "Label" "Solusi" "Col" "solusi" "PageInfo" .OrganikPage "Class" "px-4 py-3"}}
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-50">
@@ -38,7 +38,7 @@
   </table>
 </div>
 {{if .OrganikPage}}
-{{template "pagination.html" .OrganikPage}}
+{{template "pagination" .OrganikPage}}
 {{end}}
 {{else}}
 <div class="px-6 py-10 text-center text-gray-400 text-sm">Belum ada laporan pengawasan organik.</div>

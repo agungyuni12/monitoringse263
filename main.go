@@ -61,6 +61,20 @@ func main() {
 		"containsCI": func(s, substr string) bool {
 			return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 		},
+		"dict": func(values ...interface{}) (map[string]interface{}, error) {
+			if len(values)%2 != 0 {
+				return nil, fmt.Errorf("dict: jumlah argumen ganjil")
+			}
+			d := make(map[string]interface{}, len(values)/2)
+			for i := 0; i < len(values); i += 2 {
+				key, ok := values[i].(string)
+				if !ok {
+					return nil, fmt.Errorf("dict: key harus string")
+				}
+				d[key] = values[i+1]
+			}
+			return d, nil
+		},
 	}
 
 	tmpl := template.New("").Funcs(funcMap)

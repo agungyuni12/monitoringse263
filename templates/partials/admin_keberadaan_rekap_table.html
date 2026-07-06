@@ -11,19 +11,19 @@
       <thead>
         <tr class="bg-orange-50 text-gray-600 text-left uppercase tracking-wide">
           <th class="px-3 py-2.5 font-medium text-center w-8">No</th>
-          <th class="px-3 py-2.5 font-medium">Lokasi (Kec / Desa / SLS)</th>
-          <th class="px-3 py-2.5 font-medium">Petugas</th>
-          <th class="px-3 py-2.5 font-medium text-center">Total</th>
-          <th class="px-3 py-2.5 font-medium text-center">Belum Diisi</th>
-          <th class="px-3 py-2.5 font-medium text-center" title="Keluarga/Bangunan tidak ditemukan — usaha tidak pernah ditanya">Kel/Bgn Tdk Ada</th>
-          <th class="px-3 py-2.5 font-medium text-center" title="Keluarga/Bangunan baru (di luar prelisting) — usaha tidak pernah ditanya">Kel/Bgn Baru</th>
-          <th class="px-3 py-2.5 font-medium text-center">Ditemukan</th>
-          <th class="px-3 py-2.5 font-medium text-center">Tdk Ditemukan</th>
-          <th class="px-3 py-2.5 font-medium text-center">Baru</th>
-          <th class="px-3 py-2.5 font-medium text-center">Tutup</th>
-          <th class="px-3 py-2.5 font-medium text-center">Ganda</th>
-          <th class="px-3 py-2.5 font-medium text-center">Non Respon</th>
-          <th class="px-3 py-2.5 font-medium">% Belum Diisi</th>
+          {{template "sortable_th" dict "Label" "Lokasi (Kec / Desa / SLS)" "Col" "lokasi" "PageInfo" $.PageInfo}}
+          {{template "sortable_th" dict "Label" "Petugas" "Col" "petugas" "PageInfo" $.PageInfo}}
+          {{template "sortable_th" dict "Label" "Total" "Col" "total" "PageInfo" $.PageInfo "Center" true}}
+          {{template "sortable_th" dict "Label" "Belum Diisi" "Col" "belum_diisi" "PageInfo" $.PageInfo "Center" true}}
+          {{template "sortable_th" dict "Label" "Kel/Bgn Tdk Ada" "Col" "gate_stop" "PageInfo" $.PageInfo "Center" true}}
+          {{template "sortable_th" dict "Label" "Kel/Bgn Baru" "Col" "gate_baru" "PageInfo" $.PageInfo "Center" true}}
+          {{template "sortable_th" dict "Label" "Ditemukan" "Col" "ditemukan" "PageInfo" $.PageInfo "Center" true}}
+          {{template "sortable_th" dict "Label" "Tdk Ditemukan" "Col" "tidak_ditemukan" "PageInfo" $.PageInfo "Center" true}}
+          {{template "sortable_th" dict "Label" "Baru" "Col" "baru" "PageInfo" $.PageInfo "Center" true}}
+          {{template "sortable_th" dict "Label" "Tutup" "Col" "tutup" "PageInfo" $.PageInfo "Center" true}}
+          {{template "sortable_th" dict "Label" "Ganda" "Col" "ganda" "PageInfo" $.PageInfo "Center" true}}
+          {{template "sortable_th" dict "Label" "Non Respon" "Col" "non_respon" "PageInfo" $.PageInfo "Center" true}}
+          {{template "sortable_th" dict "Label" "% Belum Diisi" "Col" "progres" "PageInfo" $.PageInfo}}
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">

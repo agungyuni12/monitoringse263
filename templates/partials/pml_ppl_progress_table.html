@@ -3,14 +3,14 @@
   <table class="w-full text-sm">
     <thead>
       <tr class="bg-orange-50 text-gray-600 text-left text-xs uppercase tracking-wide">
-        <th class="px-4 py-3 font-medium">Nama PPL</th>
-        <th class="px-4 py-3 font-medium text-center">Jml SLS</th>
-        <th class="px-4 py-3 font-medium text-center">Total</th>
-        <th class="px-4 py-3 font-medium text-center">Submit</th>
-        <th class="px-4 py-3 font-medium text-center">Draft</th>
-        <th class="px-4 py-3 font-medium text-center">Approved</th>
-        <th class="px-4 py-3 font-medium text-center">Rejected</th>
-        <th class="px-4 py-3 font-medium text-center">% Progres</th>
+        {{template "sortable_th" dict "Label" "Nama PPL" "Col" "nama" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Jml SLS" "Col" "jml_sls" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Total" "Col" "total" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Submit" "Col" "submit" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Draft" "Col" "draft" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Approved" "Col" "approved" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Rejected" "Col" "rejected" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "% Progres" "Col" "progres" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-100">

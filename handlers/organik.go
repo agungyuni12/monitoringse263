@@ -158,7 +158,9 @@ func AdminTableOrganik(c echo.Context) error {
 		page = 1
 	}
 	q := c.QueryParam("q")
-	list, pageInfo := queryAdminOrganik(page, q)
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
+	list, pageInfo := queryAdminOrganik(page, q, sort, dir)
 	return c.Render(http.StatusOK, "admin_organik_table.html", map[string]interface{}{
 		"OrganikRows": list,
 		"OrganikPage": pageInfo,
@@ -166,7 +168,18 @@ func AdminTableOrganik(c echo.Context) error {
 	})
 }
 
-func queryAdminOrganik(page int, q string) ([]AdminOrganikRow, models.PageInfo) {
+var adminOrganikSortCols = map[string]string{
+	"tanggal": "lo.tanggal",
+	"organik": "org.name",
+	"sls":     "s.nama_sls",
+	"ppl":     "ppl.name",
+	"pml":     "pml.name",
+	"diawasi": "lo.jumlah_diawasi",
+	"kendala": "lo.kendala",
+	"solusi":  "lo.solusi",
+}
+
+func queryAdminOrganik(page int, q, sort, dir string) ([]AdminOrganikRow, models.PageInfo) {
 	like := "%" + q + "%"
 	var total int
 	db.DB.QueryRow(`
@@ -182,6 +195,7 @@ func queryAdminOrganik(page int, q string) ([]AdminOrganikRow, models.PageInfo) 
 	if q != "" {
 		extra = "&q=" + q
 	}
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, adminOrganikSortCols, "lo.tanggal DESC, lo.id DESC")
 	offset := (page - 1) * models.PerPage
 	rows, err := db.DB.Query(`
 		SELECT lo.id, org.name, s.nama_sls,
@@ -196,11 +210,16 @@ func queryAdminOrganik(page int, q string) ([]AdminOrganikRow, models.PageInfo) 
 		JOIN users pml ON pml.id = s.pml_id
 		WHERE org.name LIKE ? OR s.nama_sls LIKE ? OR ppl.name LIKE ?
 		  OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?
-		ORDER BY lo.tanggal DESC, lo.id DESC
+		`+orderBy+`
 		LIMIT ? OFFSET ?`,
 		like, like, like, like, like, models.PerPage, offset)
+
+	pageInfo := models.NewPageInfo(page, total, "/admin/table/organik", "admin-organik-wrap", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
 	if err != nil {
-		return nil, models.NewPageInfo(page, total, "/admin/table/organik", "admin-organik-wrap", extra)
+		return nil, pageInfo
 	}
 	defer rows.Close()
 
@@ -212,5 +231,5 @@ func queryAdminOrganik(page int, q string) ([]AdminOrganikRow, models.PageInfo) 
 			&r.Kendala, &r.Solusi)
 		list = append(list, r)
 	}
-	return list, models.NewPageInfo(page, total, "/admin/table/organik", "admin-organik-wrap", extra)
+	return list, pageInfo
 }

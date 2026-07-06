@@ -14,10 +14,10 @@ import (
 )
 
 type GeoStat struct {
-	Submit     int `json:"submit"`
-	Draft      int `json:"draft"`
-	Target     int `json:"target"`
-	FasihTotal int `json:"fasih_total"`
+	Submit     int     `json:"submit"`
+	Draft      int     `json:"draft"`
+	Target     int     `json:"target"`
+	FasihTotal int     `json:"fasih_total"`
 	Pct        float64 `json:"pct"`
 }
 
@@ -100,13 +100,13 @@ type AdminSummary struct {
 }
 
 type PMLRow struct {
-	ID             int
-	Name           string
-	JmlPPL         int
-	JmlSLS         int
-	Submit         int // fasih_submitted: pending
-	JumlahSubmit   int // jumlah_submit: semua status (untuk %)
-	Draft          int
+	ID           int
+	Name         string
+	JmlPPL       int
+	JmlSLS       int
+	Submit       int // fasih_submitted: pending
+	JumlahSubmit int // jumlah_submit: semua status (untuk %)
+	Draft        int
 	// Breakdown per level
 	ApprovedPengawas  int
 	RejectedPengawas  int
@@ -275,10 +275,10 @@ func AdminDashboard(c echo.Context) error {
 	}
 	q := c.QueryParam("q")
 
-	pmls, pmlPage2 := queryAdminPML(pmlPage, "")
-	ppls, pplPage2 := queryAdminPPL(pplPage, "", 0)
-	slsList, slsPage2 := queryAdminSLS(slsPage, q)
-	orgList, orgPage2 := queryAdminOrganik(orgPage, "")
+	pmls, pmlPage2 := queryAdminPML(pmlPage, "", "", "")
+	ppls, pplPage2 := queryAdminPPL(pplPage, "", 0, "", "")
+	slsList, slsPage2 := queryAdminSLS(slsPage, q, "", "")
+	orgList, orgPage2 := queryAdminOrganik(orgPage, "", "", "")
 
 	return c.Render(http.StatusOK, "admin.html", map[string]interface{}{
 		"Name":        mw.SessionName(c),
@@ -308,7 +308,9 @@ func AdminTablePML(c echo.Context) error {
 		page = 1
 	}
 	q := c.QueryParam("q")
-	pmls, pageInfo := queryAdminPML(page, q)
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
+	pmls, pageInfo := queryAdminPML(page, q, sort, dir)
 	return c.Render(http.StatusOK, "admin_pml_table.html", map[string]interface{}{
 		"PMLs": pmls, "PMLPage": pageInfo,
 	})
@@ -320,8 +322,10 @@ func AdminTablePPL(c echo.Context) error {
 		page = 1
 	}
 	q := c.QueryParam("q")
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
 	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
-	ppls, pageInfo := queryAdminPPL(page, q, pmlID)
+	ppls, pageInfo := queryAdminPPL(page, q, pmlID, sort, dir)
 	return c.Render(http.StatusOK, "admin_ppl_table.html", map[string]interface{}{
 		"PPLs": ppls, "PPLPage": pageInfo,
 	})
@@ -334,27 +338,45 @@ func AdminTableSLS(c echo.Context) error {
 	}
 	q := c.QueryParam("q")
 	level := c.QueryParam("level")
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
 
 	switch level {
 	case "desa":
-		list, pageInfo := queryAdminSLSByDesa(page, q)
+		list, pageInfo := queryAdminSLSByDesa(page, q, sort, dir)
 		return c.Render(http.StatusOK, "admin_desa_table.html", map[string]interface{}{
 			"DesaList": list, "DesaPage": pageInfo,
 		})
 	case "kec":
-		list, pageInfo := queryAdminSLSByKec(page, q)
+		list, pageInfo := queryAdminSLSByKec(page, q, sort, dir)
 		return c.Render(http.StatusOK, "admin_kec_table.html", map[string]interface{}{
 			"KecList": list, "KecPage": pageInfo,
 		})
 	default:
-		slsList, pageInfo := queryAdminSLS(page, q)
+		slsList, pageInfo := queryAdminSLS(page, q, sort, dir)
 		return c.Render(http.StatusOK, "admin_sls_table.html", map[string]interface{}{
 			"SLSList": slsList, "SLSPage": pageInfo, "Q": q,
 		})
 	}
 }
 
-func queryAdminPML(page int, q string) ([]PMLRow, models.PageInfo) {
+var adminPMLSortCols = map[string]string{
+	"nama":     "u.name",
+	"jml_ppl":  "COUNT(DISTINCT s.ppl_id)",
+	"jml_sls":  "COUNT(s.id)",
+	"total":    "COALESCE(SUM(p.fasih_total),0)",
+	"submit":   "COALESCE(SUM(p.fasih_submitted),0)",
+	"draft":    "COALESCE(SUM(p.jumlah_draft),0)",
+	"approved": "COALESCE(SUM(p.fasih_approved_pengawas),0)",
+	"rejected": "COALESCE(SUM(p.fasih_rejected_pengawas),0)",
+	"progres":  "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
+	"terverifikasi": "(COALESCE(SUM(p.fasih_approved_pengawas),0)+COALESCE(SUM(p.fasih_rejected_pengawas),0)+COALESCE(SUM(p.fasih_revoked_pengawas),0)+" +
+		"COALESCE(SUM(p.fasih_approved_kabupaten),0)+COALESCE(SUM(p.fasih_rejected_kabupaten),0)+" +
+		"COALESCE(SUM(p.fasih_approved_provinsi),0)+COALESCE(SUM(p.fasih_rejected_provinsi),0)+" +
+		"COALESCE(SUM(p.fasih_approved_pusat),0)+COALESCE(SUM(p.fasih_rejected_pusat),0))",
+}
+
+func queryAdminPML(page int, q, sort, dir string) ([]PMLRow, models.PageInfo) {
 	like := "%" + q + "%"
 	extra := ""
 	if q != "" {
@@ -362,6 +384,7 @@ func queryAdminPML(page int, q string) ([]PMLRow, models.PageInfo) {
 	}
 	var total int
 	db.DB.QueryRow(`SELECT COUNT(DISTINCT u.id) FROM users u JOIN sls s ON s.pml_id=u.id WHERE u.role='pml' AND u.name LIKE ?`, like).Scan(&total)
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, adminPMLSortCols, "u.name")
 	offset := (page - 1) * models.PerPage
 
 	rows, err := db.DB.Query(`
@@ -387,10 +410,15 @@ func queryAdminPML(page int, q string) ([]PMLRow, models.PageInfo) {
 		) vh3 ON vh3.sls_id = s.id
 		WHERE u.role = 'pml' AND u.name LIKE ?
 		GROUP BY u.id, u.name
-		ORDER BY u.name
+		`+orderBy+`
 		LIMIT ? OFFSET ?`, like, models.PerPage, offset)
+
+	pageInfo := models.NewPageInfo(page, total, "/admin/table/pml", "admin-pml-wrap", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
 	if err != nil {
-		return nil, models.NewPageInfo(page, total, "/admin/table/pml", "admin-pml-wrap", extra)
+		return nil, pageInfo
 	}
 	defer rows.Close()
 
@@ -423,10 +451,22 @@ func queryAdminPML(page int, q string) ([]PMLRow, models.PageInfo) {
 		}
 		pmls = append(pmls, r)
 	}
-	return pmls, models.NewPageInfo(page, total, "/admin/table/pml", "admin-pml-wrap", extra)
+	return pmls, pageInfo
 }
 
-func queryAdminPPL(page int, q string, pmlID int) ([]PPLRow, models.PageInfo) {
+var adminPPLSortCols = map[string]string{
+	"nama":     "u.name",
+	"pml":      "pml.name",
+	"jml_sls":  "COUNT(s.id)",
+	"total":    "COALESCE(SUM(p.fasih_total),0)",
+	"submit":   "COALESCE(SUM(p.fasih_submitted),0)",
+	"draft":    "COALESCE(SUM(p.jumlah_draft),0)",
+	"approved": "COALESCE(SUM(p.fasih_approved_pengawas),0)",
+	"rejected": "COALESCE(SUM(p.fasih_rejected_pengawas),0)",
+	"progres":  "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
+}
+
+func queryAdminPPL(page int, q string, pmlID int, sort, dir string) ([]PPLRow, models.PageInfo) {
 	like := "%" + q + "%"
 	extra := ""
 	if q != "" {
@@ -450,6 +490,7 @@ func queryAdminPPL(page int, q string, pmlID int) ([]PPLRow, models.PageInfo) {
 
 	var total int
 	db.DB.QueryRow(`SELECT COUNT(DISTINCT u.id) FROM users u JOIN sls s ON s.ppl_id=u.id JOIN users pml ON pml.id=s.pml_id WHERE u.role='ppl'`+pmlFilter+` AND (u.name LIKE ? OR pml.name LIKE ?)`, countArgs...).Scan(&total)
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, adminPPLSortCols, "pml.name, u.name")
 
 	rows, err := db.DB.Query(`
 		SELECT u.id, u.name, pml.name,
@@ -472,10 +513,15 @@ func queryAdminPPL(page int, q string, pmlID int) ([]PPLRow, models.PageInfo) {
 		LEFT JOIN progress p ON p.sls_id = s.id
 		WHERE u.role = 'ppl'`+pmlFilter+` AND (u.name LIKE ? OR pml.name LIKE ?)
 		GROUP BY u.id, u.name, pml.name
-		ORDER BY pml.name, u.name
+		`+orderBy+`
 		LIMIT ? OFFSET ?`, queryArgs...)
+
+	pageInfo := models.NewPageInfo(page, total, "/admin/table/ppl", "admin-ppl-wrap", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
 	if err != nil {
-		return nil, models.NewPageInfo(page, total, "/admin/table/ppl", "admin-ppl-wrap", extra)
+		return nil, pageInfo
 	}
 	defer rows.Close()
 
@@ -500,10 +546,24 @@ func queryAdminPPL(page int, q string, pmlID int) ([]PPLRow, models.PageInfo) {
 		}
 		ppls = append(ppls, r)
 	}
-	return ppls, models.NewPageInfo(page, total, "/admin/table/ppl", "admin-ppl-wrap", extra)
+	return ppls, pageInfo
 }
 
-func queryAdminSLS(page int, q string) ([]SLSAdminRow, models.PageInfo) {
+var adminSLSSortCols = map[string]string{
+	"kode_sls": "s.kode_sls",
+	"nama_sls": "s.nama_sls",
+	"ppl":      "ppl.name",
+	"pml":      "pml.name",
+	"lokasi":   "s.nama_kec, s.nama_desa",
+	"total":    "COALESCE(p.fasih_total,0)",
+	"submit":   "COALESCE(p.fasih_submitted,0)",
+	"draft":    "COALESCE(p.jumlah_draft,0)",
+	"approved": "COALESCE(p.fasih_approved_pengawas,0)",
+	"rejected": "COALESCE(p.fasih_rejected_pengawas,0)",
+	"progres":  "(CASE WHEN COALESCE(p.fasih_total,0)=0 THEN 0 ELSE COALESCE(p.jumlah_submit,0)/p.fasih_total END)",
+}
+
+func queryAdminSLS(page int, q, sort, dir string) ([]SLSAdminRow, models.PageInfo) {
 	like := "%" + q + "%"
 	var total int
 	db.DB.QueryRow(`
@@ -518,6 +578,7 @@ func queryAdminSLS(page int, q string) ([]SLSAdminRow, models.PageInfo) {
 	if q != "" {
 		extra = fmt.Sprintf("&q=%s", q)
 	}
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, adminSLSSortCols, "s.kode_kec, s.kode_desa, s.kode_sls")
 
 	offset := (page - 1) * models.PerPage
 	rows, err := db.DB.Query(`
@@ -537,11 +598,16 @@ func queryAdminSLS(page int, q string) ([]SLSAdminRow, models.PageInfo) {
 		LEFT JOIN progress p ON p.sls_id = s.id
 		WHERE s.nama_sls LIKE ? OR ppl.name LIKE ? OR pml.name LIKE ?
 		  OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?
-		ORDER BY s.kode_kec, s.kode_desa, s.kode_sls
+		`+orderBy+`
 		LIMIT ? OFFSET ?`,
 		like, like, like, like, like, models.PerPage, offset)
+
+	pageInfo := models.NewPageInfo(page, total, "/admin/table/sls", "admin-sls-wrap", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
 	if err != nil {
-		return nil, models.NewPageInfo(page, total, "/admin/table/sls", "admin-sls-wrap", extra)
+		return nil, pageInfo
 	}
 	defer rows.Close()
 
@@ -561,10 +627,22 @@ func queryAdminSLS(page int, q string) ([]SLSAdminRow, models.PageInfo) {
 		}
 		list = append(list, r)
 	}
-	return list, models.NewPageInfo(page, total, "/admin/table/sls", "admin-sls-wrap", extra)
+	return list, pageInfo
 }
 
-func queryAdminSLSByDesa(page int, q string) ([]DesaRow, models.PageInfo) {
+var adminDesaSortCols = map[string]string{
+	"nama_desa": "s.nama_desa",
+	"nama_kec":  "s.nama_kec",
+	"jml_sls":   "COUNT(DISTINCT s.id)",
+	"total":     "COALESCE(SUM(p.fasih_total),0)",
+	"submit":    "COALESCE(SUM(p.fasih_submitted),0)",
+	"draft":     "COALESCE(SUM(p.jumlah_draft),0)",
+	"approved":  "COALESCE(SUM(p.fasih_approved_pengawas),0)",
+	"rejected":  "COALESCE(SUM(p.fasih_rejected_pengawas),0)",
+	"progres":   "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
+}
+
+func queryAdminSLSByDesa(page int, q, sort, dir string) ([]DesaRow, models.PageInfo) {
 	like := "%" + q + "%"
 	extra := ""
 	if q != "" {
@@ -574,6 +652,7 @@ func queryAdminSLSByDesa(page int, q string) ([]DesaRow, models.PageInfo) {
 	var total int
 	db.DB.QueryRow(`SELECT COUNT(DISTINCT CONCAT(s.nama_desa,'|',s.nama_kec)) FROM sls s
 		WHERE s.nama_desa LIKE ? OR s.nama_kec LIKE ?`, like, like).Scan(&total)
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, adminDesaSortCols, "s.kode_kec, s.kode_desa")
 	offset := (page - 1) * models.PerPage
 	rows, err := db.DB.Query(`
 		SELECT s.nama_desa, s.nama_kec,
@@ -589,10 +668,15 @@ func queryAdminSLSByDesa(page int, q string) ([]DesaRow, models.PageInfo) {
 		LEFT JOIN progress p ON p.sls_id = s.id
 		WHERE s.nama_desa LIKE ? OR s.nama_kec LIKE ?
 		GROUP BY s.nama_desa, s.nama_kec, s.kode_desa, s.kode_kec
-		ORDER BY s.kode_kec, s.kode_desa
+		`+orderBy+`
 		LIMIT ? OFFSET ?`, like, like, models.PerPage, offset)
+
+	pageInfo := models.NewPageInfo(page, total, "/admin/table/sls", "admin-sls-wrap", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
 	if err != nil {
-		return nil, models.NewPageInfo(page, total, "/admin/table/sls", "admin-sls-wrap", extra)
+		return nil, pageInfo
 	}
 	defer rows.Close()
 	var list []DesaRow
@@ -608,10 +692,21 @@ func queryAdminSLSByDesa(page int, q string) ([]DesaRow, models.PageInfo) {
 		}
 		list = append(list, r)
 	}
-	return list, models.NewPageInfo(page, total, "/admin/table/sls", "admin-sls-wrap", extra)
+	return list, pageInfo
 }
 
-func queryAdminSLSByKec(page int, q string) ([]KecRow, models.PageInfo) {
+var adminKecSortCols = map[string]string{
+	"nama_kec": "s.nama_kec",
+	"jml_sls":  "COUNT(DISTINCT s.id)",
+	"total":    "COALESCE(SUM(p.fasih_total),0)",
+	"submit":   "COALESCE(SUM(p.fasih_submitted),0)",
+	"draft":    "COALESCE(SUM(p.jumlah_draft),0)",
+	"approved": "COALESCE(SUM(p.fasih_approved_pengawas),0)",
+	"rejected": "COALESCE(SUM(p.fasih_rejected_pengawas),0)",
+	"progres":  "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
+}
+
+func queryAdminSLSByKec(page int, q, sort, dir string) ([]KecRow, models.PageInfo) {
 	like := "%" + q + "%"
 	extra := "&level=kec"
 	if q != "" {
@@ -619,6 +714,7 @@ func queryAdminSLSByKec(page int, q string) ([]KecRow, models.PageInfo) {
 	}
 	var total int
 	db.DB.QueryRow(`SELECT COUNT(DISTINCT s.nama_kec) FROM sls s WHERE s.nama_kec LIKE ?`, like).Scan(&total)
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, adminKecSortCols, "s.kode_kec")
 	offset := (page - 1) * models.PerPage
 	rows, err := db.DB.Query(`
 		SELECT s.nama_kec,
@@ -634,10 +730,15 @@ func queryAdminSLSByKec(page int, q string) ([]KecRow, models.PageInfo) {
 		LEFT JOIN progress p ON p.sls_id = s.id
 		WHERE s.nama_kec LIKE ?
 		GROUP BY s.nama_kec, s.kode_kec
-		ORDER BY s.kode_kec
+		`+orderBy+`
 		LIMIT ? OFFSET ?`, like, models.PerPage, offset)
+
+	pageInfo := models.NewPageInfo(page, total, "/admin/table/sls", "admin-sls-wrap", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
 	if err != nil {
-		return nil, models.NewPageInfo(page, total, "/admin/table/sls", "admin-sls-wrap", extra)
+		return nil, pageInfo
 	}
 	defer rows.Close()
 	var list []KecRow
@@ -653,5 +754,5 @@ func queryAdminSLSByKec(page int, q string) ([]KecRow, models.PageInfo) {
 		}
 		list = append(list, r)
 	}
-	return list, models.NewPageInfo(page, total, "/admin/table/sls", "admin-sls-wrap", extra)
+	return list, pageInfo
 }

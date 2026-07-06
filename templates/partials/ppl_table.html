@@ -4,12 +4,12 @@
   <table class="w-full text-sm">
     <thead>
       <tr class="bg-orange-50 text-gray-600 text-left text-xs uppercase tracking-wide">
-        <th class="px-4 py-3 font-medium">Nama SLS</th>
-        <th class="px-4 py-3 font-medium">Desa / Kec</th>
-        <th class="px-4 py-3 font-medium text-center">Target</th>
-        <th class="px-4 py-3 font-medium text-center">Submit</th>
-        <th class="px-4 py-3 font-medium text-center">Draft</th>
-        <th class="px-4 py-3 font-medium text-center">Sync FASIH</th>
+        {{template "sortable_th" dict "Label" "Nama SLS" "Col" "nama_sls" "PageInfo" .Page "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Desa / Kec" "Col" "lokasi" "PageInfo" .Page "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Target" "Col" "target" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Submit" "Col" "submit" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Draft" "Col" "draft" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Sync FASIH" "Col" "sync" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
         <th class="px-4 py-3 font-medium text-center">Aksi</th>
       </tr>
     </thead>

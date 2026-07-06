@@ -3,15 +3,15 @@
   <table class="w-full text-sm">
     <thead>
       <tr class="bg-orange-50 text-gray-600 text-left text-xs uppercase tracking-wide">
-        <th class="px-4 py-3 font-medium">Nama Desa</th>
-        <th class="px-4 py-3 font-medium">Kecamatan</th>
-        <th class="px-4 py-3 font-medium text-center">Jml SLS</th>
-        <th class="px-4 py-3 font-medium text-center">Total</th>
-        <th class="px-4 py-3 font-medium text-center">Submit</th>
-        <th class="px-4 py-3 font-medium text-center">Draft</th>
-        <th class="px-4 py-3 font-medium text-center">Approved</th>
-        <th class="px-4 py-3 font-medium text-center">Rejected</th>
-        <th class="px-4 py-3 font-medium text-center">% Isian</th>
+        {{template "sortable_th" dict "Label" "Nama Desa" "Col" "nama_desa" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Kecamatan" "Col" "nama_kec" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Jml SLS" "Col" "jml_sls" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Total" "Col" "total" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Submit" "Col" "submit" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Draft" "Col" "draft" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Approved" "Col" "approved" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Rejected" "Col" "rejected" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "% Isian" "Col" "progres" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium" "Center" true}}
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-100">
