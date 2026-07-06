@@ -33,6 +33,8 @@ func main() {
 	}
 	log.Println("Database terhubung.")
 
+	handlers.StartProgressTrendScheduler()
+
 	// Load all templates
 	funcMap := template.FuncMap{
 		"statusLabel": models.StatusLabelOf,
@@ -131,6 +133,8 @@ func main() {
 	adminGrp.GET("/table/anomali", handlers.AdminAnomaliTable)
 	adminGrp.GET("/table/keberadaan", handlers.AdminKeberadaanTable)
 	adminGrp.GET("/table/keberadaan-rekap", handlers.AdminKeberadaanRekapTable)
+	adminGrp.GET("/table/trend/ppl", handlers.AdminTableTrendPPL)
+	adminGrp.GET("/table/trend/pml", handlers.AdminTableTrendPML)
 	adminGrp.GET("/geo/stats", handlers.AdminGeoStats)
 	adminGrp.GET("/geo/geojson", handlers.AdminGeoJSON)
 	adminGrp.GET("/download/pml", handlers.DownloadPML)

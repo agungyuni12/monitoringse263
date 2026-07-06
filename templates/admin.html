@@ -248,6 +248,10 @@
             class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
             Peta Sebaran
           </button>
+          <button onclick="switchTab('trend')" id="tab-trend"
+            class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
+            Tren Progres
+          </button>
         </div>
 
         <!-- TAB: Per PML -->
@@ -560,6 +564,32 @@
           </div>
         </div>
 
+        <!-- TAB: Tren Progres -->
+        <div id="panel-trend" class="tab-panel">
+          <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center" id="trend-filter-bar">
+            <input type="text" name="q" id="trend-q"
+              oninput="debounceRefreshTrend()"
+              placeholder="Cari nama PPL/PML..."
+              class="w-full md:w-72 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="days" id="trend-days"
+              onchange="refreshTrendTables()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+              <option value="7">7 Hari Terakhir</option>
+              <option value="14" selected>14 Hari Terakhir</option>
+              <option value="30">30 Hari Terakhir</option>
+            </select>
+          </div>
+          <div id="admin-trend-ppl-wrap"
+            hx-get="/admin/table/trend/ppl" hx-trigger="load" hx-swap="innerHTML">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat tren PPL...</div>
+          </div>
+          <div class="border-t border-gray-100"></div>
+          <div id="admin-trend-pml-wrap"
+            hx-get="/admin/table/trend/pml" hx-trigger="load" hx-swap="innerHTML">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat tren PML...</div>
+          </div>
+        </div>
+
       </div>
     </section>
   </main>
@@ -656,6 +686,21 @@
         pmlBar.querySelector('[name="q"]').addEventListener('input', updatePMLDownload);
       }
     });
+
+    // ===== TREN PROGRES =====
+    // Satu filter bar (cari + rentang hari) menyegarkan dua tabel (PPL & PML) sekaligus.
+    var _trendDebounce = null;
+    function debounceRefreshTrend() {
+      clearTimeout(_trendDebounce);
+      _trendDebounce = setTimeout(refreshTrendTables, 300);
+    }
+    function refreshTrendTables() {
+      var q = document.getElementById('trend-q').value;
+      var days = document.getElementById('trend-days').value;
+      var qs = '?days=' + encodeURIComponent(days) + (q ? '&q=' + encodeURIComponent(q) : '');
+      htmx.ajax('GET', '/admin/table/trend/ppl' + qs, {target: '#admin-trend-ppl-wrap', swap: 'innerHTML'});
+      htmx.ajax('GET', '/admin/table/trend/pml' + qs, {target: '#admin-trend-pml-wrap', swap: 'innerHTML'});
+    }
 
     // ===== PETA SEBARAN =====
     var petaMap = null;

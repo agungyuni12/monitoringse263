@@ -1,0 +1,64 @@
+{{define "admin_trend_pml_table.html"}}
+<div>
+  <div class="flex items-center justify-between px-4 pt-3 mb-2">
+    <h3 class="font-semibold text-gray-700 text-sm">Tren Progres per PML (approve, reject, revoke)</h3>
+    <div class="flex items-center gap-3 text-xs text-gray-500">
+      <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-green-600 inline-block"></span>Approved</span>
+      <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-red-500 inline-block"></span>Rejected</span>
+      <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-yellow-500 inline-block"></span>Revoked</span>
+    </div>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="bg-orange-50 text-gray-600 text-left text-xs uppercase tracking-wide">
+          <th class="px-4 py-3 font-medium">Nama PML</th>
+          <th class="px-4 py-3 font-medium text-center">Approved</th>
+          <th class="px-4 py-3 font-medium text-center">Rejected</th>
+          <th class="px-4 py-3 font-medium text-center">Revoked</th>
+          <th class="px-4 py-3 font-medium">Tren ({{.Days}} hari)</th>
+          <th class="px-4 py-3 font-medium">Update Terakhir</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {{range .PMLTrend}}
+        <tr class="hover:bg-orange-50/30 transition-colors">
+          <td class="px-4 py-3 font-medium text-gray-800">{{.Name}}</td>
+          <td class="px-4 py-3 text-center text-green-600 font-semibold">{{.Approved}}</td>
+          <td class="px-4 py-3 text-center text-red-600 font-semibold">{{.Rejected}}</td>
+          <td class="px-4 py-3 text-center text-yellow-600 font-semibold">{{.Revoked}}</td>
+          <td class="px-4 py-3">
+            {{if .HasHistory}}
+            <svg width="{{.ChartW}}" height="{{.ChartH}}" viewBox="0 0 {{.ChartW}} {{.ChartH}}" class="overflow-visible">
+              <polyline points="{{.ApprovedPts}}" fill="none" stroke="#16A34A" stroke-width="1.5"/>
+              <polyline points="{{.RejectedPts}}" fill="none" stroke="#EF4444" stroke-width="1.5"/>
+              <polyline points="{{.RevokedPts}}" fill="none" stroke="#EAB308" stroke-width="1.5"/>
+            </svg>
+            {{else}}
+            <span class="text-xs text-gray-400">Menunggu data (min. 2 hari)</span>
+            {{end}}
+          </td>
+          <td class="px-4 py-3 text-xs">
+            {{if eq .LastDate ""}}
+            <span class="text-gray-400">Belum ada snapshot</span>
+            {{else if not .HasHistory}}
+            <span class="text-gray-400">Snapshot pertama: {{.LastDate}}</span>
+            {{else}}
+            <div class="text-gray-500">{{.LastDate}} vs hari sebelumnya</div>
+            <div class="flex gap-2 mt-0.5">
+              <span class="{{if gt .DeltaApproved 0}}text-green-600{{else}}text-gray-400{{end}} font-semibold">App {{if ge .DeltaApproved 0}}+{{end}}{{.DeltaApproved}}</span>
+              <span class="{{if gt .DeltaRejected 0}}text-red-600{{else}}text-gray-400{{end}} font-semibold">Rej {{if ge .DeltaRejected 0}}+{{end}}{{.DeltaRejected}}</span>
+              <span class="{{if gt .DeltaRevoked 0}}text-yellow-600{{else}}text-gray-400{{end}} font-semibold">Rev {{if ge .DeltaRevoked 0}}+{{end}}{{.DeltaRevoked}}</span>
+            </div>
+            {{end}}
+          </td>
+        </tr>
+        {{else}}
+        <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Belum ada data PML.</td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{template "pagination" .PMLTrendPage}}
+</div>
+{{end}}
