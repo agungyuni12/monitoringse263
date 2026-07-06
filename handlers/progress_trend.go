@@ -18,12 +18,16 @@ import (
 
 // captureDailyProgressTrendSnapshot mengambil agregat progres FASIH saat ini
 // (submit/draft/approved/rejected/revoked di level Pengawas) dan menyimpannya
-// sebagai satu titik data historis per PPL dan per PML untuk tanggal hari ini.
+// sebagai satu titik data historis per PPL dan per PML untuk tanggal hari ini
+// (WITA). Tanggal dihitung di Go (bukan CURDATE() MySQL) supaya tidak bergeser
+// kalau timezone server database berbeda dari WITA.
 // Aman dipanggil berkali-kali dalam satu hari (upsert per tanggal).
 func captureDailyProgressTrendSnapshot() error {
+	tanggal := time.Now().In(witaLocation()).Format("2006-01-02")
+
 	const upsertTpl = `
 		INSERT INTO progress_trend (entity_type, entity_id, tanggal, jumlah_submit, jumlah_draft, approved, rejected, revoked)
-		SELECT '%s', s.%s, CURDATE(),
+		SELECT '%s', s.%s, ?,
 		       COALESCE(SUM(p.jumlah_submit),0), COALESCE(SUM(p.jumlah_draft),0),
 		       COALESCE(SUM(p.fasih_approved_pengawas),0),
 		       COALESCE(SUM(p.fasih_rejected_pengawas),0),
@@ -38,10 +42,10 @@ func captureDailyProgressTrendSnapshot() error {
 		  rejected      = VALUES(rejected),
 		  revoked       = VALUES(revoked)`
 
-	if _, err := db.DB.Exec(fmt.Sprintf(upsertTpl, "ppl", "ppl_id", "ppl_id")); err != nil {
+	if _, err := db.DB.Exec(fmt.Sprintf(upsertTpl, "ppl", "ppl_id", "ppl_id"), tanggal); err != nil {
 		return fmt.Errorf("snapshot ppl: %w", err)
 	}
-	if _, err := db.DB.Exec(fmt.Sprintf(upsertTpl, "pml", "pml_id", "pml_id")); err != nil {
+	if _, err := db.DB.Exec(fmt.Sprintf(upsertTpl, "pml", "pml_id", "pml_id"), tanggal); err != nil {
 		return fmt.Errorf("snapshot pml: %w", err)
 	}
 	return nil
@@ -169,11 +173,12 @@ func sharedMaxOf(seriesList ...[]int) int {
 }
 
 func fetchTrendHistory(entityType string, days int) map[int][]trendPoint {
+	cutoff := time.Now().In(witaLocation()).AddDate(0, 0, -days).Format("2006-01-02")
 	rows, err := db.DB.Query(`
 		SELECT entity_id, DATE_FORMAT(tanggal,'%d/%m'), jumlah_submit, jumlah_draft, approved, rejected, revoked
 		FROM progress_trend
-		WHERE entity_type = ? AND tanggal >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-		ORDER BY entity_id, tanggal`, entityType, days)
+		WHERE entity_type = ? AND tanggal >= ?
+		ORDER BY entity_id, tanggal`, entityType, cutoff)
 	result := map[int][]trendPoint{}
 	if err != nil {
 		return result
