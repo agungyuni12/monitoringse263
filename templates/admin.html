@@ -517,6 +517,13 @@
               <option value="">Semua SLS</option>
               {{range .KebSLSList}}<option value="{{.ID}}">{{.Nama}}</option>{{end}}
             </select>
+            <label class="flex items-center gap-1.5 px-3 py-2 border border-amber-200 bg-amber-50 rounded-lg text-sm text-amber-700 cursor-pointer select-none">
+              <input type="checkbox" name="prioritas" value="1"
+                hx-get="/admin/table/keberadaan-rekap" hx-target="#keberadaan-rekap-result" hx-swap="innerHTML"
+                hx-trigger="change" hx-include="#keberadaan-rekap-filter-bar"
+                class="accent-amber-600"/>
+              SLS Prioritas saja
+            </label>
           </div>
           <div id="keberadaan-rekap-result"
             hx-get="/admin/table/keberadaan-rekap" hx-trigger="load" hx-swap="innerHTML"

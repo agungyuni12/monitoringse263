@@ -446,8 +446,11 @@ func queryAdminPML(page int, q, sort, dir string) ([]PMLRow, models.PageInfo) {
 			r.ApprovedKabupaten + r.RejectedKabupaten +
 			r.ApprovedProvinsi + r.RejectedProvinsi +
 			r.ApprovedPusat + r.RejectedPusat
-		if r.FasihTotal > 0 {
-			r.PctTerverifikasi = math.Min(float64(r.Terverifikasi)*100/float64(r.FasihTotal), 100)
+		// Pembagi pakai JumlahSubmit (submit+approve+reject+revoke, tidak termasuk open/draft),
+		// bukan FasihTotal — supaya assignment yang belum pernah disubmit sama sekali
+		// tidak ikut mengencerkan persentase verifikasi PML.
+		if r.JumlahSubmit > 0 {
+			r.PctTerverifikasi = math.Min(float64(r.Terverifikasi)*100/float64(r.JumlahSubmit), 100)
 		}
 		pmls = append(pmls, r)
 	}

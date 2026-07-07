@@ -284,6 +284,7 @@ type KeberadaanRekapRow struct {
 	NamaDesa       string
 	NamaPPL        string
 	NamaPML        string
+	Prioritas      bool
 	Total          int
 	BelumDiisi     int
 	GateStop       int // keluarga/bangunan tidak ditemukan -> keberadaan_usaha# tidak pernah ditanya
@@ -294,7 +295,9 @@ type KeberadaanRekapRow struct {
 	Tutup          int
 	Ganda          int
 	NonRespon      int
-	PctBelumDiisi  float64
+	Diverifikasi   int // assignment_status sudah APPROVED/REJECTED/REVOKED (bukan cuma OPEN/SUBMITTED)
+	PctDiisi       float64
+	PctVerifikasi  float64
 }
 
 var keberadaanRekapSortCols = map[string]string{
@@ -310,7 +313,8 @@ var keberadaanRekapSortCols = map[string]string{
 	"tutup":           "tutup",
 	"ganda":           "ganda",
 	"non_respon":      "non_respon",
-	"progres":         "(CASE WHEN (total - baru - gate_stop - gate_baru) <= 0 THEN 0 ELSE belum_diisi / (total - baru - gate_stop - gate_baru) END)",
+	"progres":         "(CASE WHEN (total - baru - gate_stop - gate_baru) <= 0 THEN 0 ELSE (total - baru - gate_stop - gate_baru - belum_diisi) / (total - baru - gate_stop - gate_baru) END)",
+	"verifikasi":      "(CASE WHEN (total - baru - gate_stop - gate_baru) <= 0 THEN 0 ELSE diverifikasi / (total - baru - gate_stop - gate_baru) END)",
 }
 
 // AdminKeberadaanRekapTable — GET /admin/table/keberadaan-rekap
@@ -326,6 +330,7 @@ func AdminKeberadaanRekapTable(c echo.Context) error {
 	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
 	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
 	slsID, _ := strconv.Atoi(c.QueryParam("sls_id"))
+	prioritasOnly := c.QueryParam("prioritas") == "1"
 	like := "%" + q + "%"
 
 	where := ` WHERE (s.nama_sls LIKE ? OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?)`
@@ -341,6 +346,9 @@ func AdminKeberadaanRekapTable(c echo.Context) error {
 	if slsID > 0 {
 		where += ` AND s.id = ?`
 		args = append(args, slsID)
+	}
+	if prioritasOnly {
+		where += ` AND s.prioritas = 1`
 	}
 
 	var total int
@@ -360,6 +368,9 @@ func AdminKeberadaanRekapTable(c echo.Context) error {
 	if slsID > 0 {
 		extra += fmt.Sprintf("&sls_id=%d", slsID)
 	}
+	if prioritasOnly {
+		extra += "&prioritas=1"
+	}
 
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, keberadaanRekapSortCols, "s.nama_kec, s.nama_desa, s.nama_sls")
 
@@ -372,7 +383,7 @@ func AdminKeberadaanRekapTable(c echo.Context) error {
 	queryArgs := append(args, models.PerPage, offset)
 	rows, err := db.DB.Query(`
 		SELECT s.id, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
-		       ppl.name, pml.name,
+		       ppl.name, pml.name, s.prioritas,
 		       COUNT(k.id) AS total,
 		       SUM(CASE WHEN k.id IS NOT NULL
 		                 AND (k.keberadaan_label IS NULL OR k.keberadaan_label = '')
@@ -390,12 +401,15 @@ func AdminKeberadaanRekapTable(c echo.Context) error {
 		       SUM(CASE WHEN k.keberadaan_label = 'Baru' THEN 1 ELSE 0 END) AS baru,
 		       SUM(CASE WHEN k.keberadaan_label = 'Tutup' THEN 1 ELSE 0 END) AS tutup,
 		       SUM(CASE WHEN k.keberadaan_label = 'Ganda' THEN 1 ELSE 0 END) AS ganda,
-		       SUM(CASE WHEN k.keberadaan_label = 'Non Respon' THEN 1 ELSE 0 END) AS non_respon
+		       SUM(CASE WHEN k.keberadaan_label = 'Non Respon' THEN 1 ELSE 0 END) AS non_respon,
+		       SUM(CASE WHEN k.assignment_status IS NOT NULL AND k.assignment_status NOT IN ('', 'OPEN')
+		                 AND k.assignment_status NOT LIKE 'SUBMITTED%'
+		                THEN 1 ELSE 0 END) AS diverifikasi
 		FROM sls s
 		JOIN users ppl ON ppl.id = s.ppl_id
 		JOIN users pml ON pml.id = s.pml_id
 		LEFT JOIN keberadaan_usaha k ON k.sls_id = s.id`+where+`
-		GROUP BY s.id, s.nama_sls, s.nama_kec, s.nama_desa, ppl.name, pml.name
+		GROUP BY s.id, s.nama_sls, s.nama_kec, s.nama_desa, ppl.name, pml.name, s.prioritas
 		`+orderBy+`
 		LIMIT ? OFFSET ?`, queryArgs...)
 
@@ -404,14 +418,15 @@ func AdminKeberadaanRekapTable(c echo.Context) error {
 		defer rows.Close()
 		for rows.Next() {
 			var r KeberadaanRekapRow
-			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML,
+			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML, &r.Prioritas,
 				&r.Total, &r.BelumDiisi, &r.GateStop, &r.GateBaru, &r.Ditemukan, &r.TidakDitemukan,
-				&r.Baru, &r.Tutup, &r.Ganda, &r.NonRespon)
+				&r.Baru, &r.Tutup, &r.Ganda, &r.NonRespon, &r.Diverifikasi)
 			// Baru, gate-stop, & gate-baru dikecualikan dari penyebut: semuanya sudah
 			// "selesai" (bukan lagi pekerjaan yang tersisa untuk PPL).
 			denom := r.Total - r.Baru - r.GateStop - r.GateBaru
 			if denom > 0 {
-				r.PctBelumDiisi = math.Min(float64(r.BelumDiisi)*100/float64(denom), 100)
+				r.PctDiisi = math.Min(float64(denom-r.BelumDiisi)*100/float64(denom), 100)
+				r.PctVerifikasi = math.Min(float64(r.Diverifikasi)*100/float64(denom), 100)
 			}
 			list = append(list, r)
 		}
@@ -429,14 +444,15 @@ func AdminKeberadaanRekapTable(c echo.Context) error {
 	}
 
 	return c.Render(http.StatusOK, "admin_keberadaan_rekap_table.html", map[string]interface{}{
-		"Rows":      list,
-		"PageInfo":  pageInfo,
-		"Q":         q,
-		"PmlID":     pmlID,
-		"PplID":     pplID,
-		"SlsID":     slsID,
-		"PPLSelect": pplSelect,
-		"SLSSelect": slsSelect,
+		"Rows":          list,
+		"PageInfo":      pageInfo,
+		"Q":             q,
+		"PmlID":         pmlID,
+		"PplID":         pplID,
+		"SlsID":         slsID,
+		"PrioritasOnly": prioritasOnly,
+		"PPLSelect":     pplSelect,
+		"SLSSelect":     slsSelect,
 	})
 }
 
