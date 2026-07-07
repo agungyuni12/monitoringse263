@@ -120,11 +120,10 @@ type PPLTrendRow struct {
 
 	Submit, Draft, Approved, Rejected int
 
-	ChartW, ChartH                                float64
-	SubmitPts, ApprovedPts, RejectedPts, DraftPts string
-	HasHistory                                    bool
-	LastDate                                      string
-	DeltaSubmit, DeltaApproved, DeltaRejected     int
+	ChartW, ChartH                            float64
+	HasHistory                                bool
+	LastDate                                  string
+	DeltaSubmit, DeltaApproved, DeltaRejected int
 
 	// Kecepatan progres (total = jumlah_submit, sudah mencakup submit/approve/reject/revoke/level admin).
 	// Membandingkan kenaikan hari ini vs kenaikan hari sebelumnya, butuh minimal 3 titik data.
@@ -143,7 +142,6 @@ type PMLTrendRow struct {
 	Approved, Rejected, Revoked int
 
 	ChartW, ChartH                             float64
-	ApprovedPts, RejectedPts, RevokedPts       string
 	HasHistory                                 bool
 	LastDate                                   string
 	DeltaApproved, DeltaRejected, DeltaRevoked int
@@ -159,32 +157,6 @@ type PMLTrendRow struct {
 
 const trendChartW = 110.0
 const trendChartH = 30.0
-
-// sparklinePoints menghasilkan string "x,y x,y ..." untuk <polyline points="...">,
-// dengan skala Y dibagi bersama antar beberapa seri (agar sebanding satu sama lain).
-func sparklinePoints(series []int, sharedMax int, w, h float64) string {
-	n := len(series)
-	if n == 0 {
-		return ""
-	}
-	if sharedMax <= 0 {
-		sharedMax = 1
-	}
-	stepX := w
-	if n > 1 {
-		stepX = w / float64(n-1)
-	}
-	parts := make([]string, n)
-	for i, v := range series {
-		x := stepX * float64(i)
-		if n == 1 {
-			x = w / 2
-		}
-		y := h - (float64(v)/float64(sharedMax))*h
-		parts[i] = fmt.Sprintf("%.1f,%.1f", x, y)
-	}
-	return strings.Join(parts, " ")
-}
 
 // sparklinePointsSigned menghasilkan garis untuk seri yang bisa negatif (mis. selisih
 // harian/kecepatan), dengan skalanya sendiri (bukan shared) dan selalu menyertakan
@@ -228,18 +200,6 @@ func sparklinePointsSigned(series []int, w, h float64) (points string, zeroY flo
 	}
 	zeroY = h - (float64(0-minV)/float64(rangeV))*h
 	return strings.Join(parts, " "), zeroY
-}
-
-func sharedMaxOf(seriesList ...[]int) int {
-	m := 0
-	for _, s := range seriesList {
-		for _, v := range s {
-			if v > m {
-				m = v
-			}
-		}
-	}
-	return m
 }
 
 func fetchTrendHistory(entityType string, days int) map[int][]trendPoint {
@@ -325,18 +285,7 @@ func queryTrendPPL(q string, days, page, pmlID int) ([]PPLTrendRow, models.PageI
 		if len(pts) == 0 {
 			continue
 		}
-		var submitS, draftS, approvedS, rejectedS []int
-		for _, p := range pts {
-			submitS = append(submitS, p.Submit)
-			draftS = append(draftS, p.Draft)
-			approvedS = append(approvedS, p.Approved)
-			rejectedS = append(rejectedS, p.Rejected)
-		}
-		maxV := sharedMaxOf(submitS, approvedS, rejectedS)
 		list[i].ChartW, list[i].ChartH = trendChartW, trendChartH
-		list[i].SubmitPts = sparklinePoints(submitS, maxV, trendChartW, trendChartH)
-		list[i].ApprovedPts = sparklinePoints(approvedS, maxV, trendChartW, trendChartH)
-		list[i].RejectedPts = sparklinePoints(rejectedS, maxV, trendChartW, trendChartH)
 		list[i].HasHistory = len(pts) >= 2
 		last := pts[len(pts)-1]
 		list[i].LastDate = last.Tanggal
@@ -404,17 +353,7 @@ func queryTrendPML(q string, days, page int) ([]PMLTrendRow, models.PageInfo) {
 		if len(pts) == 0 {
 			continue
 		}
-		var approvedS, rejectedS, revokedS []int
-		for _, p := range pts {
-			approvedS = append(approvedS, p.Approved)
-			rejectedS = append(rejectedS, p.Rejected)
-			revokedS = append(revokedS, p.Revoked)
-		}
-		maxV := sharedMaxOf(approvedS, rejectedS, revokedS)
 		list[i].ChartW, list[i].ChartH = trendChartW, trendChartH
-		list[i].ApprovedPts = sparklinePoints(approvedS, maxV, trendChartW, trendChartH)
-		list[i].RejectedPts = sparklinePoints(rejectedS, maxV, trendChartW, trendChartH)
-		list[i].RevokedPts = sparklinePoints(revokedS, maxV, trendChartW, trendChartH)
 		list[i].HasHistory = len(pts) >= 2
 		last := pts[len(pts)-1]
 		list[i].LastDate = last.Tanggal

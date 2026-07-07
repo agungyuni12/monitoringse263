@@ -3,9 +3,8 @@
   <div class="flex items-center justify-between px-4 pt-3 mb-2">
     <h3 class="font-semibold text-gray-700 text-sm">Tren Progres per PML (approve, reject, revoke)</h3>
     <div class="flex items-center gap-3 text-xs text-gray-500">
-      <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-green-600 inline-block"></span>Approved</span>
-      <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-red-500 inline-block"></span>Rejected</span>
-      <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-yellow-500 inline-block"></span>Revoked</span>
+      <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-purple-500 inline-block"></span>Kecepatan (selisih harian)</span>
+      <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-gray-300 inline-block" style="border-top:1px dashed #9CA3AF;height:0"></span>Garis nol</span>
     </div>
   </div>
   <div class="overflow-x-auto">
@@ -16,9 +15,9 @@
           <th class="px-4 py-3 font-medium text-center">Approved</th>
           <th class="px-4 py-3 font-medium text-center">Rejected</th>
           <th class="px-4 py-3 font-medium text-center">Revoked</th>
-          <th class="px-4 py-3 font-medium">Tren ({{.Days}} hari)</th>
+          <th class="px-4 py-3 font-medium">Tren Kecepatan ({{.Days}} hari)</th>
           <th class="px-4 py-3 font-medium">Update Terakhir</th>
-          <th class="px-4 py-3 font-medium">Tren Kecepatan</th>
+          <th class="px-4 py-3 font-medium">Kecepatan</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">
@@ -29,14 +28,13 @@
           <td class="px-4 py-3 text-center text-red-600 font-semibold">{{.Rejected}}</td>
           <td class="px-4 py-3 text-center text-yellow-600 font-semibold">{{.Revoked}}</td>
           <td class="px-4 py-3">
-            {{if .HasHistory}}
+            {{if .HasAccelData}}
             <svg width="{{.ChartW}}" height="{{.ChartH}}" viewBox="0 0 {{.ChartW}} {{.ChartH}}" class="overflow-visible">
-              <polyline points="{{.ApprovedPts}}" fill="none" stroke="#16A34A" stroke-width="1.5"/>
-              <polyline points="{{.RejectedPts}}" fill="none" stroke="#EF4444" stroke-width="1.5"/>
-              <polyline points="{{.RevokedPts}}" fill="none" stroke="#EAB308" stroke-width="1.5"/>
+              <line x1="0" y1="{{.VelocityZeroY}}" x2="{{.ChartW}}" y2="{{.VelocityZeroY}}" stroke="#D1D5DB" stroke-width="1" stroke-dasharray="2,2"/>
+              <polyline points="{{.VelocityPts}}" fill="none" stroke="#8B5CF6" stroke-width="1.5"/>
             </svg>
             {{else}}
-            <span class="text-xs text-gray-400">Menunggu data (min. 2 hari)</span>
+            <span class="text-xs text-gray-400">Menunggu data (min. 3 hari)</span>
             {{end}}
           </td>
           <td class="px-4 py-3 text-xs">
@@ -57,10 +55,6 @@
             {{if not .HasAccelData}}
             <span class="text-gray-400">Perlu data &ge;3 hari</span>
             {{else}}
-            <svg width="{{.ChartW}}" height="{{.ChartH}}" viewBox="0 0 {{.ChartW}} {{.ChartH}}" class="overflow-visible mb-1">
-              <line x1="0" y1="{{.VelocityZeroY}}" x2="{{.ChartW}}" y2="{{.VelocityZeroY}}" stroke="#D1D5DB" stroke-width="1" stroke-dasharray="2,2"/>
-              <polyline points="{{.VelocityPts}}" fill="none" stroke="#8B5CF6" stroke-width="1.5"/>
-            </svg>
             <div class="text-gray-500">Kemarin {{if ge .PrevDeltaTotal 0}}+{{end}}{{.PrevDeltaTotal}} &rarr; Hari ini {{if ge .DeltaTotal 0}}+{{end}}{{.DeltaTotal}}</div>
             <div class="mt-0.5 font-semibold
               {{if gt .Acceleration 0}}text-green-600{{else if lt .Acceleration 0}}text-red-600{{else}}text-gray-400{{end}}">
