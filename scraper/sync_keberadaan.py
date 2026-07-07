@@ -341,6 +341,13 @@ def fetch_keberadaan_batch(page, assignment_ids):
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
+# Sentinel "sudah selesai satu putaran penuh" — dipakai supaya status "selesai"
+# beda dari "belum pernah jalan" (dulu keduanya sama-sama None karena barisnya
+# dihapus, bikin proses satunya gagal mendeteksi auto-stop kalau dia baru ngecek
+# SETELAH baris itu kehapus).
+DONE = -1
+
+
 def _save_progress(conn, sls_index):
     with conn.cursor() as cur:
         cur.execute("""
@@ -351,6 +358,8 @@ def _save_progress(conn, sls_index):
 
 
 def _load_progress(conn):
+    """Posisi resume proses INI SENDIRI. DONE dianggap sama dengan "belum ada
+    checkpoint" (putaran sebelumnya sudah tuntas, jadi mulai lagi dari awal)."""
     try:
         with conn.cursor() as cur:
             cur.execute("""
@@ -363,21 +372,25 @@ def _load_progress(conn):
         with conn.cursor() as cur:
             cur.execute("SELECT sls_index FROM sync_progress WHERE job='keberadaan'")
             row = cur.fetchone()
-            return row["sls_index"] if row else 0
+            if not row or row["sls_index"] == DONE:
+                return 0
+            return row["sls_index"]
     except Exception:
         return 0
 
 
-def _clear_progress(conn):
-    with conn.cursor() as cur:
-        cur.execute("DELETE FROM sync_progress WHERE job='keberadaan'")
-    conn.commit()
+def _mark_done(conn):
+    """Tandai proses ini selesai satu putaran (natural end atau ketemu proses lawan)
+    — TIDAK menghapus baris, supaya proses lawan yang baru cek belakangan tetap
+    bisa lihat "sudah selesai", bukan disangka "belum pernah jalan"."""
+    _save_progress(conn, DONE)
 
 
 def _read_frontier(conn, job):
     """Baca posisi sls_index job lain (dipakai buat deteksi auto-stop saat forward &
-    reverse ketemu di tengah). None kalau job itu belum pernah jalan / progressnya
-    sudah bersih (selesai atau belum mulai)."""
+    reverse ketemu di tengah). None kalau job itu belum pernah jalan sama sekali.
+    Bisa juga bernilai DONE kalau job itu sudah menyelesaikan satu putaran penuh —
+    caller yang menafsirkan DONE sebagai "berhenti juga, semua area sudah tercover"."""
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT sls_index FROM sync_progress WHERE job=%s", (job,))
@@ -415,10 +428,13 @@ def run_once():
 
             # Auto-stop kalau sudah ketemu proses REV (dia jalan dari SLS terakhir
             # ke awal) — hindari dua proses balapan memproses ulang area yang sama.
+            # rev_frontier == DONE berarti REV sudah menuntaskan satu putaran penuh
+            # duluan (sampai SLS 0) — otomatis semua area sudah tercover juga.
             rev_frontier = _read_frontier(conn, "keberadaan_rev")
-            if rev_frontier is not None and chunk_start >= rev_frontier:
+            if rev_frontier is not None and (rev_frontier == DONE or chunk_start >= rev_frontier):
+                alasan = "REV sudah selesai satu putaran penuh" if rev_frontier == DONE else f"REV sudah sampai {rev_frontier}"
                 print(f"\n[{_now_wita()}] Ketemu proses REV di SLS {chunk_start} "
-                      f"(REV sudah sampai {rev_frontier}) — auto-stop, gabungan sudah cover semua SLS.", flush=True)
+                      f"({alasan}) — auto-stop, gabungan sudah cover semua SLS.", flush=True)
                 break
 
             chunk = sls_list[chunk_start : chunk_start + CHUNK_SIZE]
@@ -492,7 +508,7 @@ def run_once():
 
         browser.close()
 
-    _clear_progress(conn)  # hapus progress di DB, run berikutnya mulai dari awal
+    _mark_done(conn)  # bukan hapus baris — biar proses REV yg cek belakangan tetap tahu ini sudah kelar
     conn.close()
     print(f"\n[{_now_wita()}] Selesai: total={total_asgn} ok={ok} null={null_count}", flush=True)
 
