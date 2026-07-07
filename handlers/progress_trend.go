@@ -118,6 +118,10 @@ type PPLTrendRow struct {
 	Name    string
 	PMLName string
 
+	// Submit = fasih_submitted (pending review PML), sama seperti kolom "Submit" di
+	// tab "Per PPL" — bukan jumlah_submit. Kecepatan/tren di bawah tetap pakai
+	// jumlah_submit (lihat DeltaTotal/VelocityPts) supaya tidak naik-turun mengikuti
+	// antrian pending.
 	Submit, Draft, Approved, Rejected int
 
 	ChartW, ChartH                            float64
@@ -257,7 +261,7 @@ func queryTrendPPL(q string, days, page, pmlID int) ([]PPLTrendRow, models.PageI
 
 	rows, err := db.DB.Query(`
 		SELECT u.id, u.name, pml.name,
-		       COALESCE(SUM(p.jumlah_submit),0), COALESCE(SUM(p.jumlah_draft),0),
+		       COALESCE(SUM(p.fasih_submitted),0), COALESCE(SUM(p.jumlah_draft),0),
 		       COALESCE(SUM(p.fasih_approved_pengawas),0), COALESCE(SUM(p.fasih_rejected_pengawas),0)
 		FROM users u
 		JOIN sls s ON s.ppl_id = u.id
