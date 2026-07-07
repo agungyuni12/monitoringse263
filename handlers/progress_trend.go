@@ -21,11 +21,24 @@ import (
 // sebagai satu titik data historis per PPL dan per PML untuk tanggal hari ini
 // (WITA). Tanggal dihitung di Go (bukan CURDATE() MySQL) supaya tidak bergeser
 // kalau timezone server database berbeda dari WITA.
-// Aman dipanggil berkali-kali dalam satu hari (upsert per tanggal).
+//
+// Kalau snapshot untuk tanggal hari ini SUDAH ada, fungsi ini tidak melakukan
+// apa-apa — supaya redeploy berkali-kali dalam satu hari tidak menimpa ulang
+// titik data yang sudah terekam (satu hari = satu titik data, siapa pun/apa
+// pun yang memicunya duluan, entah redeploy atau jadwal 07:00).
 func captureDailyProgressTrendSnapshot() error {
 	tanggal := time.Now().In(witaLocation()).Format("2006-01-02")
 
-	const upsertTpl = `
+	var exists int
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM progress_trend WHERE tanggal = ?`, tanggal).Scan(&exists); err != nil {
+		return fmt.Errorf("cek snapshot: %w", err)
+	}
+	if exists > 0 {
+		log.Printf("[TREND] Snapshot %s sudah ada, dilewati.", tanggal)
+		return nil
+	}
+
+	const insertTpl = `
 		INSERT INTO progress_trend (entity_type, entity_id, tanggal, jumlah_submit, jumlah_draft, approved, rejected, revoked)
 		SELECT '%s', s.%s, ?,
 		       COALESCE(SUM(p.jumlah_submit),0), COALESCE(SUM(p.jumlah_draft),0),
@@ -42,12 +55,13 @@ func captureDailyProgressTrendSnapshot() error {
 		  rejected      = VALUES(rejected),
 		  revoked       = VALUES(revoked)`
 
-	if _, err := db.DB.Exec(fmt.Sprintf(upsertTpl, "ppl", "ppl_id", "ppl_id"), tanggal); err != nil {
+	if _, err := db.DB.Exec(fmt.Sprintf(insertTpl, "ppl", "ppl_id", "ppl_id"), tanggal); err != nil {
 		return fmt.Errorf("snapshot ppl: %w", err)
 	}
-	if _, err := db.DB.Exec(fmt.Sprintf(upsertTpl, "pml", "pml_id", "pml_id"), tanggal); err != nil {
+	if _, err := db.DB.Exec(fmt.Sprintf(insertTpl, "pml", "pml_id", "pml_id"), tanggal); err != nil {
 		return fmt.Errorf("snapshot pml: %w", err)
 	}
+	log.Printf("[TREND] Snapshot %s tersimpan.", tanggal)
 	return nil
 }
 
@@ -68,8 +82,6 @@ func witaLocation() *time.Location {
 func StartProgressTrendScheduler() {
 	if err := captureDailyProgressTrendSnapshot(); err != nil {
 		log.Printf("[TREND] Snapshot awal gagal: %v", err)
-	} else {
-		log.Println("[TREND] Snapshot awal tersimpan.")
 	}
 
 	go func() {
@@ -84,9 +96,7 @@ func StartProgressTrendScheduler() {
 			time.Sleep(next.Sub(now))
 			if err := captureDailyProgressTrendSnapshot(); err != nil {
 				log.Printf("[TREND] Snapshot harian gagal: %v", err)
-				continue
 			}
-			log.Println("[TREND] Snapshot harian tersimpan.")
 		}
 	}()
 }
