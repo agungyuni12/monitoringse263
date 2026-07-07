@@ -19,6 +19,7 @@
           <th class="px-4 py-3 font-medium text-center">Rejected</th>
           <th class="px-4 py-3 font-medium">Tren ({{.Days}} hari)</th>
           <th class="px-4 py-3 font-medium">Update Terakhir</th>
+          <th class="px-4 py-3 font-medium">Kecepatan Progres</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">
@@ -54,9 +55,22 @@
             </div>
             {{end}}
           </td>
+          <td class="px-4 py-3 text-xs">
+            {{if not .HasAccelData}}
+            <span class="text-gray-400">Perlu data &ge;3 hari</span>
+            {{else}}
+            <div class="text-gray-500">Kemarin {{if ge .PrevDeltaTotal 0}}+{{end}}{{.PrevDeltaTotal}} &rarr; Hari ini {{if ge .DeltaTotal 0}}+{{end}}{{.DeltaTotal}}</div>
+            <div class="mt-0.5 font-semibold
+              {{if gt .Acceleration 0}}text-green-600{{else if lt .Acceleration 0}}text-red-600{{else}}text-gray-400{{end}}">
+              {{if gt .Acceleration 0}}&#8593; Mempercepat (+{{.Acceleration}})
+              {{else if lt .Acceleration 0}}&#8595; Melambat ({{.Acceleration}})
+              {{else}}&#8594; Stabil{{end}}
+            </div>
+            {{end}}
+          </td>
         </tr>
         {{else}}
-        <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Belum ada data PPL.</td></tr>
+        <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Belum ada data PPL.</td></tr>
         {{end}}
       </tbody>
     </table>

@@ -125,6 +125,11 @@ type PPLTrendRow struct {
 	HasHistory                                    bool
 	LastDate                                      string
 	DeltaSubmit, DeltaApproved, DeltaRejected     int
+
+	// Kecepatan progres (total = jumlah_submit, sudah mencakup submit/approve/reject/revoke/level admin).
+	// Membandingkan kenaikan hari ini vs kenaikan hari sebelumnya, butuh minimal 3 titik data.
+	HasAccelData                             bool
+	DeltaTotal, PrevDeltaTotal, Acceleration int
 }
 
 // PMLTrendRow satu baris tren untuk seorang PML.
@@ -139,6 +144,11 @@ type PMLTrendRow struct {
 	HasHistory                                 bool
 	LastDate                                   string
 	DeltaApproved, DeltaRejected, DeltaRevoked int
+
+	// Kecepatan progres (total = approved+rejected+revoked, aktivitas verifikasi PML).
+	// Membandingkan kenaikan hari ini vs kenaikan hari sebelumnya, butuh minimal 3 titik data.
+	HasAccelData                             bool
+	DeltaTotal, PrevDeltaTotal, Acceleration int
 }
 
 const trendChartW = 110.0
@@ -286,6 +296,14 @@ func queryTrendPPL(q string, days, page, pmlID int) ([]PPLTrendRow, models.PageI
 			list[i].DeltaApproved = last.Approved - prev.Approved
 			list[i].DeltaRejected = last.Rejected - prev.Rejected
 		}
+		if len(pts) >= 3 {
+			prev := pts[len(pts)-2]
+			prev2 := pts[len(pts)-3]
+			list[i].DeltaTotal = last.Submit - prev.Submit
+			list[i].PrevDeltaTotal = prev.Submit - prev2.Submit
+			list[i].Acceleration = list[i].DeltaTotal - list[i].PrevDeltaTotal
+			list[i].HasAccelData = true
+		}
 	}
 	return list, pageInfo
 }
@@ -349,6 +367,17 @@ func queryTrendPML(q string, days, page int) ([]PMLTrendRow, models.PageInfo) {
 			list[i].DeltaApproved = last.Approved - prev.Approved
 			list[i].DeltaRejected = last.Rejected - prev.Rejected
 			list[i].DeltaRevoked = last.Revoked - prev.Revoked
+		}
+		if len(pts) >= 3 {
+			prev := pts[len(pts)-2]
+			prev2 := pts[len(pts)-3]
+			totalLast := last.Approved + last.Rejected + last.Revoked
+			totalPrev := prev.Approved + prev.Rejected + prev.Revoked
+			totalPrev2 := prev2.Approved + prev2.Rejected + prev2.Revoked
+			list[i].DeltaTotal = totalLast - totalPrev
+			list[i].PrevDeltaTotal = totalPrev - totalPrev2
+			list[i].Acceleration = list[i].DeltaTotal - list[i].PrevDeltaTotal
+			list[i].HasAccelData = true
 		}
 	}
 	return list, pageInfo
