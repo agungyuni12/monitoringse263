@@ -38,8 +38,12 @@ DB_PASS = os.getenv("DB_PASS", "kelayu1998")
 DB_NAME = os.getenv("DB_NAME", "se2026")
 
 BATCH_SIZE  = 20    # request konkuren per Promise.all
-CHUNK_SIZE  = 150   # SLS per chunk (login ulang tiap chunk)
+CHUNK_SIZE  = 50    # SLS per chunk (login ulang tiap chunk) — diperkecil dari 150
+                     # supaya tiap chunk lebih cepat kelar & progress ke-checkpoint
+                     # lebih rapat (apply_sync per chunk, lihat fetch_all_assignments).
 CHUNK_DELAY = 5
+LOGIN_MAX_RETRY   = 3
+LOGIN_RETRY_DELAY = 15  # detik
 JOB_NAME    = "sync_users"
 
 WITA = timezone(timedelta(hours=8))
@@ -88,6 +92,23 @@ def login(browser):
     active.wait_for_url("**fasih-sm.bps.go.id**", timeout=90_000)
     print(f"[LOGIN] OK", flush=True)
     return active, ctx
+
+
+def login_with_retry(browser, max_retries=LOGIN_MAX_RETRY, retry_delay=LOGIN_RETRY_DELAY):
+    """login() ke FASIH kadang timeout (sesi Keycloak lambat/flaky). Coba ulang
+    beberapa kali dengan jeda dulu sebelum benar-benar menyerah, supaya 1 kali
+    gagal login tidak langsung mematikan seluruh proses (crash & restart mahal
+    karena sesi FASIH & data chunk sebelumnya jadi ikut hilang)."""
+    last_err = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            return login(browser)
+        except Exception as e:
+            last_err = e
+            print(f"  [LOGIN] gagal (percobaan {attempt}/{max_retries}): {e}", flush=True)
+            if attempt < max_retries:
+                time.sleep(retry_delay)
+    raise last_err
 
 
 def fetch_batch(page, urls):
@@ -181,9 +202,13 @@ def fetch_structures(page, assignment_ids):
     return out
 
 
-def fetch_all_assignments(sls_codes):
-    """Loop chunk SLS (login ulang tiap chunk) + fetch batch konkuren.
-    Return: (ppl_by_sls, pml_by_sls) — kode_sls -> email
+def fetch_all_assignments(sls_codes, sls_map, id_to_email, id_to_name, ppl_email_to_id, pml_email_to_id):
+    """Loop chunk SLS (login ulang tiap chunk) + fetch batch konkuren, lalu langsung
+    apply_sync ke database PER CHUNK (bukan ditumpuk lalu disimpan sekali di akhir).
+    Kalau proses ini crash/di-restart di tengah jalan, chunk yang sudah berhasil
+    di-fetch & disimpan TIDAK ikut hilang — resume lewat tabel sync_progress cuma
+    perlu lanjut dari chunk berikutnya, bukan mengulang dari awal.
+    Return: dict akumulasi jumlah update (ppl_email_updated, ppl_reassigned, dst).
     """
     conn = connect_db()
     _ensure_progress_table(conn)
@@ -192,7 +217,8 @@ def fetch_all_assignments(sls_codes):
     if start_idx:
         print(f"[RESUME] lanjut dari index {start_idx}/{total}", flush=True)
 
-    ppl_by_sls, pml_by_sls = {}, {}
+    totals = {"ppl_email_updated": 0, "ppl_reassigned": 0, "ppl_created": 0,
+              "pml_email_updated": 0, "pml_reassigned": 0, "pml_created": 0}
 
     with sync_playwright() as pw:
         browser = make_browser(pw)
@@ -200,7 +226,7 @@ def fetch_all_assignments(sls_codes):
         while idx < total:
             chunk = sls_codes[idx: idx + CHUNK_SIZE]
             print(f"\n[chunk SLS {idx}-{idx+len(chunk)-1}/{total}] login ulang...", flush=True)
-            page, ctx = login(browser)
+            page, ctx = login_with_retry(browser)
 
             aid_map = {}
             for s in range(0, len(chunk), BATCH_SIZE):
@@ -211,6 +237,7 @@ def fetch_all_assignments(sls_codes):
             for s in range(0, len(aids), BATCH_SIZE):
                 struct_map.update(fetch_structures(page, aids[s:s+BATCH_SIZE]))
 
+            ppl_by_sls, pml_by_sls = {}, {}
             got = 0
             for kode, aid in aid_map.items():
                 ppl_email, pml_email = struct_map.get(aid, ("", ""))
@@ -227,6 +254,11 @@ def fetch_all_assignments(sls_codes):
             except Exception:
                 pass
 
+            counts = apply_sync(sls_map, id_to_email, id_to_name, ppl_email_to_id, pml_email_to_id,
+                                 ppl_by_sls, pml_by_sls)
+            for k, v in counts.items():
+                totals[k] += v
+
             idx += CHUNK_SIZE
             _save_progress(conn, idx)
             if idx < total:
@@ -236,7 +268,7 @@ def fetch_all_assignments(sls_codes):
 
     _clear_progress(conn)
     conn.close()
-    return ppl_by_sls, pml_by_sls
+    return totals
 
 
 PLACEHOLDER_NAME     = "(belum diisi)"
@@ -307,6 +339,9 @@ def _sync_role(cur, sls_map, id_to_email, id_to_name, email_to_id, role, id_key,
 
 
 def apply_sync(sls_map, id_to_email, id_to_name, ppl_email_to_id, pml_email_to_id, ppl_by_sls, pml_by_sls):
+    """Simpan hasil fetch 1 chunk ke database. Dipanggil per chunk (lihat
+    fetch_all_assignments) supaya tidak ada data yang ditumpuk lalu hilang kalau
+    proses crash sebelum sempat commit."""
     conn = connect_db()
     cur  = conn.cursor()
 
@@ -319,8 +354,10 @@ def apply_sync(sls_map, id_to_email, id_to_name, ppl_email_to_id, pml_email_to_i
     cur.close()
     conn.close()
 
-    print(f"\n[DONE] ppl_email_updated={ppl_email_updated} | ppl_reassigned={ppl_reassigned} | ppl_created={ppl_created} "
-          f"| pml_email_updated={pml_email_updated} | pml_reassigned={pml_reassigned} | pml_created={pml_created}", flush=True)
+    return {
+        "ppl_email_updated": ppl_email_updated, "ppl_reassigned": ppl_reassigned, "ppl_created": ppl_created,
+        "pml_email_updated": pml_email_updated, "pml_reassigned": pml_reassigned, "pml_created": pml_created,
+    }
 
 
 def run():
@@ -342,12 +379,12 @@ def run():
     cur.close()
     conn.close()
 
-    print(f"[DB] {len(sls_codes)} SLS akan dicek ke FASIH", flush=True)
-    ppl_by_sls, pml_by_sls = fetch_all_assignments(sls_codes)
-    print(f"\n[FASIH] hasil fetch: PPL={len(ppl_by_sls)} | PML={len(pml_by_sls)} dari {len(sls_codes)} SLS", flush=True)
+    print(f"[DB] {len(sls_codes)} SLS akan dicek ke FASIH (disimpan langsung per chunk)", flush=True)
+    totals = fetch_all_assignments(sls_codes, sls_map, id_to_email, id_to_name, ppl_email_to_id, pml_email_to_id)
 
-    print(f"\n[SYNC] Mulai update DB...", flush=True)
-    apply_sync(sls_map, id_to_email, id_to_name, ppl_email_to_id, pml_email_to_id, ppl_by_sls, pml_by_sls)
+    print(f"\n[DONE] ppl_email_updated={totals['ppl_email_updated']} | ppl_reassigned={totals['ppl_reassigned']} "
+          f"| ppl_created={totals['ppl_created']} | pml_email_updated={totals['pml_email_updated']} "
+          f"| pml_reassigned={totals['pml_reassigned']} | pml_created={totals['pml_created']}", flush=True)
 
 
 if __name__ == "__main__":
