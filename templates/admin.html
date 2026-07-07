@@ -699,18 +699,34 @@
     });
 
     // ===== TREN PROGRES =====
-    // Satu filter bar (cari + rentang hari) menyegarkan dua tabel (PPL & PML) sekaligus.
+    // Hanya satu tabel (PPL atau PML) yang tampil & dimuat sesuai pilihan dropdown "Tabel".
+    // Filter PML hanya berlaku untuk tabel PPL.
     var _trendDebounce = null;
     function debounceRefreshTrend() {
       clearTimeout(_trendDebounce);
       _trendDebounce = setTimeout(refreshTrendTables, 300);
     }
+    function onTrendViewChange() {
+      var view = document.getElementById('trend-view').value;
+      var isPPL = view === 'ppl';
+      document.getElementById('admin-trend-ppl-wrap').classList.toggle('hidden', !isPPL);
+      document.getElementById('admin-trend-pml-wrap').classList.toggle('hidden', isPPL);
+      document.getElementById('trend-pml-filter').classList.toggle('hidden', !isPPL);
+      refreshTrendTables();
+    }
     function refreshTrendTables() {
+      var view = document.getElementById('trend-view').value;
       var q = document.getElementById('trend-q').value;
       var days = document.getElementById('trend-days').value;
+      var pmlID = document.getElementById('trend-pml-filter').value;
       var qs = '?days=' + encodeURIComponent(days) + (q ? '&q=' + encodeURIComponent(q) : '');
-      htmx.ajax('GET', '/admin/table/trend/ppl' + qs, {target: '#admin-trend-ppl-wrap', swap: 'innerHTML'});
-      htmx.ajax('GET', '/admin/table/trend/pml' + qs, {target: '#admin-trend-pml-wrap', swap: 'innerHTML'});
+      if (view === 'ppl') {
+        htmx.ajax('GET', '/admin/table/trend/ppl' + qs + (pmlID ? '&pml_id=' + pmlID : ''),
+          {target: '#admin-trend-ppl-wrap', swap: 'innerHTML'});
+      } else {
+        htmx.ajax('GET', '/admin/table/trend/pml' + qs,
+          {target: '#admin-trend-pml-wrap', swap: 'innerHTML'});
+      }
     }
 
     // ===== PETA SEBARAN =====
