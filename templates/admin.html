@@ -567,10 +567,23 @@
         <!-- TAB: Tren Progres -->
         <div id="panel-trend" class="tab-panel">
           <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center" id="trend-filter-bar">
+            <select id="trend-view" onchange="onTrendViewChange()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-se bg-white">
+              <option value="ppl" selected>Tabel: Per PPL</option>
+              <option value="pml">Tabel: Per PML</option>
+            </select>
             <input type="text" name="q" id="trend-q"
               oninput="debounceRefreshTrend()"
               placeholder="Cari nama PPL/PML..."
-              class="w-full md:w-72 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+              class="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="pml_id" id="trend-pml-filter"
+              onchange="refreshTrendTables()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+              <option value="">-- Semua PML --</option>
+              {{range .PMLUserList}}
+              <option value="{{.ID}}">{{.Name}}</option>
+              {{end}}
+            </select>
             <select name="days" id="trend-days"
               onchange="refreshTrendTables()"
               class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
@@ -583,9 +596,7 @@
             hx-get="/admin/table/trend/ppl" hx-trigger="load" hx-swap="innerHTML">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat tren PPL...</div>
           </div>
-          <div class="border-t border-gray-100"></div>
-          <div id="admin-trend-pml-wrap"
-            hx-get="/admin/table/trend/pml" hx-trigger="load" hx-swap="innerHTML">
+          <div id="admin-trend-pml-wrap" class="hidden">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat tren PML...</div>
           </div>
         </div>

@@ -195,11 +195,26 @@ func fetchTrendHistory(entityType string, days int) map[int][]trendPoint {
 	return result
 }
 
-func queryTrendPPL(q string, days, page int) ([]PPLTrendRow, models.PageInfo) {
+func queryTrendPPL(q string, days, page, pmlID int) ([]PPLTrendRow, models.PageInfo) {
 	like := "%" + q + "%"
 	extra := fmt.Sprintf("&days=%d", days)
 	if q != "" {
 		extra += "&q=" + q
+	}
+	if pmlID > 0 {
+		extra += fmt.Sprintf("&pml_id=%d", pmlID)
+	}
+
+	pmlFilter := ""
+	var countArgs, queryArgs []interface{}
+	offset := (page - 1) * models.PerPage
+	if pmlID > 0 {
+		pmlFilter = " AND s.pml_id = ?"
+		countArgs = []interface{}{pmlID, like, like}
+		queryArgs = []interface{}{pmlID, like, like, models.PerPage, offset}
+	} else {
+		countArgs = []interface{}{like, like}
+		queryArgs = []interface{}{like, like, models.PerPage, offset}
 	}
 
 	var total int
@@ -207,10 +222,9 @@ func queryTrendPPL(q string, days, page int) ([]PPLTrendRow, models.PageInfo) {
 		SELECT COUNT(DISTINCT u.id) FROM users u
 		JOIN sls s ON s.ppl_id = u.id
 		JOIN users pml ON pml.id = s.pml_id
-		WHERE u.role = 'ppl' AND (u.name LIKE ? OR pml.name LIKE ?)`, like, like).Scan(&total)
+		WHERE u.role = 'ppl'`+pmlFilter+` AND (u.name LIKE ? OR pml.name LIKE ?)`, countArgs...).Scan(&total)
 	pageInfo := models.NewPageInfo(page, total, "/admin/table/trend/ppl", "admin-trend-ppl-wrap", extra)
 
-	offset := (page - 1) * models.PerPage
 	rows, err := db.DB.Query(`
 		SELECT u.id, u.name, pml.name,
 		       COALESCE(SUM(p.jumlah_submit),0), COALESCE(SUM(p.jumlah_draft),0),
@@ -219,10 +233,10 @@ func queryTrendPPL(q string, days, page int) ([]PPLTrendRow, models.PageInfo) {
 		JOIN sls s ON s.ppl_id = u.id
 		JOIN users pml ON pml.id = s.pml_id
 		LEFT JOIN progress p ON p.sls_id = s.id
-		WHERE u.role = 'ppl' AND (u.name LIKE ? OR pml.name LIKE ?)
+		WHERE u.role = 'ppl'`+pmlFilter+` AND (u.name LIKE ? OR pml.name LIKE ?)
 		GROUP BY u.id, u.name, pml.name
 		ORDER BY pml.name, u.name
-		LIMIT ? OFFSET ?`, like, like, models.PerPage, offset)
+		LIMIT ? OFFSET ?`, queryArgs...)
 	if err != nil {
 		return nil, pageInfo
 	}
@@ -346,7 +360,8 @@ func AdminTableTrendPPL(c echo.Context) error {
 	if page < 1 {
 		page = 1
 	}
-	list, pageInfo := queryTrendPPL(q, days, page)
+	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
+	list, pageInfo := queryTrendPPL(q, days, page, pmlID)
 	return c.Render(http.StatusOK, "admin_trend_ppl_table.html", map[string]interface{}{
 		"PPLTrend":     list,
 		"PPLTrendPage": pageInfo,
