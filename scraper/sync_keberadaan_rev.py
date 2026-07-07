@@ -209,17 +209,37 @@ def _page_fetch(page, url):
 
 
 def _page_fetch_batch(page, urls):
-    """Kalau gagal, hasil per-URL diisi {"__fetch_error": "<alasan>"} — bukan None diam-diam —
-    supaya caller bisa log kenapa gagalnya (HTTP error/timeout/exception)."""
+    """HTTP 429 (rate limit FASIH — gampang kena kalau sync_keberadaan.py &
+    sync_keberadaan_rev.py jalan bersamaan) di-retry dengan backoff di sisi JS
+    dulu sebelum menyerah. Kalau tetap gagal, hasil per-URL diisi
+    {"__fetch_error": "<alasan>"} — bukan None diam-diam — supaya caller bisa log
+    kenapa gagalnya (HTTP error/timeout/exception)."""
     urls_js = json.dumps(urls)
     try:
         return page.evaluate(f"""async () => {{
             const urls = {urls_js};
-            return await Promise.all(urls.map(u =>
-                fetch(u, {{credentials:'include'}})
-                .then(r => r.ok ? r.json() : {{__fetch_error: 'HTTP ' + r.status}})
-                .catch(e => ({{__fetch_error: String(e)}}))
-            ));
+            async function fetchWithRetry(u, maxRetries=4, baseDelay=2000) {{
+                for (let attempt = 0; attempt <= maxRetries; attempt++) {{
+                    try {{
+                        const r = await fetch(u, {{credentials:'include'}});
+                        if (r.ok) return await r.json();
+                        if (r.status === 429 && attempt < maxRetries) {{
+                            const retryAfter = parseFloat(r.headers.get('Retry-After'));
+                            const delay = retryAfter > 0 ? retryAfter * 1000 : baseDelay * Math.pow(2, attempt);
+                            await new Promise(res => setTimeout(res, delay));
+                            continue;
+                        }}
+                        return {{__fetch_error: 'HTTP ' + r.status}};
+                    }} catch (e) {{
+                        if (attempt < maxRetries) {{
+                            await new Promise(res => setTimeout(res, baseDelay));
+                            continue;
+                        }}
+                        return {{__fetch_error: String(e)}};
+                    }}
+                }}
+            }}
+            return await Promise.all(urls.map(u => fetchWithRetry(u)));
         }}""")
     except Exception as e:
         return [{"__fetch_error": f"batch exception: {e}"}] * len(urls)
