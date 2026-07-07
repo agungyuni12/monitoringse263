@@ -130,6 +130,9 @@ type PPLTrendRow struct {
 	// Membandingkan kenaikan hari ini vs kenaikan hari sebelumnya, butuh minimal 3 titik data.
 	HasAccelData                             bool
 	DeltaTotal, PrevDeltaTotal, Acceleration int
+	// Tren kecepatan (selisih harian) sepanjang periode, bukan cuma 2 hari terakhir.
+	VelocityPts   string
+	VelocityZeroY float64
 }
 
 // PMLTrendRow satu baris tren untuk seorang PML.
@@ -149,6 +152,9 @@ type PMLTrendRow struct {
 	// Membandingkan kenaikan hari ini vs kenaikan hari sebelumnya, butuh minimal 3 titik data.
 	HasAccelData                             bool
 	DeltaTotal, PrevDeltaTotal, Acceleration int
+	// Tren kecepatan (selisih harian) sepanjang periode, bukan cuma 2 hari terakhir.
+	VelocityPts   string
+	VelocityZeroY float64
 }
 
 const trendChartW = 110.0
@@ -178,6 +184,50 @@ func sparklinePoints(series []int, sharedMax int, w, h float64) string {
 		parts[i] = fmt.Sprintf("%.1f,%.1f", x, y)
 	}
 	return strings.Join(parts, " ")
+}
+
+// sparklinePointsSigned menghasilkan garis untuk seri yang bisa negatif (mis. selisih
+// harian/kecepatan), dengan skalanya sendiri (bukan shared) dan selalu menyertakan
+// angka 0 dalam rentang supaya garis referensi nol (zeroY) tetap relevan digambar.
+func sparklinePointsSigned(series []int, w, h float64) (points string, zeroY float64) {
+	n := len(series)
+	if n == 0 {
+		return "", h / 2
+	}
+	minV, maxV := series[0], series[0]
+	for _, v := range series {
+		if v < minV {
+			minV = v
+		}
+		if v > maxV {
+			maxV = v
+		}
+	}
+	if minV > 0 {
+		minV = 0
+	}
+	if maxV < 0 {
+		maxV = 0
+	}
+	rangeV := maxV - minV
+	if rangeV == 0 {
+		rangeV = 1
+	}
+	stepX := w
+	if n > 1 {
+		stepX = w / float64(n-1)
+	}
+	parts := make([]string, n)
+	for i, v := range series {
+		x := stepX * float64(i)
+		if n == 1 {
+			x = w / 2
+		}
+		y := h - (float64(v-minV)/float64(rangeV))*h
+		parts[i] = fmt.Sprintf("%.1f,%.1f", x, y)
+	}
+	zeroY = h - (float64(0-minV)/float64(rangeV))*h
+	return strings.Join(parts, " "), zeroY
 }
 
 func sharedMaxOf(seriesList ...[]int) int {
@@ -303,6 +353,12 @@ func queryTrendPPL(q string, days, page, pmlID int) ([]PPLTrendRow, models.PageI
 			list[i].PrevDeltaTotal = prev.Submit - prev2.Submit
 			list[i].Acceleration = list[i].DeltaTotal - list[i].PrevDeltaTotal
 			list[i].HasAccelData = true
+
+			var velocityS []int
+			for j := 1; j < len(pts); j++ {
+				velocityS = append(velocityS, pts[j].Submit-pts[j-1].Submit)
+			}
+			list[i].VelocityPts, list[i].VelocityZeroY = sparklinePointsSigned(velocityS, trendChartW, trendChartH)
 		}
 	}
 	return list, pageInfo
@@ -378,6 +434,14 @@ func queryTrendPML(q string, days, page int) ([]PMLTrendRow, models.PageInfo) {
 			list[i].PrevDeltaTotal = totalPrev - totalPrev2
 			list[i].Acceleration = list[i].DeltaTotal - list[i].PrevDeltaTotal
 			list[i].HasAccelData = true
+
+			var velocityS []int
+			for j := 1; j < len(pts); j++ {
+				tCur := pts[j].Approved + pts[j].Rejected + pts[j].Revoked
+				tPrev := pts[j-1].Approved + pts[j-1].Rejected + pts[j-1].Revoked
+				velocityS = append(velocityS, tCur-tPrev)
+			}
+			list[i].VelocityPts, list[i].VelocityZeroY = sparklinePointsSigned(velocityS, trendChartW, trendChartH)
 		}
 	}
 	return list, pageInfo

@@ -19,7 +19,7 @@
           <th class="px-4 py-3 font-medium text-center">Rejected</th>
           <th class="px-4 py-3 font-medium">Tren ({{.Days}} hari)</th>
           <th class="px-4 py-3 font-medium">Update Terakhir</th>
-          <th class="px-4 py-3 font-medium">Kecepatan Progres</th>
+          <th class="px-4 py-3 font-medium">Tren Kecepatan</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">
@@ -59,6 +59,10 @@
             {{if not .HasAccelData}}
             <span class="text-gray-400">Perlu data &ge;3 hari</span>
             {{else}}
+            <svg width="{{.ChartW}}" height="{{.ChartH}}" viewBox="0 0 {{.ChartW}} {{.ChartH}}" class="overflow-visible mb-1">
+              <line x1="0" y1="{{.VelocityZeroY}}" x2="{{.ChartW}}" y2="{{.VelocityZeroY}}" stroke="#D1D5DB" stroke-width="1" stroke-dasharray="2,2"/>
+              <polyline points="{{.VelocityPts}}" fill="none" stroke="#8B5CF6" stroke-width="1.5"/>
+            </svg>
             <div class="text-gray-500">Kemarin {{if ge .PrevDeltaTotal 0}}+{{end}}{{.PrevDeltaTotal}} &rarr; Hari ini {{if ge .DeltaTotal 0}}+{{end}}{{.DeltaTotal}}</div>
             <div class="mt-0.5 font-semibold
               {{if gt .Acceleration 0}}text-green-600{{else if lt .Acceleration 0}}text-red-600{{else}}text-gray-400{{end}}">
