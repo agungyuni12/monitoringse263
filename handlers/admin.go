@@ -182,6 +182,7 @@ type SLSAdminRow struct {
 	NamaKec         string
 	NamaDesa        string
 	Target          int
+	TargetPrelist   int // target_prelist_resmi: kuota resmi Rekap Prelist BPS, STABIL (beda dari Target yang ikut ter-overwrite sync FASIH)
 	FasihSubmit     int // fasih_submitted: pending review PML (kolom Submit)
 	JumlahSubmit    int // jumlah_submit: semua status (untuk % progress)
 	JumlahDraft     int
@@ -255,6 +256,7 @@ type DesaRow struct {
 	NamaKec         string
 	JmlSLS          int
 	Target          int
+	TargetPrelist   int // SUM(target_prelist_resmi) — stabil, tidak ter-overwrite sync FASIH
 	FasihSubmit     int // fasih_submitted: pending review PML (kolom Submit)
 	JumlahSubmit    int // jumlah_submit: semua status (untuk % progress)
 	JumlahDraft     int
@@ -268,6 +270,7 @@ type KecRow struct {
 	NamaKec         string
 	JmlSLS          int
 	Target          int
+	TargetPrelist   int // SUM(target_prelist_resmi) — stabil, tidak ter-overwrite sync FASIH
 	FasihSubmit     int // fasih_submitted: pending review PML (kolom Submit)
 	JumlahSubmit    int // jumlah_submit: semua status (untuk % progress)
 	JumlahDraft     int
@@ -646,14 +649,14 @@ func queryAdminSLS(page int, q, sort, dir, metode string) ([]SLSAdminRow, models
 	for k, v := range adminSLSSortCols {
 		sortCols[k] = v
 	}
-	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(p.jumlah_submit,0)", "COALESCE(p.fasih_total,0)", "s.target")
+	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(p.jumlah_submit,0)", "COALESCE(p.fasih_total,0)", "s.target_prelist_resmi")
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "s.kode_kec, s.kode_desa, s.kode_sls")
 
 	offset := (page - 1) * models.PerPage
 	rows, err := db.DB.Query(`
 		SELECT s.id, s.kode_sls, s.nama_sls,
 		       ppl.name, pml.name,
-		       COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''), s.target,
+		       COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''), s.target, s.target_prelist_resmi,
 		       COALESCE(p.fasih_submitted,0), COALESCE(p.jumlah_submit,0),
 		       COALESCE(p.jumlah_draft,0),
 		       COALESCE(p.fasih_approved_pengawas,0), COALESCE(p.fasih_rejected_pengawas,0),
@@ -684,11 +687,11 @@ func queryAdminSLS(page int, q, sort, dir, metode string) ([]SLSAdminRow, models
 	for rows.Next() {
 		var r SLSAdminRow
 		rows.Scan(&r.ID, &r.KodeSLS, &r.NamaSLS, &r.NamaPPL, &r.NamaPML,
-			&r.NamaKec, &r.NamaDesa, &r.Target,
+			&r.NamaKec, &r.NamaDesa, &r.Target, &r.TargetPrelist,
 			&r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft,
 			&r.JumlahDiperiksa, &r.JumlahError, &r.JumlahObservasi,
 			&r.FasihTotal, &r.StatusKendala, &r.Kendala)
-		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.Target)
+		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.TargetPrelist)
 		list = append(list, r)
 	}
 	return list, pageInfo
@@ -723,13 +726,14 @@ func queryAdminSLSByDesa(page int, q, sort, dir, metode string) ([]DesaRow, mode
 	for k, v := range adminDesaSortCols {
 		sortCols[k] = v
 	}
-	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(SUM(p.jumlah_submit),0)", "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target),0)")
+	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(SUM(p.jumlah_submit),0)", "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target_prelist_resmi),0)")
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "s.kode_kec, s.kode_desa")
 	offset := (page - 1) * models.PerPage
 	rows, err := db.DB.Query(`
 		SELECT s.nama_desa, s.nama_kec,
 		       COUNT(DISTINCT s.id),
 		       COALESCE(SUM(s.target),0),
+		       COALESCE(SUM(s.target_prelist_resmi),0),
 		       COALESCE(SUM(p.fasih_submitted),0),
 		       COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
@@ -754,9 +758,9 @@ func queryAdminSLSByDesa(page int, q, sort, dir, metode string) ([]DesaRow, mode
 	var list []DesaRow
 	for rows.Next() {
 		var r DesaRow
-		rows.Scan(&r.NamaDesa, &r.NamaKec, &r.JmlSLS, &r.Target,
+		rows.Scan(&r.NamaDesa, &r.NamaKec, &r.JmlSLS, &r.Target, &r.TargetPrelist,
 			&r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError, &r.FasihTotal)
-		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.Target)
+		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.TargetPrelist)
 		list = append(list, r)
 	}
 	return list, pageInfo
@@ -788,13 +792,14 @@ func queryAdminSLSByKec(page int, q, sort, dir, metode string) ([]KecRow, models
 	for k, v := range adminKecSortCols {
 		sortCols[k] = v
 	}
-	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(SUM(p.jumlah_submit),0)", "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target),0)")
+	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(SUM(p.jumlah_submit),0)", "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target_prelist_resmi),0)")
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "s.kode_kec")
 	offset := (page - 1) * models.PerPage
 	rows, err := db.DB.Query(`
 		SELECT s.nama_kec,
 		       COUNT(DISTINCT s.id),
 		       COALESCE(SUM(s.target),0),
+		       COALESCE(SUM(s.target_prelist_resmi),0),
 		       COALESCE(SUM(p.fasih_submitted),0),
 		       COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
@@ -819,9 +824,9 @@ func queryAdminSLSByKec(page int, q, sort, dir, metode string) ([]KecRow, models
 	var list []KecRow
 	for rows.Next() {
 		var r KecRow
-		rows.Scan(&r.NamaKec, &r.JmlSLS, &r.Target,
+		rows.Scan(&r.NamaKec, &r.JmlSLS, &r.Target, &r.TargetPrelist,
 			&r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError, &r.FasihTotal)
-		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.Target)
+		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.TargetPrelist)
 		list = append(list, r)
 	}
 	return list, pageInfo
