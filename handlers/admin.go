@@ -865,21 +865,32 @@ func queryAdminSLSByKec(page int, q, sort, dir, metode string) ([]KecRow, models
 }
 
 type ProgresRekapRow struct {
-	ID            int
-	NamaSLS       string
-	NamaKec       string
-	NamaDesa      string
-	NamaPPL       string
-	NamaPML       string
-	Prioritas     bool
-	FasihTotal    int
-	FasihSubmit   int // fasih_submitted: pending review PML (kolom Submit)
-	JumlahSubmit  int // jumlah_submit: semua status (untuk % progress)
-	JumlahDraft   int
-	Diperiksa     int // = fasih_approved_pengawas
-	Error         int // = fasih_rejected_pengawas
-	TargetPrelist int
-	PctSubmit     float64
+	ID           int
+	NamaSLS      string
+	NamaKec      string
+	NamaDesa     string
+	NamaPPL      string
+	NamaPML      string
+	Prioritas    bool
+	FasihTotal   int
+	FasihSubmit  int // fasih_submitted: pending review PML (kolom Submit)
+	JumlahSubmit int // jumlah_submit: semua status (untuk % progress)
+	JumlahDraft  int
+	Diperiksa    int // = fasih_approved_pengawas
+	Error        int // = fasih_rejected_pengawas
+	// Breakdown verifikasi per level lain (dipakai utk PctTerverifikasi, sama seperti Per PML)
+	RevokedPengawas   int
+	ApprovedKabupaten int
+	RejectedKabupaten int
+	ApprovedProvinsi  int
+	RejectedProvinsi  int
+	ApprovedPusat     int
+	RejectedPusat     int
+	TargetPrelist     int
+	PctSubmit         float64
+	// Terverifikasi = semua status kecuali open, submit, draft (approved+rejected+revoked di semua level)
+	Terverifikasi    int
+	PctTerverifikasi float64
 }
 
 var progresRekapSortCols = map[string]string{
@@ -891,6 +902,11 @@ var progresRekapSortCols = map[string]string{
 	"approved": "COALESCE(p.fasih_approved_pengawas,0)",
 	"rejected": "COALESCE(p.fasih_rejected_pengawas,0)",
 	"progres":  "(CASE WHEN COALESCE(p.fasih_total,0)=0 THEN 0 ELSE COALESCE(p.jumlah_submit,0)/p.fasih_total END)",
+	"verifikasi": "(CASE WHEN COALESCE(p.jumlah_submit,0)=0 THEN 0 ELSE " +
+		"(COALESCE(p.fasih_approved_pengawas,0)+COALESCE(p.fasih_rejected_pengawas,0)+COALESCE(p.fasih_revoked_pengawas,0)+" +
+		"COALESCE(p.fasih_approved_kabupaten,0)+COALESCE(p.fasih_rejected_kabupaten,0)+" +
+		"COALESCE(p.fasih_approved_provinsi,0)+COALESCE(p.fasih_rejected_provinsi,0)+" +
+		"COALESCE(p.fasih_approved_pusat,0)+COALESCE(p.fasih_rejected_pusat,0)) / p.jumlah_submit END)",
 }
 
 // AdminProgresRekapTable — GET /admin/table/progres-rekap
@@ -972,6 +988,10 @@ func AdminProgresRekapTable(c echo.Context) error {
 		       ppl.name, pml.name, s.prioritas,
 		       COALESCE(p.fasih_total,0), COALESCE(p.fasih_submitted,0), COALESCE(p.jumlah_submit,0),
 		       COALESCE(p.jumlah_draft,0), COALESCE(p.fasih_approved_pengawas,0), COALESCE(p.fasih_rejected_pengawas,0),
+		       COALESCE(p.fasih_revoked_pengawas,0),
+		       COALESCE(p.fasih_approved_kabupaten,0), COALESCE(p.fasih_rejected_kabupaten,0),
+		       COALESCE(p.fasih_approved_provinsi,0), COALESCE(p.fasih_rejected_provinsi,0),
+		       COALESCE(p.fasih_approved_pusat,0), COALESCE(p.fasih_rejected_pusat,0),
 		       s.target_prelist_resmi
 		FROM sls s
 		JOIN users ppl ON ppl.id = s.ppl_id
@@ -987,8 +1007,17 @@ func AdminProgresRekapTable(c echo.Context) error {
 			var r ProgresRekapRow
 			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML, &r.Prioritas,
 				&r.FasihTotal, &r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft, &r.Diperiksa, &r.Error,
+				&r.RevokedPengawas, &r.ApprovedKabupaten, &r.RejectedKabupaten,
+				&r.ApprovedProvinsi, &r.RejectedProvinsi, &r.ApprovedPusat, &r.RejectedPusat,
 				&r.TargetPrelist)
 			r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.TargetPrelist)
+			r.Terverifikasi = r.Diperiksa + r.Error + r.RevokedPengawas +
+				r.ApprovedKabupaten + r.RejectedKabupaten +
+				r.ApprovedProvinsi + r.RejectedProvinsi +
+				r.ApprovedPusat + r.RejectedPusat
+			if r.JumlahSubmit > 0 {
+				r.PctTerverifikasi = math.Min(float64(r.Terverifikasi)*100/float64(r.JumlahSubmit), 100)
+			}
 			list = append(list, r)
 		}
 	}
