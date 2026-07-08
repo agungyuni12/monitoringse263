@@ -1,8 +1,8 @@
 {{define "admin_trend_ppl_table.html"}}
 <div>
   <div class="flex items-center justify-between px-4 pt-3 mb-2">
-    <h3 class="font-semibold text-gray-700 text-sm">Tren Progres per PPL (submit, approve, reject)</h3>
-    <div class="flex items-center gap-3 text-xs text-gray-500">
+    <h3 class="font-semibold text-gray-700 dark:text-gray-300 text-sm">Tren Progres per PPL (submit, approve, reject)</h3>
+    <div class="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
       <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-purple-500 inline-block"></span>Kecepatan (selisih harian)</span>
       <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 bg-gray-300 inline-block" style="border-top:1px dashed #9CA3AF;height:0"></span>Garis nol</span>
     </div>
@@ -10,7 +10,7 @@
   <div class="overflow-x-auto">
     <table class="w-full text-sm">
       <thead>
-        <tr class="bg-orange-50 text-gray-600 text-left text-xs uppercase tracking-wide">
+        <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left text-xs uppercase tracking-wide">
           <th class="px-4 py-3 font-medium">Nama PPL</th>
           <th class="px-4 py-3 font-medium">Supervisor (PML)</th>
           <th class="px-4 py-3 font-medium text-center">Submit</th>
@@ -21,11 +21,11 @@
           <th class="px-4 py-3 font-medium">Kecepatan</th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-gray-100">
+      <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
         {{range .PPLTrend}}
-        <tr class="hover:bg-orange-50/30 transition-colors">
-          <td class="px-4 py-3 font-medium text-gray-800">{{.Name}}</td>
-          <td class="px-4 py-3 text-gray-600 text-xs">{{.PMLName}}</td>
+        <tr class="hover:bg-orange-50/30 dark:hover:bg-gray-800/60 transition-colors">
+          <td class="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">{{.Name}}</td>
+          <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">{{.PMLName}}</td>
           <td class="px-4 py-3 text-center text-blue-600 font-semibold">{{.Submit}}</td>
           <td class="px-4 py-3 text-center text-green-600 font-semibold">{{.Approved}}</td>
           <td class="px-4 py-3 text-center text-red-600 font-semibold">{{.Rejected}}</td>
@@ -36,30 +36,30 @@
               <polyline points="{{.VelocityPts}}" fill="none" stroke="#8B5CF6" stroke-width="1.5"/>
             </svg>
             {{else}}
-            <span class="text-xs text-gray-400">Menunggu data (min. 3 hari)</span>
+            <span class="text-xs text-gray-400 dark:text-gray-500">Menunggu data (min. 3 hari)</span>
             {{end}}
           </td>
           <td class="px-4 py-3 text-xs">
             {{if eq .LastDate ""}}
-            <span class="text-gray-400">Belum ada snapshot</span>
+            <span class="text-gray-400 dark:text-gray-500">Belum ada snapshot</span>
             {{else if not .HasHistory}}
-            <span class="text-gray-400">Snapshot pertama: {{.LastDate}}</span>
+            <span class="text-gray-400 dark:text-gray-500">Snapshot pertama: {{.LastDate}}</span>
             {{else}}
-            <div class="text-gray-500">{{.LastDate}} vs hari sebelumnya</div>
+            <div class="text-gray-500 dark:text-gray-400">{{.LastDate}} vs hari sebelumnya</div>
             <div class="flex gap-2 mt-0.5">
-              <span class="{{if gt .DeltaSubmit 0}}text-blue-600{{else}}text-gray-400{{end}} font-semibold">Submit {{if ge .DeltaSubmit 0}}+{{end}}{{.DeltaSubmit}}</span>
-              <span class="{{if gt .DeltaApproved 0}}text-green-600{{else}}text-gray-400{{end}} font-semibold">App {{if ge .DeltaApproved 0}}+{{end}}{{.DeltaApproved}}</span>
-              <span class="{{if gt .DeltaRejected 0}}text-red-600{{else}}text-gray-400{{end}} font-semibold">Rej {{if ge .DeltaRejected 0}}+{{end}}{{.DeltaRejected}}</span>
+              <span class="{{if gt .DeltaSubmit 0}}text-blue-600{{else}}text-gray-400 dark:text-gray-500{{end}} font-semibold">Submit {{if ge .DeltaSubmit 0}}+{{end}}{{.DeltaSubmit}}</span>
+              <span class="{{if gt .DeltaApproved 0}}text-green-600{{else}}text-gray-400 dark:text-gray-500{{end}} font-semibold">App {{if ge .DeltaApproved 0}}+{{end}}{{.DeltaApproved}}</span>
+              <span class="{{if gt .DeltaRejected 0}}text-red-600{{else}}text-gray-400 dark:text-gray-500{{end}} font-semibold">Rej {{if ge .DeltaRejected 0}}+{{end}}{{.DeltaRejected}}</span>
             </div>
             {{end}}
           </td>
           <td class="px-4 py-3 text-xs">
             {{if not .HasAccelData}}
-            <span class="text-gray-400">Perlu data &ge;3 hari</span>
+            <span class="text-gray-400 dark:text-gray-500">Perlu data &ge;3 hari</span>
             {{else}}
-            <div class="text-gray-500">Kemarin {{if ge .PrevDeltaTotal 0}}+{{end}}{{.PrevDeltaTotal}} &rarr; Hari ini {{if ge .DeltaTotal 0}}+{{end}}{{.DeltaTotal}}</div>
+            <div class="text-gray-500 dark:text-gray-400">Kemarin {{if ge .PrevDeltaTotal 0}}+{{end}}{{.PrevDeltaTotal}} &rarr; Hari ini {{if ge .DeltaTotal 0}}+{{end}}{{.DeltaTotal}}</div>
             <div class="mt-0.5 font-semibold
-              {{if gt .Acceleration 0}}text-green-600{{else if lt .Acceleration 0}}text-red-600{{else}}text-gray-400{{end}}">
+              {{if gt .Acceleration 0}}text-green-600{{else if lt .Acceleration 0}}text-red-600{{else}}text-gray-400 dark:text-gray-500{{end}}">
               {{if gt .Acceleration 0}}&#8593; Mempercepat (+{{.Acceleration}})
               {{else if lt .Acceleration 0}}&#8595; Melambat ({{.Acceleration}})
               {{else}}&#8594; Stabil{{end}}
@@ -68,7 +68,7 @@
           </td>
         </tr>
         {{else}}
-        <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Belum ada data PPL.</td></tr>
+        <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">Belum ada data PPL.</td></tr>
         {{end}}
       </tbody>
     </table>

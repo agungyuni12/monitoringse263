@@ -2,14 +2,14 @@
 {{template "oob_select" .PPLSelect}}
 {{template "oob_select" .SLSSelect}}
 <div>
-  <div class="px-4 py-2 text-xs text-gray-500 border-b border-gray-100">
-    Ditemukan <span class="font-semibold text-gray-700">{{.PageInfo.TotalRow}}</span> SLS
+  <div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
+    Ditemukan <span class="font-semibold text-gray-700 dark:text-gray-300">{{.PageInfo.TotalRow}}</span> SLS
   </div>
 
   <div class="overflow-x-auto">
     <table class="w-full text-sm">
       <thead>
-        <tr class="bg-orange-50 text-gray-600 text-left text-xs uppercase tracking-wide">
+        <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left text-xs uppercase tracking-wide">
           <th class="px-3 py-2.5 font-medium text-center w-8">No</th>
           {{template "sortable_th" dict "Label" "Lokasi (Kec / Desa / SLS)" "Col" "lokasi" "PageInfo" $.PageInfo}}
           {{template "sortable_th" dict "Label" "Petugas" "Col" "petugas" "PageInfo" $.PageInfo}}
@@ -22,13 +22,13 @@
           {{template "sortable_th" dict "Label" "% Terverifikasi" "Col" "verifikasi" "PageInfo" $.PageInfo "Center" true}}
         </tr>
       </thead>
-      <tbody class="divide-y divide-gray-100">
+      <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
         {{range $i, $r := .Rows}}
-        <tr class="hover:bg-orange-50/30 transition-colors">
-          <td class="px-3 py-2 text-center text-gray-400 text-xs">{{add $.PageInfo.From $i}}</td>
+        <tr class="hover:bg-orange-50/30 dark:hover:bg-gray-800/60 transition-colors">
+          <td class="px-3 py-2 text-center text-gray-400 dark:text-gray-500 text-xs">{{add $.PageInfo.From $i}}</td>
           <td class="px-3 py-2 whitespace-nowrap">
-            <div class="text-gray-400 text-xs">{{$r.NamaKec}} › {{$r.NamaDesa}}</div>
-            <div class="font-medium text-gray-700 text-xs flex items-center gap-1">
+            <div class="text-gray-400 dark:text-gray-500 text-xs">{{$r.NamaKec}} › {{$r.NamaDesa}}</div>
+            <div class="font-medium text-gray-700 dark:text-gray-300 text-xs flex items-center gap-1">
               {{$r.NamaSLS}}
               {{if $r.Prioritas}}
               <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-semibold uppercase tracking-wide">Prioritas</span>
@@ -36,43 +36,43 @@
             </div>
           </td>
           <td class="px-3 py-2 whitespace-nowrap text-xs">
-            <div class="text-gray-600">PPL: {{$r.NamaPPL}}</div>
-            <div class="text-gray-400">PML: {{$r.NamaPML}}</div>
+            <div class="text-gray-600 dark:text-gray-400">PPL: {{$r.NamaPPL}}</div>
+            <div class="text-gray-400 dark:text-gray-500">PML: {{$r.NamaPML}}</div>
           </td>
-          <td class="px-3 py-2 text-center text-xs text-gray-700 font-medium">{{$r.FasihTotal}}</td>
+          <td class="px-3 py-2 text-center text-xs text-gray-700 dark:text-gray-300 font-medium">{{$r.FasihTotal}}</td>
           <td class="px-3 py-2 text-center">
-            <span class="{{if gt $r.FasihSubmit 0}}text-green-600 font-semibold{{else}}text-gray-400{{end}} text-xs">{{$r.FasihSubmit}}</span>
-          </td>
-          <td class="px-3 py-2 text-center">
-            <span class="{{if gt $r.JumlahDraft 0}}text-se font-semibold{{else}}text-gray-400{{end}} text-xs">{{$r.JumlahDraft}}</span>
+            <span class="{{if gt $r.FasihSubmit 0}}text-green-600 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} text-xs">{{$r.FasihSubmit}}</span>
           </td>
           <td class="px-3 py-2 text-center">
-            <span class="{{if gt $r.Diperiksa 0}}text-green-600 font-bold{{else}}text-gray-400{{end}} text-xs">{{$r.Diperiksa}}</span>
+            <span class="{{if gt $r.JumlahDraft 0}}text-se font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} text-xs">{{$r.JumlahDraft}}</span>
           </td>
           <td class="px-3 py-2 text-center">
-            <span class="{{if gt $r.Error 0}}text-red-600 font-semibold{{else}}text-gray-400{{end}} text-xs">{{$r.Error}}</span>
+            <span class="{{if gt $r.Diperiksa 0}}text-green-600 font-bold{{else}}text-gray-400 dark:text-gray-500{{end}} text-xs">{{$r.Diperiksa}}</span>
+          </td>
+          <td class="px-3 py-2 text-center">
+            <span class="{{if gt $r.Error 0}}text-red-600 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} text-xs">{{$r.Error}}</span>
           </td>
           <td class="px-3 py-2 min-w-[110px]">
             <div class="flex items-center gap-1.5">
-              <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div class="flex-1 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                 <div class="h-full {{if gt $r.PctSubmit 100.0}}bg-purple-500{{else}}bg-green-500{{end}} rounded-full" style="width:{{if gt $r.PctSubmit 100.0}}100{{else}}{{$r.PctSubmit}}{{end}}%"></div>
               </div>
-              <span class="text-xs {{if gt $r.PctSubmit 100.0}}text-purple-600 font-semibold{{else if gt $r.PctSubmit 0.0}}text-green-600 font-semibold{{else}}text-gray-400{{end}} w-10 text-right">{{pctf $r.PctSubmit}}%</span>
+              <span class="text-xs {{if gt $r.PctSubmit 100.0}}text-purple-600 font-semibold{{else if gt $r.PctSubmit 0.0}}text-green-600 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} w-10 text-right">{{pctf $r.PctSubmit}}%</span>
             </div>
           </td>
           <td class="px-3 py-2 min-w-[110px]">
             <div class="flex items-center gap-1.5">
-              <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div class="flex-1 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                 <div class="h-full bg-blue-500 rounded-full" style="width:{{$r.PctTerverifikasi}}%"></div>
               </div>
-              <span class="text-xs {{if lt $r.PctTerverifikasi 100.0}}text-gray-600 font-semibold{{else}}text-blue-600 font-semibold{{end}} w-10 text-right">{{pctf $r.PctTerverifikasi}}%</span>
+              <span class="text-xs {{if lt $r.PctTerverifikasi 100.0}}text-gray-600 dark:text-gray-400 font-semibold{{else}}text-blue-600 font-semibold{{end}} w-10 text-right">{{pctf $r.PctTerverifikasi}}%</span>
             </div>
           </td>
         </tr>
         {{else}}
-        <tr><td colspan="10" class="px-4 py-10 text-center text-gray-400">
+        <tr><td colspan="10" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
           <div class="flex flex-col items-center gap-2">
-            <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-8 h-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
             </svg>
             <span class="text-sm">Belum ada data SLS</span>

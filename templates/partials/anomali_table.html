@@ -2,13 +2,13 @@
 {{template "oob_select" .PMLSelect}}
 {{template "oob_select" .PPLSelect}}
 <div>
-  <div class="px-4 py-2 text-xs text-gray-500 border-b border-gray-100">
-    Ditemukan <span class="font-semibold text-gray-700">{{.PageInfo.TotalRow}}</span> anomali
+  <div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
+    Ditemukan <span class="font-semibold text-gray-700 dark:text-gray-300">{{.PageInfo.TotalRow}}</span> anomali
   </div>
   <div class="overflow-x-auto">
     <table class="w-full text-xs">
       <thead>
-        <tr class="bg-orange-50 text-gray-600 text-left uppercase tracking-wide">
+        <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left uppercase tracking-wide">
           <th class="px-3 py-2.5 font-medium text-center w-8">No</th>
           {{template "sortable_th" dict "Label" "Lokasi (Kec / Desa / SLS)" "Col" "lokasi" "PageInfo" $.PageInfo}}
           {{template "sortable_th" dict "Label" "Petugas" "Col" "petugas" "PageInfo" $.PageInfo}}
@@ -20,19 +20,19 @@
           {{template "sortable_th" dict "Label" "Status FASIH" "Col" "fasih" "PageInfo" $.PageInfo "Center" true}}
         </tr>
       </thead>
-      <tbody class="divide-y divide-gray-100">
+      <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
         {{range $i, $r := .Rows}}
-        <tr class="hover:bg-orange-50/30 transition-colors">
-          <td class="px-3 py-2 text-center text-gray-400">{{add $.PageInfo.From $i}}</td>
+        <tr class="hover:bg-orange-50/30 dark:hover:bg-gray-800/60 transition-colors">
+          <td class="px-3 py-2 text-center text-gray-400 dark:text-gray-500">{{add $.PageInfo.From $i}}</td>
           <td class="px-3 py-2 whitespace-nowrap">
-            <div class="text-gray-400">{{$r.NamaKec}} › {{$r.NamaDesa}}</div>
-            <div class="font-medium text-gray-700">{{$r.NamaSLS}}</div>
+            <div class="text-gray-400 dark:text-gray-500">{{$r.NamaKec}} › {{$r.NamaDesa}}</div>
+            <div class="font-medium text-gray-700 dark:text-gray-300">{{$r.NamaSLS}}</div>
           </td>
           <td class="px-3 py-2 whitespace-nowrap">
-            <div class="text-gray-600">PPL: {{$r.NamaPPL}}</div>
-            <div class="text-gray-400">PML: {{$r.NamaPML}}</div>
+            <div class="text-gray-600 dark:text-gray-400">PPL: {{$r.NamaPPL}}</div>
+            <div class="text-gray-400 dark:text-gray-500">PML: {{$r.NamaPML}}</div>
           </td>
-          <td class="px-3 py-2 text-gray-800 font-medium">{{$r.Nama}}</td>
+          <td class="px-3 py-2 text-gray-800 dark:text-gray-100 font-medium">{{$r.Nama}}</td>
           <td class="px-3 py-2">
             {{if eq $r.RuleKey "128"}}
             <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700 whitespace-nowrap">{{$r.Jenis}}</span>
@@ -46,8 +46,8 @@
             <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700 whitespace-nowrap">{{$r.Jenis}}</span>
             {{end}}
           </td>
-          <td class="px-3 py-2 text-gray-600 max-w-xs leading-relaxed">{{$r.RuleMsg}}</td>
-          <td class="px-3 py-2 text-center text-gray-400 whitespace-nowrap">{{$r.SyncedAt}}</td>
+          <td class="px-3 py-2 text-gray-600 dark:text-gray-400 max-w-xs leading-relaxed">{{$r.RuleMsg}}</td>
+          <td class="px-3 py-2 text-center text-gray-400 dark:text-gray-500 whitespace-nowrap">{{$r.SyncedAt}}</td>
           <td class="px-3 py-2 text-center whitespace-nowrap">
             {{if $r.SigemparAt}}
             <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700" title="Ditandai selesai {{$r.SigemparAt}}">✅ Sudah</span>
@@ -64,9 +64,9 @@
           </td>
         </tr>
         {{else}}
-        <tr><td colspan="9" class="px-4 py-10 text-center text-gray-400">
+        <tr><td colspan="9" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
           <div class="flex flex-col items-center gap-2">
-            <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-8 h-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
             <span class="text-sm">Tidak ada anomali ditemukan</span>

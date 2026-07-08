@@ -1,17 +1,17 @@
 {{define "admin_desa_table.html"}}
-<div class="px-4 py-2 text-xs text-gray-500 border-b border-gray-100">
+<div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
   {{if eq .Metode "2"}}
-    <b class="text-gray-600">Total/Prelist:</b> total submit (termasuk assignment tambahan) dibagi Target Prelist resmi — bisa &gt;100%.
+    <b class="text-gray-600 dark:text-gray-400">Total/Prelist:</b> total submit (termasuk assignment tambahan) dibagi Target Prelist resmi — bisa &gt;100%.
   {{else if eq .Metode "3"}}
-    <b class="text-gray-600">Prelist/Prelist:</b> Target Prelist dikurangi sisa yang belum disubmit (Total - Submit), dibagi Target Prelist.
+    <b class="text-gray-600 dark:text-gray-400">Prelist/Prelist:</b> Target Prelist dikurangi sisa yang belum disubmit (Total - Submit), dibagi Target Prelist.
   {{else}}
-    <b class="text-gray-600">Total/Total:</b> total submit dibagi total assignment yang ada di FASIH saat ini.
+    <b class="text-gray-600 dark:text-gray-400">Total/Total:</b> total submit dibagi total assignment yang ada di FASIH saat ini.
   {{end}}
 </div>
 <div class="overflow-x-auto">
   <table class="w-full text-sm">
     <thead>
-      <tr class="bg-orange-50 text-gray-600 text-left text-xs uppercase tracking-wide">
+      <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left text-xs uppercase tracking-wide">
         {{template "sortable_th" dict "Label" "Nama Desa" "Col" "nama_desa" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium"}}
         {{template "sortable_th" dict "Label" "Kecamatan" "Col" "nama_kec" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium"}}
         {{template "sortable_th" dict "Label" "Jml SLS" "Col" "jml_sls" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium" "Center" true}}
@@ -23,36 +23,36 @@
         {{template "sortable_th" dict "Label" "% Isian" "Col" "progres" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium" "Center" true}}
       </tr>
     </thead>
-    <tbody class="divide-y divide-gray-100">
+    <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
       {{range .DesaList}}
-      <tr class="hover:bg-orange-50/30 transition-colors">
-        <td class="px-4 py-3 font-medium text-gray-800">{{.NamaDesa}}</td>
-        <td class="px-4 py-3 text-xs text-gray-500">Kec. {{.NamaKec}}</td>
-        <td class="px-4 py-3 text-center text-gray-700">{{.JmlSLS}}</td>
-        <td class="px-4 py-3 text-center text-gray-700">{{.FasihTotal}}</td>
+      <tr class="hover:bg-orange-50/30 dark:hover:bg-gray-800/60 transition-colors">
+        <td class="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">{{.NamaDesa}}</td>
+        <td class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">Kec. {{.NamaKec}}</td>
+        <td class="px-4 py-3 text-center text-gray-700 dark:text-gray-300">{{.JmlSLS}}</td>
+        <td class="px-4 py-3 text-center text-gray-700 dark:text-gray-300">{{.FasihTotal}}</td>
         <td class="px-4 py-3 text-center">
-          <span class="{{if gt .FasihSubmit 0}}text-green-600 font-semibold{{else}}text-gray-400{{end}}">{{.FasihSubmit}}</span>
+          <span class="{{if gt .FasihSubmit 0}}text-green-600 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}}">{{.FasihSubmit}}</span>
         </td>
         <td class="px-4 py-3 text-center">
-          <span class="{{if gt .JumlahDraft 0}}text-se font-semibold{{else}}text-gray-400{{end}}">{{.JumlahDraft}}</span>
+          <span class="{{if gt .JumlahDraft 0}}text-se font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}}">{{.JumlahDraft}}</span>
         </td>
         <td class="px-4 py-3 text-center">
-          <span class="{{if gt .JumlahDiperiksa 0}}text-green-600 font-bold{{else}}text-gray-400{{end}}">{{.JumlahDiperiksa}}</span>
+          <span class="{{if gt .JumlahDiperiksa 0}}text-green-600 font-bold{{else}}text-gray-400 dark:text-gray-500{{end}}">{{.JumlahDiperiksa}}</span>
         </td>
         <td class="px-4 py-3 text-center">
-          <span class="{{if gt .JumlahError 0}}text-red-600 font-semibold{{else}}text-gray-400{{end}}">{{.JumlahError}}</span>
+          <span class="{{if gt .JumlahError 0}}text-red-600 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}}">{{.JumlahError}}</span>
         </td>
         <td class="px-4 py-3">
           <div class="flex items-center gap-2">
-            <div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden min-w-12">
+            <div class="flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden min-w-12">
               <div class="h-full {{if gt .PctSubmit 100.0}}bg-purple-500{{else}}bg-se{{end}} rounded-full" style="width:{{if gt .PctSubmit 100.0}}100{{else}}{{.PctSubmit}}{{end}}%"></div>
             </div>
-            <span class="text-xs {{if gt .PctSubmit 100.0}}text-purple-600 font-semibold{{else}}text-gray-500{{end}} w-8 text-right">{{pctf .PctSubmit}}%</span>
+            <span class="text-xs {{if gt .PctSubmit 100.0}}text-purple-600 font-semibold{{else}}text-gray-500 dark:text-gray-400{{end}} w-8 text-right">{{pctf .PctSubmit}}%</span>
           </div>
         </td>
       </tr>
       {{else}}
-      <tr><td colspan="9" class="px-4 py-8 text-center text-gray-400">Tidak ada data yang cocok.</td></tr>
+      <tr><td colspan="9" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">Tidak ada data yang cocok.</td></tr>
       {{end}}
     </tbody>
   </table>

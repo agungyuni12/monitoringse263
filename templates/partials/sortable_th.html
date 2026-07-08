@@ -15,7 +15,7 @@
      hx-target="#{{.PageInfo.TargetID}}" hx-swap="innerHTML"
      class="inline-flex items-center gap-1 hover:text-se transition-colors whitespace-nowrap{{if $active}} text-se{{end}}">
     {{.Label}}
-    {{if $active}}{{if eq .PageInfo.Dir "asc"}}<span>▲</span>{{else}}<span>▼</span>{{end}}{{else}}<span class="text-gray-300">⇅</span>{{end}}
+    {{if $active}}{{if eq .PageInfo.Dir "asc"}}<span>▲</span>{{else}}<span>▼</span>{{end}}{{else}}<span class="text-gray-300 dark:text-gray-600">⇅</span>{{end}}
   </a>
 </th>
 {{end}}
@@ -31,7 +31,7 @@
    hx-get="{{.PageInfo.BaseURL}}?page=1&sort={{.Col}}&dir={{$nextDir}}{{.PageInfo.FilterExtra}}"
    hx-target="#{{.PageInfo.TargetID}}" hx-swap="innerHTML"
    onclick="event.stopPropagation()"
-   class="inline-flex items-center hover:text-se transition-colors{{if $active}} text-se{{else}} text-gray-300{{end}}">
+   class="inline-flex items-center hover:text-se transition-colors{{if $active}} text-se{{else}} text-gray-300 dark:text-gray-600{{end}}">
   {{if $active}}{{if eq .PageInfo.Dir "asc"}}▲{{else}}▼{{end}}{{else}}⇅{{end}}
 </a>
 {{end}}

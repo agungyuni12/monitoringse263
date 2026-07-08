@@ -2,7 +2,7 @@
 {{if .OrganikRows}}
 <div class="overflow-x-auto">
   <table class="w-full text-sm">
-    <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+    <thead class="bg-gray-50 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
       <tr>
         {{template "sortable_th" dict "Label" "Tanggal" "Col" "tanggal" "PageInfo" .OrganikPage "Class" "px-4 py-3"}}
         {{template "sortable_th" dict "Label" "Organik" "Col" "organik" "PageInfo" .OrganikPage "Class" "px-4 py-3"}}
@@ -14,23 +14,23 @@
         {{template "sortable_th" dict "Label" "Solusi" "Col" "solusi" "PageInfo" .OrganikPage "Class" "px-4 py-3"}}
       </tr>
     </thead>
-    <tbody class="divide-y divide-gray-50">
+    <tbody class="divide-y divide-gray-50 dark:divide-gray-800">
       {{range .OrganikRows}}
-      <tr class="hover:bg-orange-50 transition-colors">
-        <td class="px-4 py-3 whitespace-nowrap text-gray-700">{{.Tanggal}}</td>
-        <td class="px-4 py-3 font-medium text-gray-800">{{.NamaOrganik}}</td>
+      <tr class="hover:bg-orange-50 dark:hover:bg-gray-800 transition-colors">
+        <td class="px-4 py-3 whitespace-nowrap text-gray-700 dark:text-gray-300">{{.Tanggal}}</td>
+        <td class="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">{{.NamaOrganik}}</td>
         <td class="px-4 py-3">
-          <div class="font-medium text-gray-800">{{.NamaSLS}}</div>
-          <div class="text-xs text-gray-500">{{.NamaDesa}}, Kec. {{.NamaKec}}</div>
+          <div class="font-medium text-gray-800 dark:text-gray-100">{{.NamaSLS}}</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">{{.NamaDesa}}, Kec. {{.NamaKec}}</div>
         </td>
-        <td class="px-4 py-3 text-gray-700">{{.NamaPPL}}</td>
-        <td class="px-4 py-3 text-gray-700">{{.NamaPML}}</td>
+        <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{.NamaPPL}}</td>
+        <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{.NamaPML}}</td>
         <td class="px-4 py-3 text-center font-semibold text-se">{{.JumlahDiawasi}}</td>
-        <td class="px-4 py-3 text-gray-700 max-w-xs">
+        <td class="px-4 py-3 text-gray-700 dark:text-gray-300 max-w-xs">
           <div class="truncate" title="{{.Kendala}}">{{.Kendala}}</div>
         </td>
         <td class="px-4 py-3 text-green-700 max-w-xs">
-          <div class="truncate" title="{{.Solusi}}">{{if .Solusi}}{{.Solusi}}{{else}}<span class="text-gray-300">—</span>{{end}}</div>
+          <div class="truncate" title="{{.Solusi}}">{{if .Solusi}}{{.Solusi}}{{else}}<span class="text-gray-300 dark:text-gray-600">—</span>{{end}}</div>
         </td>
       </tr>
       {{end}}
@@ -41,6 +41,6 @@
 {{template "pagination" .OrganikPage}}
 {{end}}
 {{else}}
-<div class="px-6 py-10 text-center text-gray-400 text-sm">Belum ada laporan pengawasan organik.</div>
+<div class="px-6 py-10 text-center text-gray-400 dark:text-gray-500 text-sm">Belum ada laporan pengawasan organik.</div>
 {{end}}
 {{end}}

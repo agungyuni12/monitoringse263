@@ -1,7 +1,7 @@
 {{define "pagination"}}
 {{if gt .TotalPage 1}}
-<div class="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 bg-white">
-  <p class="text-xs text-gray-500">
+<div class="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
+  <p class="text-xs text-gray-500 dark:text-gray-400">
     {{if eq .TotalRow 0}}
       Tidak ada data
     {{else}}
@@ -15,14 +15,14 @@
       hx-target="#{{.TargetID}}"
       hx-swap="innerHTML"
       hx-indicator="#pg-spin-{{.TargetID}}"
-      class="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-orange-50 hover:border-se text-gray-600 transition-colors">
+      class="px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-orange-50 dark:hover:bg-gray-800 hover:border-se text-gray-600 dark:text-gray-400 transition-colors">
       ‹ Prev
     </button>
     {{end}}
 
     {{range .Pages}}
       {{if eq . -1}}
-      <span class="px-2 py-1 text-xs text-gray-400 select-none">…</span>
+      <span class="px-2 py-1 text-xs text-gray-400 dark:text-gray-500 select-none">…</span>
       {{else if eq . $.Current}}
       <span class="px-3 py-1.5 text-xs bg-se text-white rounded-lg font-semibold select-none">{{.}}</span>
       {{else}}
@@ -31,7 +31,7 @@
         hx-target="#{{$.TargetID}}"
         hx-swap="innerHTML"
         hx-indicator="#pg-spin-{{$.TargetID}}"
-        class="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-orange-50 hover:border-se text-gray-600 transition-colors">
+        class="px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-orange-50 dark:hover:bg-gray-800 hover:border-se text-gray-600 dark:text-gray-400 transition-colors">
         {{.}}
       </button>
       {{end}}
@@ -43,7 +43,7 @@
       hx-target="#{{.TargetID}}"
       hx-swap="innerHTML"
       hx-indicator="#pg-spin-{{.TargetID}}"
-      class="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-orange-50 hover:border-se text-gray-600 transition-colors">
+      class="px-3 py-1.5 text-xs border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-orange-50 dark:hover:bg-gray-800 hover:border-se text-gray-600 dark:text-gray-400 transition-colors">
       Next ›
     </button>
     {{end}}
