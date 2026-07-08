@@ -129,6 +129,7 @@ func main() {
 	adminGrp.GET("/table/pml", handlers.AdminTablePML)
 	adminGrp.GET("/table/ppl", handlers.AdminTablePPL)
 	adminGrp.GET("/table/sls", handlers.AdminTableSLS)
+	adminGrp.GET("/summary", handlers.AdminSummaryPartial)
 	adminGrp.GET("/table/organik", handlers.AdminTableOrganik)
 	adminGrp.GET("/table/anomali", handlers.AdminAnomaliTable)
 	adminGrp.GET("/table/keberadaan", handlers.AdminKeberadaanTable)

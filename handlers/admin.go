@@ -91,12 +91,14 @@ type AdminSummary struct {
 	TotalRejectedProvinsi  int
 	TotalRejectedPusat     int
 	// Legacy aliases untuk progress bar (gunakan approved pengawas)
-	TotalDiperiksa  int // = TotalApprovedPengawas
-	TotalError      int // = TotalRejectedPengawas
-	TotalObservasi  int
-	TotalFasihTotal int
-	PctSubmit       float64
-	PctDiperiksa    float64
+	TotalDiperiksa     int // = TotalApprovedPengawas
+	TotalError         int // = TotalRejectedPengawas
+	TotalObservasi     int
+	TotalFasihTotal    int
+	TotalTargetPrelist int
+	PctSubmit          float64
+	PctDiperiksa       float64
+	PctProgres         float64
 }
 
 type PMLRow struct {
@@ -121,6 +123,7 @@ type PMLRow struct {
 	Diperiksa      int // = ApprovedPengawas
 	Error          int // = RejectedPengawas
 	FasihTotal     int
+	TargetPrelist  int
 	PctSubmit      float64
 	Observasi      int
 	KendalaTerbuka int
@@ -147,10 +150,11 @@ type PPLRow struct {
 	ApprovedPusat     int
 	RejectedPusat     int
 	// Alias lama
-	Diperiksa  int // = ApprovedPengawas
-	Error      int // = RejectedPengawas
-	FasihTotal int
-	PctSubmit  float64
+	Diperiksa     int // = ApprovedPengawas
+	Error         int // = RejectedPengawas
+	FasihTotal    int
+	TargetPrelist int
+	PctSubmit     float64
 }
 
 type PMLUser struct {
@@ -280,12 +284,16 @@ type KecRow struct {
 	PctSubmit       float64
 }
 
-func AdminDashboard(c echo.Context) error {
+// computeAdminSummary menghitung ringkasan kabupaten. metode menentukan cara
+// hitung PctProgres (lihat computePctProgres) — dipakai baik untuk render
+// halaman penuh maupun untuk refresh partial via AdminSummaryPartial.
+func computeAdminSummary(metode string) AdminSummary {
 	var s AdminSummary
 	db.DB.QueryRow(`
 		SELECT
 		  (SELECT COUNT(*) FROM sls),
 		  (SELECT COALESCE(SUM(target),0) FROM sls),
+		  (SELECT COALESCE(SUM(target_prelist_resmi),0) FROM sls),
 		  (SELECT COALESCE(SUM(jumlah_submit),0) FROM progress),
 		  (SELECT COALESCE(SUM(fasih_submitted),0) FROM progress),
 		  (SELECT COALESCE(SUM(jumlah_draft),0) FROM progress),
@@ -300,7 +308,7 @@ func AdminDashboard(c echo.Context) error {
 		  (SELECT COALESCE(SUM(fasih_rejected_pusat),0) FROM progress),
 		  (SELECT COALESCE(SUM(jumlah_observasi),0) FROM verifikasi_harian),
 		  (SELECT COALESCE(SUM(fasih_total),0) FROM progress)`).
-		Scan(&s.TotalSLS, &s.TotalTarget, &s.TotalSubmit, &s.TotalFasihSubmit, &s.TotalDraft,
+		Scan(&s.TotalSLS, &s.TotalTarget, &s.TotalTargetPrelist, &s.TotalSubmit, &s.TotalFasihSubmit, &s.TotalDraft,
 			&s.TotalApprovedPengawas, &s.TotalRejectedPengawas, &s.TotalRevokedPengawas,
 			&s.TotalApprovedKabupaten, &s.TotalRejectedKabupaten,
 			&s.TotalApprovedProvinsi, &s.TotalRejectedProvinsi,
@@ -315,6 +323,22 @@ func AdminDashboard(c echo.Context) error {
 	if s.TotalSubmit > 0 {
 		s.PctDiperiksa = math.Min(float64(s.TotalDiperiksa)*100/float64(s.TotalSubmit), 100)
 	}
+	s.PctProgres = computePctProgres(metode, s.TotalSubmit, s.TotalFasihTotal, s.TotalTargetPrelist)
+	return s
+}
+
+// AdminSummaryPartial merender ulang section Ringkasan sesuai metode % Progres
+// yang dipilih di dropdown global (dipanggil via HTMX saat dropdown berubah).
+func AdminSummaryPartial(c echo.Context) error {
+	metode := normalizeMetode(c.QueryParam("metode"))
+	s := computeAdminSummary(metode)
+	return c.Render(http.StatusOK, "admin_summary_stats.html", map[string]interface{}{
+		"Summary": s,
+	})
+}
+
+func AdminDashboard(c echo.Context) error {
+	s := computeAdminSummary(MetodeTotalVsTotal)
 
 	pmlPage, _ := strconv.Atoi(c.QueryParam("pml_page"))
 	if pmlPage < 1 {
@@ -334,8 +358,8 @@ func AdminDashboard(c echo.Context) error {
 	}
 	q := c.QueryParam("q")
 
-	pmls, pmlPage2 := queryAdminPML(pmlPage, "", "", "")
-	ppls, pplPage2 := queryAdminPPL(pplPage, "", 0, "", "")
+	pmls, pmlPage2 := queryAdminPML(pmlPage, "", "", "", MetodeTotalVsTotal)
+	ppls, pplPage2 := queryAdminPPL(pplPage, "", 0, "", "", MetodeTotalVsTotal)
 	slsList, slsPage2 := queryAdminSLS(slsPage, q, "", "", MetodeTotalVsTotal)
 	orgList, orgPage2 := queryAdminOrganik(orgPage, "", "", "")
 
@@ -370,9 +394,10 @@ func AdminTablePML(c echo.Context) error {
 	q := c.QueryParam("q")
 	sort := c.QueryParam("sort")
 	dir := c.QueryParam("dir")
-	pmls, pageInfo := queryAdminPML(page, q, sort, dir)
+	metode := normalizeMetode(c.QueryParam("metode"))
+	pmls, pageInfo := queryAdminPML(page, q, sort, dir, metode)
 	return c.Render(http.StatusOK, "admin_pml_table.html", map[string]interface{}{
-		"PMLs": pmls, "PMLPage": pageInfo,
+		"PMLs": pmls, "PMLPage": pageInfo, "Metode": metode,
 	})
 }
 
@@ -385,9 +410,10 @@ func AdminTablePPL(c echo.Context) error {
 	sort := c.QueryParam("sort")
 	dir := c.QueryParam("dir")
 	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
-	ppls, pageInfo := queryAdminPPL(page, q, pmlID, sort, dir)
+	metode := normalizeMetode(c.QueryParam("metode"))
+	ppls, pageInfo := queryAdminPPL(page, q, pmlID, sort, dir, metode)
 	return c.Render(http.StatusOK, "admin_ppl_table.html", map[string]interface{}{
-		"PPLs": ppls, "PPLPage": pageInfo,
+		"PPLs": ppls, "PPLPage": pageInfo, "Metode": metode,
 	})
 }
 
@@ -437,15 +463,23 @@ var adminPMLSortCols = map[string]string{
 		"COALESCE(SUM(p.fasih_approved_pusat),0)+COALESCE(SUM(p.fasih_rejected_pusat),0))",
 }
 
-func queryAdminPML(page int, q, sort, dir string) ([]PMLRow, models.PageInfo) {
+func queryAdminPML(page int, q, sort, dir, metode string) ([]PMLRow, models.PageInfo) {
 	like := "%" + q + "%"
 	extra := ""
 	if q != "" {
 		extra = "&q=" + q
 	}
+	if metode != MetodeTotalVsTotal {
+		extra += "&metode=" + metode
+	}
 	var total int
 	db.DB.QueryRow(`SELECT COUNT(DISTINCT u.id) FROM users u JOIN sls s ON s.pml_id=u.id WHERE u.role='pml' AND u.name LIKE ?`, like).Scan(&total)
-	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, adminPMLSortCols, "u.name")
+	sortCols := make(map[string]string, len(adminPMLSortCols))
+	for k, v := range adminPMLSortCols {
+		sortCols[k] = v
+	}
+	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(SUM(p.jumlah_submit),0)", "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target_prelist_resmi),0)")
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "u.name")
 	offset := (page - 1) * models.PerPage
 
 	rows, err := db.DB.Query(`
@@ -458,7 +492,7 @@ func queryAdminPML(page int, q, sort, dir string) ([]PMLRow, models.PageInfo) {
 		       COALESCE(SUM(p.fasih_approved_kabupaten),0), COALESCE(SUM(p.fasih_rejected_kabupaten),0),
 		       COALESCE(SUM(p.fasih_approved_provinsi),0),  COALESCE(SUM(p.fasih_rejected_provinsi),0),
 		       COALESCE(SUM(p.fasih_approved_pusat),0),     COALESCE(SUM(p.fasih_rejected_pusat),0),
-		       COALESCE(SUM(p.fasih_total),0),
+		       COALESCE(SUM(p.fasih_total),0), COALESCE(SUM(s.target_prelist_resmi),0),
 		       COALESCE((SELECT SUM(vh2.jumlah_observasi) FROM verifikasi_harian vh2 WHERE vh2.sls_id IN (SELECT id FROM sls WHERE pml_id=u.id)),0),
 		       COUNT(DISTINCT CASE WHEN vh3.status_kendala IN ('open','in_progress','escalated') THEN s.id END)
 		FROM users u
@@ -492,16 +526,11 @@ func queryAdminPML(page int, q, sort, dir string) ([]PMLRow, models.PageInfo) {
 			&r.ApprovedKabupaten, &r.RejectedKabupaten,
 			&r.ApprovedProvinsi, &r.RejectedProvinsi,
 			&r.ApprovedPusat, &r.RejectedPusat,
-			&r.FasihTotal, &r.Observasi, &r.KendalaTerbuka)
+			&r.FasihTotal, &r.TargetPrelist, &r.Observasi, &r.KendalaTerbuka)
 		// Isi alias lama
 		r.Diperiksa = r.ApprovedPengawas
 		r.Error = r.RejectedPengawas
-		if r.FasihTotal > 0 {
-			r.PctSubmit = math.Min(float64(r.JumlahSubmit)*100/float64(r.FasihTotal), 100)
-			if r.PctSubmit > 100 {
-				r.PctSubmit = 100.0
-			}
-		}
+		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.TargetPrelist)
 		// Terverifikasi = semua status kecuali open, submit, draft
 		r.Terverifikasi = r.ApprovedPengawas + r.RejectedPengawas + r.RevokedPengawas +
 			r.ApprovedKabupaten + r.RejectedKabupaten +
@@ -530,7 +559,7 @@ var adminPPLSortCols = map[string]string{
 	"progres":  "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
 }
 
-func queryAdminPPL(page int, q string, pmlID int, sort, dir string) ([]PPLRow, models.PageInfo) {
+func queryAdminPPL(page int, q string, pmlID int, sort, dir, metode string) ([]PPLRow, models.PageInfo) {
 	like := "%" + q + "%"
 	extra := ""
 	if q != "" {
@@ -538,6 +567,9 @@ func queryAdminPPL(page int, q string, pmlID int, sort, dir string) ([]PPLRow, m
 	}
 	if pmlID > 0 {
 		extra += fmt.Sprintf("&pml_id=%d", pmlID)
+	}
+	if metode != MetodeTotalVsTotal {
+		extra += "&metode=" + metode
 	}
 
 	pmlFilter := ""
@@ -554,7 +586,12 @@ func queryAdminPPL(page int, q string, pmlID int, sort, dir string) ([]PPLRow, m
 
 	var total int
 	db.DB.QueryRow(`SELECT COUNT(DISTINCT u.id) FROM users u JOIN sls s ON s.ppl_id=u.id JOIN users pml ON pml.id=s.pml_id WHERE u.role='ppl'`+pmlFilter+` AND (u.name LIKE ? OR pml.name LIKE ?)`, countArgs...).Scan(&total)
-	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, adminPPLSortCols, "pml.name, u.name")
+	sortCols := make(map[string]string, len(adminPPLSortCols))
+	for k, v := range adminPPLSortCols {
+		sortCols[k] = v
+	}
+	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(SUM(p.jumlah_submit),0)", "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target_prelist_resmi),0)")
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "pml.name, u.name")
 
 	rows, err := db.DB.Query(`
 		SELECT u.id, u.name, pml.name,
@@ -570,7 +607,7 @@ func queryAdminPPL(page int, q string, pmlID int, sort, dir string) ([]PPLRow, m
 		       COALESCE(SUM(p.fasih_rejected_provinsi),0),
 		       COALESCE(SUM(p.fasih_approved_pusat),0),
 		       COALESCE(SUM(p.fasih_rejected_pusat),0),
-		       COALESCE(SUM(p.fasih_total),0)
+		       COALESCE(SUM(p.fasih_total),0), COALESCE(SUM(s.target_prelist_resmi),0)
 		FROM users u
 		JOIN sls s ON s.ppl_id = u.id
 		JOIN users pml ON pml.id = s.pml_id
@@ -598,16 +635,11 @@ func queryAdminPPL(page int, q string, pmlID int, sort, dir string) ([]PPLRow, m
 			&r.ApprovedKabupaten, &r.RejectedKabupaten,
 			&r.ApprovedProvinsi, &r.RejectedProvinsi,
 			&r.ApprovedPusat, &r.RejectedPusat,
-			&r.FasihTotal)
+			&r.FasihTotal, &r.TargetPrelist)
 		// Isi alias lama
 		r.Diperiksa = r.ApprovedPengawas
 		r.Error = r.RejectedPengawas
-		if r.FasihTotal > 0 {
-			r.PctSubmit = math.Min(float64(r.JumlahSubmit)*100/float64(r.FasihTotal), 100)
-			if r.PctSubmit > 100 {
-				r.PctSubmit = 100.0
-			}
-		}
+		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.TargetPrelist)
 		ppls = append(ppls, r)
 	}
 	return ppls, pageInfo
