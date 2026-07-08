@@ -194,6 +194,62 @@ type SLSAdminRow struct {
 	Kendala         string
 }
 
+// Tiga metode persentase "Progres" di tab Progres Semua SLS (per SLS/Desa/Kec),
+// dipilih via query param ?metode=1|2|3:
+//  1. Total/Total     — JumlahSubmit / FasihTotal: dari SEMUA assignment yang ada
+//     sekarang di FASIH, berapa persen yang sudah disubmit. (perilaku lama, default)
+//  2. Total/Prelist   — JumlahSubmit / Target: dari TARGET RESMI prelist, berapa
+//     persen yang sudah dihasilkan. Bisa >100% kalau ada tambahan assignment baru.
+//  3. Prelist/Prelist — (Target - sisa yang belum) / Target, dengan
+//     "sisa yang belum" = max(FasihTotal - JumlahSubmit, 0) — jumlah assignment
+//     yang ADA di FASIH sekarang tapi belum disubmit (termasuk backlog dari
+//     assignment tambahan). Backlog itu tetap mengurangi kuota resmi.
+const (
+	MetodeTotalVsTotal     = "1"
+	MetodeTotalVsPrelist   = "2"
+	MetodePrelistVsPrelist = "3"
+)
+
+func normalizeMetode(m string) string {
+	if m != MetodeTotalVsPrelist && m != MetodePrelistVsPrelist {
+		return MetodeTotalVsTotal
+	}
+	return m
+}
+
+func computePctProgres(metode string, jumlahSubmit, fasihTotal, target int) float64 {
+	switch metode {
+	case MetodeTotalVsPrelist:
+		if target > 0 {
+			return float64(jumlahSubmit) * 100 / float64(target)
+		}
+	case MetodePrelistVsPrelist:
+		if target > 0 {
+			sisaBelum := math.Max(float64(fasihTotal-jumlahSubmit), 0)
+			return math.Max(math.Min((float64(target)-sisaBelum)*100/float64(target), 100), 0)
+		}
+	default: // MetodeTotalVsTotal
+		if fasihTotal > 0 {
+			return math.Min(float64(jumlahSubmit)*100/float64(fasihTotal), 100)
+		}
+	}
+	return 0
+}
+
+// progresSortExprGeneric membangun ekspresi SQL sort utk kolom "progres", sesuai
+// metode yang dipilih. submitExpr/totalExpr/targetExpr adalah fragmen SQL yang
+// beda tergantung level (SLS: kolom mentah; Desa/Kec: SUM(...) aggregate).
+func progresSortExprGeneric(metode, submitExpr, totalExpr, targetExpr string) string {
+	switch metode {
+	case MetodeTotalVsPrelist:
+		return fmt.Sprintf("(CASE WHEN %s=0 THEN 0 ELSE %s/%s END)", targetExpr, submitExpr, targetExpr)
+	case MetodePrelistVsPrelist:
+		return fmt.Sprintf("(CASE WHEN %s=0 THEN 0 ELSE (%s-GREATEST(%s-%s,0))/%s END)", targetExpr, targetExpr, totalExpr, submitExpr, targetExpr)
+	default:
+		return fmt.Sprintf("(CASE WHEN %s=0 THEN 0 ELSE %s/%s END)", totalExpr, submitExpr, totalExpr)
+	}
+}
+
 type DesaRow struct {
 	NamaDesa        string
 	NamaKec         string
@@ -277,7 +333,7 @@ func AdminDashboard(c echo.Context) error {
 
 	pmls, pmlPage2 := queryAdminPML(pmlPage, "", "", "")
 	ppls, pplPage2 := queryAdminPPL(pplPage, "", 0, "", "")
-	slsList, slsPage2 := queryAdminSLS(slsPage, q, "", "")
+	slsList, slsPage2 := queryAdminSLS(slsPage, q, "", "", MetodeTotalVsTotal)
 	orgList, orgPage2 := queryAdminOrganik(orgPage, "", "", "")
 
 	return c.Render(http.StatusOK, "admin.html", map[string]interface{}{
@@ -286,6 +342,7 @@ func AdminDashboard(c echo.Context) error {
 		"PMLs":        pmls,
 		"PPLs":        ppls,
 		"SLSList":     slsList,
+		"Metode":      MetodeTotalVsTotal,
 		"OrganikRows": orgList,
 		"PMLPage":     pmlPage2,
 		"PPLPage":     pplPage2,
@@ -340,22 +397,23 @@ func AdminTableSLS(c echo.Context) error {
 	level := c.QueryParam("level")
 	sort := c.QueryParam("sort")
 	dir := c.QueryParam("dir")
+	metode := normalizeMetode(c.QueryParam("metode"))
 
 	switch level {
 	case "desa":
-		list, pageInfo := queryAdminSLSByDesa(page, q, sort, dir)
+		list, pageInfo := queryAdminSLSByDesa(page, q, sort, dir, metode)
 		return c.Render(http.StatusOK, "admin_desa_table.html", map[string]interface{}{
-			"DesaList": list, "DesaPage": pageInfo,
+			"DesaList": list, "DesaPage": pageInfo, "Metode": metode,
 		})
 	case "kec":
-		list, pageInfo := queryAdminSLSByKec(page, q, sort, dir)
+		list, pageInfo := queryAdminSLSByKec(page, q, sort, dir, metode)
 		return c.Render(http.StatusOK, "admin_kec_table.html", map[string]interface{}{
-			"KecList": list, "KecPage": pageInfo,
+			"KecList": list, "KecPage": pageInfo, "Metode": metode,
 		})
 	default:
-		slsList, pageInfo := queryAdminSLS(page, q, sort, dir)
+		slsList, pageInfo := queryAdminSLS(page, q, sort, dir, metode)
 		return c.Render(http.StatusOK, "admin_sls_table.html", map[string]interface{}{
-			"SLSList": slsList, "SLSPage": pageInfo, "Q": q,
+			"SLSList": slsList, "SLSPage": pageInfo, "Q": q, "Metode": metode,
 		})
 	}
 }
@@ -566,7 +624,7 @@ var adminSLSSortCols = map[string]string{
 	"progres":  "(CASE WHEN COALESCE(p.fasih_total,0)=0 THEN 0 ELSE COALESCE(p.jumlah_submit,0)/p.fasih_total END)",
 }
 
-func queryAdminSLS(page int, q, sort, dir string) ([]SLSAdminRow, models.PageInfo) {
+func queryAdminSLS(page int, q, sort, dir, metode string) ([]SLSAdminRow, models.PageInfo) {
 	like := "%" + q + "%"
 	var total int
 	db.DB.QueryRow(`
@@ -581,7 +639,15 @@ func queryAdminSLS(page int, q, sort, dir string) ([]SLSAdminRow, models.PageInf
 	if q != "" {
 		extra = fmt.Sprintf("&q=%s", q)
 	}
-	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, adminSLSSortCols, "s.kode_kec, s.kode_desa, s.kode_sls")
+	if metode != MetodeTotalVsTotal {
+		extra += "&metode=" + metode
+	}
+	sortCols := make(map[string]string, len(adminSLSSortCols))
+	for k, v := range adminSLSSortCols {
+		sortCols[k] = v
+	}
+	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(p.jumlah_submit,0)", "COALESCE(p.fasih_total,0)", "s.target")
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "s.kode_kec, s.kode_desa, s.kode_sls")
 
 	offset := (page - 1) * models.PerPage
 	rows, err := db.DB.Query(`
@@ -622,12 +688,7 @@ func queryAdminSLS(page int, q, sort, dir string) ([]SLSAdminRow, models.PageInf
 			&r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft,
 			&r.JumlahDiperiksa, &r.JumlahError, &r.JumlahObservasi,
 			&r.FasihTotal, &r.StatusKendala, &r.Kendala)
-		if r.FasihTotal > 0 {
-			r.PctSubmit = math.Min(float64(r.JumlahSubmit)*100/float64(r.FasihTotal), 100)
-			if r.PctSubmit > 100 {
-				r.PctSubmit = 100.0
-			}
-		}
+		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.Target)
 		list = append(list, r)
 	}
 	return list, pageInfo
@@ -645,17 +706,25 @@ var adminDesaSortCols = map[string]string{
 	"progres":   "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
 }
 
-func queryAdminSLSByDesa(page int, q, sort, dir string) ([]DesaRow, models.PageInfo) {
+func queryAdminSLSByDesa(page int, q, sort, dir, metode string) ([]DesaRow, models.PageInfo) {
 	like := "%" + q + "%"
 	extra := ""
 	if q != "" {
 		extra = "&q=" + q
 	}
 	extra += "&level=desa"
+	if metode != MetodeTotalVsTotal {
+		extra += "&metode=" + metode
+	}
 	var total int
 	db.DB.QueryRow(`SELECT COUNT(DISTINCT CONCAT(s.nama_desa,'|',s.nama_kec)) FROM sls s
 		WHERE s.nama_desa LIKE ? OR s.nama_kec LIKE ?`, like, like).Scan(&total)
-	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, adminDesaSortCols, "s.kode_kec, s.kode_desa")
+	sortCols := make(map[string]string, len(adminDesaSortCols))
+	for k, v := range adminDesaSortCols {
+		sortCols[k] = v
+	}
+	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(SUM(p.jumlah_submit),0)", "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target),0)")
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "s.kode_kec, s.kode_desa")
 	offset := (page - 1) * models.PerPage
 	rows, err := db.DB.Query(`
 		SELECT s.nama_desa, s.nama_kec,
@@ -687,12 +756,7 @@ func queryAdminSLSByDesa(page int, q, sort, dir string) ([]DesaRow, models.PageI
 		var r DesaRow
 		rows.Scan(&r.NamaDesa, &r.NamaKec, &r.JmlSLS, &r.Target,
 			&r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError, &r.FasihTotal)
-		if r.FasihTotal > 0 {
-			r.PctSubmit = math.Min(float64(r.JumlahSubmit)*100/float64(r.FasihTotal), 100)
-			if r.PctSubmit > 100 {
-				r.PctSubmit = 100.0
-			}
-		}
+		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.Target)
 		list = append(list, r)
 	}
 	return list, pageInfo
@@ -709,15 +773,23 @@ var adminKecSortCols = map[string]string{
 	"progres":  "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
 }
 
-func queryAdminSLSByKec(page int, q, sort, dir string) ([]KecRow, models.PageInfo) {
+func queryAdminSLSByKec(page int, q, sort, dir, metode string) ([]KecRow, models.PageInfo) {
 	like := "%" + q + "%"
 	extra := "&level=kec"
 	if q != "" {
 		extra = "&q=" + q + "&level=kec"
 	}
+	if metode != MetodeTotalVsTotal {
+		extra += "&metode=" + metode
+	}
 	var total int
 	db.DB.QueryRow(`SELECT COUNT(DISTINCT s.nama_kec) FROM sls s WHERE s.nama_kec LIKE ?`, like).Scan(&total)
-	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, adminKecSortCols, "s.kode_kec")
+	sortCols := make(map[string]string, len(adminKecSortCols))
+	for k, v := range adminKecSortCols {
+		sortCols[k] = v
+	}
+	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(SUM(p.jumlah_submit),0)", "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target),0)")
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "s.kode_kec")
 	offset := (page - 1) * models.PerPage
 	rows, err := db.DB.Query(`
 		SELECT s.nama_kec,
@@ -749,12 +821,7 @@ func queryAdminSLSByKec(page int, q, sort, dir string) ([]KecRow, models.PageInf
 		var r KecRow
 		rows.Scan(&r.NamaKec, &r.JmlSLS, &r.Target,
 			&r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError, &r.FasihTotal)
-		if r.FasihTotal > 0 {
-			r.PctSubmit = math.Min(float64(r.JumlahSubmit)*100/float64(r.FasihTotal), 100)
-			if r.PctSubmit > 100 {
-				r.PctSubmit = 100.0
-			}
-		}
+		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.Target)
 		list = append(list, r)
 	}
 	return list, pageInfo

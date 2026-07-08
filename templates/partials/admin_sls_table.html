@@ -1,4 +1,13 @@
 {{define "admin_sls_table.html"}}
+<div class="px-4 py-2 text-xs text-gray-500 border-b border-gray-100">
+  {{if eq .Metode "2"}}
+    <b class="text-gray-600">Total/Prelist:</b> total submit (termasuk assignment tambahan) dibagi Target Prelist resmi — bisa &gt;100%.
+  {{else if eq .Metode "3"}}
+    <b class="text-gray-600">Prelist/Prelist:</b> Target Prelist dikurangi sisa yang belum disubmit (Total - Submit), dibagi Target Prelist.
+  {{else}}
+    <b class="text-gray-600">Total/Total:</b> total submit dibagi total assignment yang ada di FASIH saat ini.
+  {{end}}
+</div>
 <div class="overflow-x-auto">
   <table class="w-full text-sm">
     <thead>
@@ -44,9 +53,9 @@
         <td class="px-4 py-3 text-center min-w-[90px]">
           <div class="flex items-center gap-1.5">
             <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div class="h-full bg-green-500 rounded-full" style="width:{{.PctSubmit}}%"></div>
+              <div class="h-full {{if gt .PctSubmit 100.0}}bg-purple-500{{else}}bg-green-500{{end}} rounded-full" style="width:{{if gt .PctSubmit 100.0}}100{{else}}{{.PctSubmit}}{{end}}%"></div>
             </div>
-            <span class="text-xs {{if gt .PctSubmit 0.0}}text-green-600 font-semibold{{else}}text-gray-400{{end}} w-8 text-right">{{pctf .PctSubmit}}%</span>
+            <span class="text-xs {{if gt .PctSubmit 100.0}}text-purple-600 font-semibold{{else if gt .PctSubmit 0.0}}text-green-600 font-semibold{{else}}text-gray-400{{end}} w-8 text-right">{{pctf .PctSubmit}}%</span>
           </div>
         </td>
       </tr>

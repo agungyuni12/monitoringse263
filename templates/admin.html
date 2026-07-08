@@ -366,6 +366,17 @@
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
               </svg>
             </span>
+            <select name="metode" title="Metode perhitungan % Progres"
+              hx-get="/admin/table/sls"
+              hx-target="#admin-sls-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="change"
+              hx-include="#sls-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+              <option value="1">% Progres: Total / Total</option>
+              <option value="2">% Progres: Total / Prelist</option>
+              <option value="3">% Progres: Prelist / Prelist</option>
+            </select>
             <a id="sls-dl-btn" href="/admin/download/sls"
               onclick="updateSLSDownload(this)"
               class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors">
