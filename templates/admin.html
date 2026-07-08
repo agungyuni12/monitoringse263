@@ -141,9 +141,9 @@
             class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
             Keberadaan
           </button>
-          <button onclick="switchTab('keberadaanRekap')" id="tab-keberadaanRekap"
+          <button onclick="switchTab('progresRekap')" id="tab-progresRekap"
             class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
-            Rekap Keberadaan
+            Rekap Progres
           </button>
           <button onclick="switchTab('peta')" id="tab-peta"
             class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
@@ -404,47 +404,49 @@
           </div>
         </div>
 
-        <!-- TAB: Rekap Keberadaan (per SLS) -->
-        <div id="panel-keberadaanRekap" class="tab-panel">
-          <div id="keberadaan-rekap-filter-bar" class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center">
+        <!-- TAB: Rekap Progres (per SLS) -->
+        <div id="panel-progresRekap" class="tab-panel">
+          <div id="progres-rekap-filter-bar" class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center">
             <input type="text" name="q"
-              hx-get="/admin/table/keberadaan-rekap" hx-target="#keberadaan-rekap-result" hx-swap="innerHTML"
-              hx-trigger="input changed delay:400ms" hx-include="#keberadaan-rekap-filter-bar"
+              hx-get="/admin/table/progres-rekap" hx-target="#progres-rekap-result" hx-swap="innerHTML"
+              hx-trigger="input changed delay:400ms" hx-include="#progres-rekap-filter-bar, #global-metode-select"
               placeholder="Cari nama SLS, Desa, Kecamatan..."
               class="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
             <select name="pml_id"
-              hx-get="/admin/table/keberadaan-rekap" hx-target="#keberadaan-rekap-result" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#keberadaan-rekap-filter-bar"
+              hx-get="/admin/table/progres-rekap" hx-target="#progres-rekap-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#progres-rekap-filter-bar, #global-metode-select"
               class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
               <option value="">Semua PML</option>
               {{range .PMLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
             </select>
-            <select name="ppl_id" id="kebrekap-ppl-select"
-              hx-get="/admin/table/keberadaan-rekap" hx-target="#keberadaan-rekap-result" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#keberadaan-rekap-filter-bar"
+            <select name="ppl_id" id="progresrekap-ppl-select"
+              hx-get="/admin/table/progres-rekap" hx-target="#progres-rekap-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#progres-rekap-filter-bar, #global-metode-select"
               class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
               <option value="">Semua PPL</option>
               {{range .PPLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
             </select>
-            <select name="sls_id" id="kebrekap-sls-select"
-              hx-get="/admin/table/keberadaan-rekap" hx-target="#keberadaan-rekap-result" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#keberadaan-rekap-filter-bar"
+            <select name="sls_id" id="progresrekap-sls-select"
+              hx-get="/admin/table/progres-rekap" hx-target="#progres-rekap-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#progres-rekap-filter-bar, #global-metode-select"
               class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
               <option value="">Semua SLS</option>
               {{range .KebSLSList}}<option value="{{.ID}}">{{.Nama}}</option>{{end}}
             </select>
             <label class="flex items-center gap-1.5 px-3 py-2 border border-amber-200 bg-amber-50 rounded-lg text-sm text-amber-700 cursor-pointer select-none">
               <input type="checkbox" name="prioritas" value="1"
-                hx-get="/admin/table/keberadaan-rekap" hx-target="#keberadaan-rekap-result" hx-swap="innerHTML"
-                hx-trigger="change" hx-include="#keberadaan-rekap-filter-bar"
+                hx-get="/admin/table/progres-rekap" hx-target="#progres-rekap-result" hx-swap="innerHTML"
+                hx-trigger="change" hx-include="#progres-rekap-filter-bar, #global-metode-select"
                 class="accent-amber-600"/>
               SLS Prioritas saja
             </label>
           </div>
-          <div id="keberadaan-rekap-result"
-            hx-get="/admin/table/keberadaan-rekap" hx-trigger="load" hx-swap="innerHTML"
-            hx-include="#keberadaan-rekap-filter-bar">
-            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat rekap keberadaan...</div>
+          <div id="progres-rekap-result"
+            hx-get="/admin/table/progres-rekap"
+            hx-trigger="load, change from:#global-metode-select"
+            hx-swap="innerHTML"
+            hx-include="#progres-rekap-filter-bar, #global-metode-select">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat rekap progres...</div>
           </div>
         </div>
 

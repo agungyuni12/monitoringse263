@@ -863,3 +863,157 @@ func queryAdminSLSByKec(page int, q, sort, dir, metode string) ([]KecRow, models
 	}
 	return list, pageInfo
 }
+
+type ProgresRekapRow struct {
+	ID            int
+	NamaSLS       string
+	NamaKec       string
+	NamaDesa      string
+	NamaPPL       string
+	NamaPML       string
+	Prioritas     bool
+	FasihTotal    int
+	FasihSubmit   int // fasih_submitted: pending review PML (kolom Submit)
+	JumlahSubmit  int // jumlah_submit: semua status (untuk % progress)
+	JumlahDraft   int
+	Diperiksa     int // = fasih_approved_pengawas
+	Error         int // = fasih_rejected_pengawas
+	TargetPrelist int
+	PctSubmit     float64
+}
+
+var progresRekapSortCols = map[string]string{
+	"lokasi":   "s.nama_kec, s.nama_desa, s.nama_sls",
+	"petugas":  "ppl.name",
+	"total":    "COALESCE(p.fasih_total,0)",
+	"submit":   "COALESCE(p.fasih_submitted,0)",
+	"draft":    "COALESCE(p.jumlah_draft,0)",
+	"approved": "COALESCE(p.fasih_approved_pengawas,0)",
+	"rejected": "COALESCE(p.fasih_rejected_pengawas,0)",
+	"progres":  "(CASE WHEN COALESCE(p.fasih_total,0)=0 THEN 0 ELSE COALESCE(p.jumlah_submit,0)/p.fasih_total END)",
+}
+
+// AdminProgresRekapTable — GET /admin/table/progres-rekap
+// Rekap progres (data tabel progress) per SLS, dengan filter PML/PPL/SLS/prioritas
+// yang sama seperti rekap keberadaan sebelumnya. % Progres mengikuti metode global.
+func AdminProgresRekapTable(c echo.Context) error {
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page < 1 {
+		page = 1
+	}
+	q := c.QueryParam("q")
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
+	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
+	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
+	slsID, _ := strconv.Atoi(c.QueryParam("sls_id"))
+	prioritasOnly := c.QueryParam("prioritas") == "1"
+	metode := normalizeMetode(c.QueryParam("metode"))
+	like := "%" + q + "%"
+
+	where := ` WHERE (s.nama_sls LIKE ? OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?)`
+	args := []interface{}{like, like, like}
+	if pmlID > 0 {
+		where += ` AND s.pml_id = ?`
+		args = append(args, pmlID)
+	}
+	if pplID > 0 {
+		where += ` AND s.ppl_id = ?`
+		args = append(args, pplID)
+	}
+	if slsID > 0 {
+		where += ` AND s.id = ?`
+		args = append(args, slsID)
+	}
+	if prioritasOnly {
+		where += ` AND s.prioritas = 1`
+	}
+
+	var total int
+	countArgs := append([]interface{}{}, args...)
+	db.DB.QueryRow(`SELECT COUNT(*) FROM sls s`+where, countArgs...).Scan(&total)
+
+	extra := ""
+	if q != "" {
+		extra += "&q=" + q
+	}
+	if pmlID > 0 {
+		extra += fmt.Sprintf("&pml_id=%d", pmlID)
+	}
+	if pplID > 0 {
+		extra += fmt.Sprintf("&ppl_id=%d", pplID)
+	}
+	if slsID > 0 {
+		extra += fmt.Sprintf("&sls_id=%d", slsID)
+	}
+	if prioritasOnly {
+		extra += "&prioritas=1"
+	}
+	if metode != MetodeTotalVsTotal {
+		extra += "&metode=" + metode
+	}
+
+	sortCols := make(map[string]string, len(progresRekapSortCols))
+	for k, v := range progresRekapSortCols {
+		sortCols[k] = v
+	}
+	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(p.jumlah_submit,0)", "COALESCE(p.fasih_total,0)", "s.target_prelist_resmi")
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "s.nama_kec, s.nama_desa, s.nama_sls")
+
+	offset := (page - 1) * models.PerPage
+	pageInfo := models.NewPageInfo(page, total, "/admin/table/progres-rekap", "progres-rekap-result", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
+
+	queryArgs := append(args, models.PerPage, offset)
+	rows, err := db.DB.Query(`
+		SELECT s.id, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
+		       ppl.name, pml.name, s.prioritas,
+		       COALESCE(p.fasih_total,0), COALESCE(p.fasih_submitted,0), COALESCE(p.jumlah_submit,0),
+		       COALESCE(p.jumlah_draft,0), COALESCE(p.fasih_approved_pengawas,0), COALESCE(p.fasih_rejected_pengawas,0),
+		       s.target_prelist_resmi
+		FROM sls s
+		JOIN users ppl ON ppl.id = s.ppl_id
+		JOIN users pml ON pml.id = s.pml_id
+		LEFT JOIN progress p ON p.sls_id = s.id`+where+`
+		`+orderBy+`
+		LIMIT ? OFFSET ?`, queryArgs...)
+
+	var list []ProgresRekapRow
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var r ProgresRekapRow
+			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML, &r.Prioritas,
+				&r.FasihTotal, &r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft, &r.Diperiksa, &r.Error,
+				&r.TargetPrelist)
+			r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.TargetPrelist)
+			list = append(list, r)
+		}
+	}
+
+	pplSelect := OOBSelect{
+		TargetID: "progresrekap-ppl-select", Name: "ppl_id", Placeholder: "Semua PPL",
+		Options: queryPPLOptionsByFilter(nil, pmlID), Selected: pplID,
+		HxGet: "/admin/table/progres-rekap", HxTarget: "#progres-rekap-result", HxInclude: "#progres-rekap-filter-bar, #global-metode-select",
+	}
+	slsSelect := OOBSelect{
+		TargetID: "progresrekap-sls-select", Name: "sls_id", Placeholder: "Semua SLS",
+		Options: querySLSOptionsByFilter(nil, pmlID, pplID), Selected: slsID,
+		HxGet: "/admin/table/progres-rekap", HxTarget: "#progres-rekap-result", HxInclude: "#progres-rekap-filter-bar, #global-metode-select",
+	}
+
+	return c.Render(http.StatusOK, "admin_progres_rekap_table.html", map[string]interface{}{
+		"Rows":          list,
+		"PageInfo":      pageInfo,
+		"Q":             q,
+		"PmlID":         pmlID,
+		"PplID":         pplID,
+		"SlsID":         slsID,
+		"PrioritasOnly": prioritasOnly,
+		"Metode":        metode,
+		"PPLSelect":     pplSelect,
+		"SLSSelect":     slsSelect,
+	})
+}
