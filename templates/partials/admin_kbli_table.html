@@ -1,0 +1,44 @@
+{{define "admin_kbli_table.html"}}
+<div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
+  Jumlah usaha per kategori KBLI, disinkron dari Dashboard SE2026 (data per SLS).
+</div>
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left text-xs uppercase tracking-wide">
+        {{template "sortable_th" dict "Label" "Kode SLS" "Col" "kode_sls" "PageInfo" .KBLIPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Nama SLS" "Col" "nama_sls" "PageInfo" .KBLIPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "PPL" "Col" "ppl" "PageInfo" .KBLIPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "PML" "Col" "pml" "PageInfo" .KBLIPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Desa / Kec" "Col" "lokasi" "PageInfo" .KBLIPage "Class" "px-4 py-3 font-medium"}}
+        <th class="px-3 py-3 font-medium text-center whitespace-nowrap">Total</th>
+        {{range .Indikators}}
+        <th class="px-3 py-3 font-medium text-center whitespace-nowrap" title="{{.Nama}}">{{.Nama}}</th>
+        {{end}}
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+      {{range $r := .Rows}}
+      <tr class="hover:bg-orange-50/30 dark:hover:bg-gray-800/60 transition-colors">
+        <td class="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-400">{{$r.KodeSLS}}</td>
+        <td class="px-4 py-3 text-gray-800 dark:text-gray-100 text-xs font-medium whitespace-nowrap">{{$r.NamaSLS}}</td>
+        <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">{{$r.NamaPPL}}</td>
+        <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">{{$r.NamaPML}}</td>
+        <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
+          <p>{{$r.NamaDesa}}</p>
+          <p class="text-gray-400 dark:text-gray-500">Kec. {{$r.NamaKec}}</p>
+        </td>
+        <td class="px-3 py-3 text-center font-bold text-se">{{$r.Total}}</td>
+        {{range $k := $.Indikators}}
+        {{$v := index $r.Values $k.Kode}}
+        <td class="px-3 py-3 text-center text-xs {{if gt $v 0}}text-gray-700 dark:text-gray-300 font-semibold{{else}}text-gray-300 dark:text-gray-600{{end}}">{{$v}}</td>
+        {{end}}
+      </tr>
+      {{else}}
+      <tr><td colspan="20" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">Belum ada data KBLI. Jalankan sinkronisasi terlebih dahulu.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "pagination" .KBLIPage}}
+{{end}}

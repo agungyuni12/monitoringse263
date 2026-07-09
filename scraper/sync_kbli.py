@@ -1,0 +1,246 @@
+"""
+Sync jumlah usaha per kategori KBLI per SLS dari Dashboard SE2026 → tabel kbli_usaha
+
+Endpoint: GET /api/agregat/fasih?level=sub_sls&indikator=<kode1,kode2,...>&kabupaten=<kode>
+  Response: JSON array, setiap item berisi:
+    id_wilayah     : 16-digit kode SLS (SAMA PERSIS dengan sls.kode_sls kita —
+                     "sub_sls" di dashboard ini bukan level baru, granularitasnya
+                     identik dengan tabel sls yang sudah ada)
+    nama_wilayah, nama_provinsi, nama_kabupaten, nama_kecamatan, nama_desa, nama_sls
+    is_agregat     : null atau 1 (1 = ada data teragregasi utk wilayah+indikator ini)
+    kode_indikator : kode kategori KBLI (mis. "60" = Kategori A)
+    nama_indikator : label lengkap, apa adanya dari dashboard — TIDAK di-hardcode
+                     di sini supaya tidak salah tebak kalau BPS ubah urutan/isi.
+    satuan         : "Usaha"
+    total_value    : jumlah usaha (null berarti 0 / belum ada data)
+    updated_at     : timestamp UTC dari dashboard
+
+Env vars:
+  DASH_USER       login Dashboard SE2026 (default: nurfitriati)
+  DASH_PASS       password Dashboard SE2026 (default: triemam95)
+  KODE_KABUPATEN  kode kabupaten 4-digit (default: 5205)
+  KBLI_INDIKATOR  daftar kode indikator KBLI, dipisah koma (default: 18 kode SE2026 Dompu)
+  DB_HOST / DB_PORT / DB_USER / DB_PASS / DB_NAME
+  HEADLESS        jalankan Chrome headless (default: false)
+"""
+
+import os, time
+import pymysql
+from datetime import datetime
+from playwright.sync_api import sync_playwright
+from playwright_stealth import Stealth
+
+_stealth = Stealth(navigator_webdriver=True)
+
+DASH_URL = "https://dashboard-se2026.apps.bps.go.id"
+SSO_USER = os.getenv("DASH_USER",      "nurfitriati")
+SSO_PASS = os.getenv("DASH_PASS",      "triemam95")
+KODE_KAB = os.getenv("KODE_KABUPATEN", "5205")
+HEADLESS  = os.getenv("HEADLESS",      "false").lower() == "true"
+
+KBLI_INDIKATOR = os.getenv(
+    "KBLI_INDIKATOR",
+    "60,63,66,69,72,75,78,81,84,87,90,93,96,10254,99,162,164,10260",
+)
+
+DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
+DB_PORT = int(os.getenv("DB_PORT", "3306"))
+DB_USER = os.getenv("DB_USER", "root")
+DB_PASS = os.getenv("DB_PASS", "kelayu1998")
+DB_NAME = os.getenv("DB_NAME", "se2026")
+
+
+# ── Browser ──────────────────────────────────────────────────────────────────
+
+def _make_browser(pw):
+    browser = pw.chromium.launch(
+        executable_path=os.getenv("CHROME_PATH", "/usr/bin/google-chrome-stable") or None,
+        headless=HEADLESS,
+        args=["--disable-blink-features=AutomationControlled", "--disable-infobars", "--no-sandbox"],
+    )
+    ctx = browser.new_context(
+        user_agent=(
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+        ),
+        viewport={"width": 1280, "height": 720},
+    )
+    return browser, ctx
+
+
+def login_dashboard(ctx):
+    """Login ke Dashboard SE2026 via SSO BPS Keycloak (sama seperti sync_anomali.py)."""
+    page = ctx.new_page()
+    _stealth.apply_stealth_sync(page)
+
+    LONG = 90_000
+    print("[LOGIN] Membuka SSO Dashboard...", flush=True)
+    try:
+        page.goto(f"{DASH_URL}/api/auth/sso", wait_until="commit", timeout=LONG)
+    except Exception:
+        pass
+    time.sleep(3)
+
+    page.wait_for_selector("input[name='username']", timeout=LONG)
+    page.fill("input[name='username']", SSO_USER)
+    page.fill("input[name='password']", SSO_PASS)
+    page.click("#kc-login, input[type='submit'], button[type='submit']")
+
+    for _ in range(30):
+        time.sleep(2)
+        if "dashboard-se2026" in page.url and "callback" not in page.url:
+            break
+
+    time.sleep(5)
+    page.close()
+    print("[LOGIN] Berhasil.", flush=True)
+
+
+# ── Fetch KBLI ───────────────────────────────────────────────────────────────
+
+def fetch_kbli(ctx, kode_kab, retries=3):
+    """Fetch agregat KBLI per sub_sls (satu request untuk semua kode indikator sekaligus)."""
+    url = (
+        f"{DASH_URL}/api/agregat/fasih"
+        f"?level=sub_sls&indikator={KBLI_INDIKATOR}&kabupaten={kode_kab}"
+    )
+    for attempt in range(1, retries + 1):
+        try:
+            r = ctx.request.get(url, timeout=120_000)
+            if r.status != 200:
+                print(f"  [WARN] HTTP {r.status}", flush=True)
+                return []
+            items = r.json()
+            if not isinstance(items, list):
+                print("  [WARN] Response bukan list", flush=True)
+                return []
+            print(f"  {len(items)} baris diterima.", flush=True)
+            return items
+        except Exception as e:
+            print(f"  [RETRY {attempt}/{retries}] {e}", flush=True)
+            if attempt < retries:
+                time.sleep(5 * attempt)
+    return []
+
+
+# ── Database ─────────────────────────────────────────────────────────────────
+
+def _connect_db():
+    return pymysql.connect(
+        host=DB_HOST, port=DB_PORT,
+        user=DB_USER, password=DB_PASS,
+        database=DB_NAME, charset="utf8mb4",
+        ssl={"ssl": False},
+    )
+
+
+def load_sls_map(conn):
+    cur = conn.cursor()
+    cur.execute("SELECT kode_sls, id FROM sls")
+    result = {row[0]: row[1] for row in cur.fetchall()}
+    cur.close()
+    print(f"[DB] SLS map: {len(result)} entri", flush=True)
+    return result
+
+
+def upsert_kbli(conn, sls_map, items):
+    """
+    Upsert baris KBLI ke tabel kbli_usaha. UNIQUE KEY (sls_id, kode_indikator) —
+    total_value NULL disimpan apa adanya (berarti 0 usaha utk kategori itu di SLS itu).
+    """
+    cur = conn.cursor()
+    SQL = """
+        INSERT INTO kbli_usaha
+          (sls_id, kode_indikator, nama_indikator, satuan, total_value, is_agregat, synced_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+          nama_indikator = VALUES(nama_indikator),
+          satuan         = VALUES(satuan),
+          total_value    = VALUES(total_value),
+          is_agregat     = VALUES(is_agregat),
+          synced_at      = VALUES(synced_at)
+    """
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    upserted = skipped = 0
+    for item in items:
+        kode16 = str(item.get("id_wilayah") or "").strip()
+        sls_id = sls_map.get(kode16)
+        if sls_id is None:
+            skipped += 1
+            continue
+        kode_indikator = str(item.get("kode_indikator") or "").strip()
+        if not kode_indikator:
+            continue
+        nama_indikator = str(item.get("nama_indikator") or "").strip()
+        satuan = str(item.get("satuan") or "").strip()
+        total_value = item.get("total_value")
+        is_agregat = item.get("is_agregat")
+        try:
+            cur.execute(SQL, (sls_id, kode_indikator, nama_indikator, satuan, total_value, is_agregat, now))
+            upserted += 1
+        except Exception as e:
+            print(f"    [DB ERROR] {e}", flush=True)
+    conn.commit()
+    cur.close()
+    return upserted, skipped
+
+
+# ── Main ─────────────────────────────────────────────────────────────────────
+
+def run_once():
+    print("=" * 55)
+    print(f"SYNC KBLI SE2026  [{datetime.now():%Y-%m-%d %H:%M:%S}]")
+    print(f"Kabupaten: {KODE_KAB}")
+    print("=" * 55)
+
+    with sync_playwright() as pw:
+        browser, ctx = _make_browser(pw)
+        try:
+            login_dashboard(ctx)
+
+            conn = _connect_db()
+            sls_map = load_sls_map(conn)
+
+            print("\n[KBLI] Mengambil data agregat...", flush=True)
+            items = fetch_kbli(ctx, KODE_KAB)
+            upserted, skipped = upsert_kbli(conn, sls_map, items)
+            conn.close()
+
+            print(f"\nSelesai! {upserted} baris diupsert, {skipped} dilewati (SLS tidak ada di DB).", flush=True)
+        finally:
+            browser.close()
+
+
+try:
+    import zoneinfo
+    _wita_tz = zoneinfo.ZoneInfo("Asia/Makassar")
+except Exception:
+    import datetime as _dt
+    _wita_tz = _dt.timezone(_dt.timedelta(hours=8))
+
+
+def _now_wita():
+    return datetime.now(_wita_tz)
+
+
+def _next_run():
+    """Jadwal sync: setiap 12 jam (2x sehari), sama seperti sync_anomali.py."""
+    from datetime import timedelta
+    return _now_wita() + timedelta(hours=12)
+
+
+if __name__ == "__main__":
+    while True:
+        try:
+            run_once()
+        except Exception as e:
+            print(f"[ERROR] Sync gagal: {e}", flush=True)
+
+        nxt = _next_run()
+        secs = max(0, (nxt - _now_wita()).total_seconds())
+        print(
+            f"[SCHEDULER] Sync berikutnya: {nxt.strftime('%d/%m/%Y %H:%M WITA')} "
+            f"({int(secs // 60)} menit)",
+            flush=True,
+        )
+        time.sleep(secs)

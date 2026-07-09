@@ -115,6 +115,11 @@
           <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 20V10m6 10V4m6 16v-7"/></svg>
           <span>Rekap Progres</span>
         </button>
+        <button onclick="switchTab('kbli')" id="tab-kbli"
+          class="tab-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+          <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" rx="1" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" rx="1" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" rx="1" stroke-width="1.5"/></svg>
+          <span>KBLI per SLS</span>
+        </button>
         <button onclick="switchTab('peta')" id="tab-peta"
           class="tab-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
           <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 4.5L4 6.5v13l5-2 6 2 5-2v-13l-5 2-6-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 4.5v13m6-11v13"/></svg>
@@ -521,6 +526,21 @@
             hx-swap="innerHTML"
             hx-include="#progres-rekap-filter-bar, #global-metode-select">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat rekap progres...</div>
+          </div>
+        </div>
+
+        <!-- TAB: KBLI per SLS -->
+        <div id="panel-kbli" class="tab-panel">
+          <div id="kbli-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center">
+            <input type="text" name="q"
+              hx-get="/admin/table/kbli" hx-target="#admin-kbli-wrap" hx-swap="innerHTML"
+              hx-trigger="input changed delay:400ms" hx-include="#kbli-filter-bar"
+              placeholder="Cari nama SLS, Desa, Kecamatan..."
+              class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+          </div>
+          <div id="admin-kbli-wrap"
+            hx-get="/admin/table/kbli" hx-trigger="load" hx-swap="innerHTML">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data KBLI...</div>
           </div>
         </div>
 
