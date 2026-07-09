@@ -946,6 +946,32 @@ type ProgresRekapRow struct {
 	// Coverage usaha & keluarga (ditemukan/baru/prelist) dari Dashboard SE2026,
 	// kode_indikator -> jumlah. Lihat queryCoverageIndikatorList utk daftar kolomnya.
 	Coverage map[string]int
+	// Persentase coverage: (Ditemukan+Baru)/Prelist*100 per kategori.
+	PctCoverageUsahaBKU      float64
+	PctCoverageUsahaKeluarga float64
+	PctCoverageKeluarga      float64
+}
+
+// Kode indikator coverage_usaha_keluarga yang dipakai utk hitung % coverage per SLS.
+const (
+	kodeCovUsahaPrelist      = "2"
+	kodeCovUsahaDitemukan    = "10264"
+	kodeCovUsahaBaru         = "10268"
+	kodeCovUsahaKelPrelist   = "90001"
+	kodeCovUsahaKelDitemukan = "10691"
+	kodeCovUsahaKelBaru      = "10696"
+	kodeCovKeluargaPrelist   = "14"
+	kodeCovKeluargaDitemukan = "15"
+	kodeCovKeluargaBaru      = "20"
+)
+
+// pctCoverage menghitung (ditemukan+baru)/prelist*100, dibatasi maks 100.
+func pctCoverage(cov map[string]int, ditemukanKode, baruKode, prelistKode string) float64 {
+	prelist := cov[prelistKode]
+	if prelist <= 0 {
+		return 0
+	}
+	return math.Min(float64(cov[ditemukanKode]+cov[baruKode])*100/float64(prelist), 100)
 }
 
 // queryCoverageIndikatorList mengambil daftar indikator coverage usaha & keluarga
@@ -1125,6 +1151,12 @@ func AdminProgresRekapTable(c echo.Context) error {
 					r.Coverage[kode] = val
 				}
 			}
+		}
+		for i := range list {
+			r := &list[i]
+			r.PctCoverageUsahaBKU = pctCoverage(r.Coverage, kodeCovUsahaDitemukan, kodeCovUsahaBaru, kodeCovUsahaPrelist)
+			r.PctCoverageUsahaKeluarga = pctCoverage(r.Coverage, kodeCovUsahaKelDitemukan, kodeCovUsahaKelBaru, kodeCovUsahaKelPrelist)
+			r.PctCoverageKeluarga = pctCoverage(r.Coverage, kodeCovKeluargaDitemukan, kodeCovKeluargaBaru, kodeCovKeluargaPrelist)
 		}
 	}
 
