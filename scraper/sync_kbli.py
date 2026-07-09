@@ -98,6 +98,20 @@ def login_dashboard(ctx):
 
 # ── Fetch KBLI ───────────────────────────────────────────────────────────────
 
+def warmup_session(ctx):
+    """
+    Hit /api/admin/config setelah login — sync_anomali.py selalu melakukan ini
+    (via fetch_anomali_config) sebagai request pertama setelah login berhasil.
+    Tanpa langkah ini, request ke /api/agregat/fasih bisa balas 401 meskipun
+    login form sudah "Berhasil" (sesi/cookie belum sepenuhnya settle).
+    """
+    try:
+        r = ctx.request.get(f"{DASH_URL}/api/admin/config", timeout=30_000)
+        print(f"[WARMUP] GET /api/admin/config -> HTTP {r.status}", flush=True)
+    except Exception as e:
+        print(f"[WARMUP] Gagal: {e}", flush=True)
+
+
 def fetch_kbli(ctx, kode_kab, retries=3):
     """Fetch agregat KBLI per sub_sls (satu request untuk semua kode indikator sekaligus)."""
     url = (
@@ -108,7 +122,18 @@ def fetch_kbli(ctx, kode_kab, retries=3):
         try:
             r = ctx.request.get(url, timeout=120_000)
             if r.status != 200:
-                print(f"  [WARN] HTTP {r.status}", flush=True)
+                body = ""
+                try:
+                    body = r.text()[:500]
+                except Exception:
+                    pass
+                print(f"  [WARN] HTTP {r.status} — {body}", flush=True)
+                if r.status == 401 and attempt < retries:
+                    print(f"  [RETRY {attempt}/{retries}] Login ulang & warmup...", flush=True)
+                    login_dashboard(ctx)
+                    warmup_session(ctx)
+                    time.sleep(3)
+                    continue
                 return []
             items = r.json()
             if not isinstance(items, list):
@@ -197,6 +222,7 @@ def run_once():
         browser, ctx = _make_browser(pw)
         try:
             login_dashboard(ctx)
+            warmup_session(ctx)
 
             conn = _connect_db()
             sls_map = load_sls_map(conn)
