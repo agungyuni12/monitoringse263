@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"monitoringse/db"
 	mw "monitoringse/middleware"
@@ -154,7 +155,11 @@ type PPLRow struct {
 	Error         int // = RejectedPengawas
 	FasihTotal    int
 	TargetPrelist int
-	PctSubmit     float64
+	PctSubmit     float64 // "Persentase Muatan": submit/total (metode-aware), data-level
+	// "Persentase SLS": dari semua SLS milik PPL ini, berapa persen yang % Progres
+	// per-SLS-nya sudah >=95% (metode-aware juga) — metrik selesai di level SLS,
+	// bukan level data/muatan.
+	PctSLSSelesai float64
 }
 
 type PMLUser struct {
@@ -642,7 +647,53 @@ func queryAdminPPL(page int, q string, pmlID int, sort, dir, metode string) ([]P
 		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.TargetPrelist)
 		ppls = append(ppls, r)
 	}
+
+	fillPctSLSSelesai(ppls, metode)
 	return ppls, pageInfo
+}
+
+// slsSelesaiThreshold: ambang batas % Progres per-SLS (metode-aware) supaya SLS
+// dianggap "selesai" utk perhitungan "Persentase SLS".
+const slsSelesaiThreshold = 0.95
+
+// fillPctSLSSelesai mengisi PctSLSSelesai tiap PPLRow: dari semua SLS milik PPL
+// itu, berapa persen yang % Progres per-SLS-nya (metode yang sama dgn dropdown
+// global) sudah >= 95%. Query terpisah (bukan bagian agregat utama) karena
+// butuh evaluasi per-baris SLS, bukan SUM lintas SLS.
+func fillPctSLSSelesai(ppls []PPLRow, metode string) {
+	if len(ppls) == 0 {
+		return
+	}
+	byID := make(map[int]*PPLRow, len(ppls))
+	placeholders := make([]string, len(ppls))
+	args := make([]interface{}, len(ppls))
+	for i := range ppls {
+		byID[ppls[i].ID] = &ppls[i]
+		placeholders[i] = "?"
+		args[i] = ppls[i].ID
+	}
+
+	pctExpr := progresSortExprGeneric(metode, "COALESCE(p.jumlah_submit,0)", "COALESCE(p.fasih_total,0)", "s.target_prelist_resmi")
+	rows, err := db.DB.Query(`
+		SELECT s.ppl_id, COUNT(*),
+		       SUM(CASE WHEN `+pctExpr+` >= `+strconv.FormatFloat(slsSelesaiThreshold, 'f', -1, 64)+` THEN 1 ELSE 0 END)
+		FROM sls s
+		LEFT JOIN progress p ON p.sls_id = s.id
+		WHERE s.ppl_id IN (`+strings.Join(placeholders, ",")+`)
+		GROUP BY s.ppl_id`, args...)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var pplID, totalSLS, doneSLS int
+		if err := rows.Scan(&pplID, &totalSLS, &doneSLS); err != nil {
+			continue
+		}
+		if r, ok := byID[pplID]; ok && totalSLS > 0 {
+			r.PctSLSSelesai = math.Min(float64(doneSLS)*100/float64(totalSLS), 100)
+		}
+	}
 }
 
 var adminSLSSortCols = map[string]string{
