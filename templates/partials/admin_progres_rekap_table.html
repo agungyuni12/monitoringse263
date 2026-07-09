@@ -20,6 +20,9 @@
           {{template "sortable_th" dict "Label" "Rejected" "Col" "rejected" "PageInfo" $.PageInfo "Center" true}}
           {{template "sortable_th" dict "Label" "% Progres" "Col" "progres" "PageInfo" $.PageInfo "Center" true}}
           {{template "sortable_th" dict "Label" "% Terverifikasi" "Col" "verifikasi" "PageInfo" $.PageInfo "Center" true}}
+          {{range .CoverageIndikators}}
+          <th class="px-3 py-2.5 font-medium text-center whitespace-nowrap" title="{{.Nama}}">{{.Nama}}</th>
+          {{end}}
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -68,6 +71,10 @@
               <span class="text-xs {{if lt $r.PctTerverifikasi 100.0}}text-gray-600 dark:text-gray-400 font-semibold{{else}}text-blue-600 font-semibold{{end}} w-10 text-right">{{pctf $r.PctTerverifikasi}}%</span>
             </div>
           </td>
+          {{range $k := $.CoverageIndikators}}
+          {{$v := index $r.Coverage $k.Kode}}
+          <td class="px-3 py-2 text-center text-xs {{if gt $v 0}}text-gray-700 dark:text-gray-300 font-semibold{{else}}text-gray-300 dark:text-gray-600{{end}}">{{$v}}</td>
+          {{end}}
         </tr>
         {{else}}
         <tr><td colspan="10" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">

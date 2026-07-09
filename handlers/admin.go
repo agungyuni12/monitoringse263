@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -942,6 +943,31 @@ type ProgresRekapRow struct {
 	// Terverifikasi = semua status kecuali open, submit, draft (approved+rejected+revoked di semua level)
 	Terverifikasi    int
 	PctTerverifikasi float64
+	// Coverage usaha & keluarga (ditemukan/baru/prelist) dari Dashboard SE2026,
+	// kode_indikator -> jumlah. Lihat queryCoverageIndikatorList utk daftar kolomnya.
+	Coverage map[string]int
+}
+
+// queryCoverageIndikatorList mengambil daftar indikator coverage usaha & keluarga
+// yang sudah ada datanya (pola sama seperti queryKBLIIndikatorList di kbli.go).
+func queryCoverageIndikatorList() []KBLIIndikator {
+	rows, err := db.DB.Query(`SELECT DISTINCT kode_indikator, nama_indikator FROM coverage_usaha_keluarga`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var list []KBLIIndikator
+	for rows.Next() {
+		var k KBLIIndikator
+		rows.Scan(&k.Kode, &k.Nama)
+		list = append(list, k)
+	}
+	sort.Slice(list, func(i, j int) bool {
+		ni, _ := strconv.Atoi(list[i].Kode)
+		nj, _ := strconv.Atoi(list[j].Kode)
+		return ni < nj
+	})
+	return list
 }
 
 var progresRekapSortCols = map[string]string{
@@ -1073,6 +1099,35 @@ func AdminProgresRekapTable(c echo.Context) error {
 		}
 	}
 
+	coverageIndikators := queryCoverageIndikatorList()
+	if len(list) > 0 {
+		placeholders := make([]string, len(list))
+		covArgs := make([]interface{}, len(list))
+		byID := make(map[int]*ProgresRekapRow, len(list))
+		for i := range list {
+			list[i].Coverage = map[string]int{}
+			byID[list[i].ID] = &list[i]
+			placeholders[i] = "?"
+			covArgs[i] = list[i].ID
+		}
+		covRows, err := db.DB.Query(`
+			SELECT sls_id, kode_indikator, COALESCE(total_value,0)
+			FROM coverage_usaha_keluarga
+			WHERE sls_id IN (`+strings.Join(placeholders, ",")+`)`, covArgs...)
+		if err == nil {
+			defer covRows.Close()
+			for covRows.Next() {
+				var slsID2 int
+				var kode string
+				var val int
+				covRows.Scan(&slsID2, &kode, &val)
+				if r, ok := byID[slsID2]; ok {
+					r.Coverage[kode] = val
+				}
+			}
+		}
+	}
+
 	pplSelect := OOBSelect{
 		TargetID: "progresrekap-ppl-select", Name: "ppl_id", Placeholder: "Semua PPL",
 		Options: queryPPLOptionsByFilter(nil, pmlID), Selected: pplID,
@@ -1085,15 +1140,16 @@ func AdminProgresRekapTable(c echo.Context) error {
 	}
 
 	return c.Render(http.StatusOK, "admin_progres_rekap_table.html", map[string]interface{}{
-		"Rows":          list,
-		"PageInfo":      pageInfo,
-		"Q":             q,
-		"PmlID":         pmlID,
-		"PplID":         pplID,
-		"SlsID":         slsID,
-		"PrioritasOnly": prioritasOnly,
-		"Metode":        metode,
-		"PPLSelect":     pplSelect,
-		"SLSSelect":     slsSelect,
+		"Rows":               list,
+		"PageInfo":           pageInfo,
+		"Q":                  q,
+		"PmlID":              pmlID,
+		"PplID":              pplID,
+		"SlsID":              slsID,
+		"PrioritasOnly":      prioritasOnly,
+		"Metode":             metode,
+		"CoverageIndikators": coverageIndikators,
+		"PPLSelect":          pplSelect,
+		"SLSSelect":          slsSelect,
 	})
 }

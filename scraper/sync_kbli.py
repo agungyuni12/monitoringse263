@@ -1,5 +1,14 @@
 """
-Sync jumlah usaha per kategori KBLI per SLS dari Dashboard SE2026 → tabel kbli_usaha
+Sync KBLI + Coverage Usaha & Keluarga per SLS dari Dashboard SE2026
+→ tabel kbli_usaha & coverage_usaha_keluarga
+
+Dua dataset, satu login/jadwal (digabung supaya cukup sekali login & sekali
+jadwal sync per hari, bukan dua container/proses terpisah):
+  1. KBLI       : jumlah usaha per kategori KBLI (A, B, C, ...) per SLS.
+  2. Coverage   : status cakupan usaha mandiri (BKU) & usaha dalam keluarga
+                  (ditemukan/baru/tutup/ganda/tidak ditemukan), prelist usaha
+                  & keluarga, keluarga ditemukan/baru, dan keluarga yang
+                  punya usaha.
 
 Endpoint: GET /api/agregat/fasih?level=sub_sls&indikator=<kode1,kode2,...>&kabupaten=<kode>
   Response: JSON array, setiap item berisi:
@@ -8,20 +17,22 @@ Endpoint: GET /api/agregat/fasih?level=sub_sls&indikator=<kode1,kode2,...>&kabup
                      identik dengan tabel sls yang sudah ada)
     nama_wilayah, nama_provinsi, nama_kabupaten, nama_kecamatan, nama_desa, nama_sls
     is_agregat     : null atau 1 (1 = ada data teragregasi utk wilayah+indikator ini)
-    kode_indikator : kode kategori KBLI (mis. "60" = Kategori A)
+    kode_indikator : kode indikator (beda arti tergantung dataset — lihat KBLI_INDIKATOR
+                     vs COVERAGE_INDIKATOR di bawah)
     nama_indikator : label lengkap, apa adanya dari dashboard — TIDAK di-hardcode
                      di sini supaya tidak salah tebak kalau BPS ubah urutan/isi.
     satuan         : "Usaha"
-    total_value    : jumlah usaha (null berarti 0 / belum ada data)
+    total_value    : jumlah (null berarti 0 / belum ada data)
     updated_at     : timestamp UTC dari dashboard
 
 Env vars:
-  DASH_USER       login Dashboard SE2026 (default: nurfitriati)
-  DASH_PASS       password Dashboard SE2026 (default: triemam95)
-  KODE_KABUPATEN  kode kabupaten 4-digit (default: 5205)
-  KBLI_INDIKATOR  daftar kode indikator KBLI, dipisah koma (default: 18 kode SE2026 Dompu)
+  DASH_USER            login Dashboard SE2026 (default: nurfitriati)
+  DASH_PASS            password Dashboard SE2026 (default: triemam95)
+  KODE_KABUPATEN       kode kabupaten 4-digit (default: 5205)
+  KBLI_INDIKATOR       daftar kode indikator KBLI, dipisah koma
+  COVERAGE_INDIKATOR   daftar kode indikator coverage, dipisah koma
   DB_HOST / DB_PORT / DB_USER / DB_PASS / DB_NAME
-  HEADLESS        jalankan Chrome headless (default: false)
+  HEADLESS             jalankan Chrome headless (default: false)
 """
 
 import os, time
@@ -41,6 +52,21 @@ HEADLESS  = os.getenv("HEADLESS",      "false").lower() == "true"
 KBLI_INDIKATOR = os.getenv(
     "KBLI_INDIKATOR",
     "60,63,66,69,72,75,78,81,84,87,90,93,96,10254,99,162,164,10260",
+)
+
+# Dikurasi dari daftar awal (47 kode) — cuma yang benar-benar dipakai utk
+# "coverage usaha & keluarga": status cakupan usaha mandiri (BKU) & usaha
+# dalam keluarga (ditemukan/baru/tutup/ganda/tidak ditemukan), prelist usaha
+# & keluarga, keluarga ditemukan/baru, dan keluarga yang punya usaha. Dibuang:
+# progres % (CAWI/CAPI/geotagging), nonrespon per skala, blasting, SLS admin
+# stat (assign/sync/total), target non-prelist, matched pendataan, dan
+# breakdown jaringan usaha (tunggal/kantor pusat/cabang/dst) — di luar
+# cakupan "ditemukan/baru/prelist" yang diminta.
+COVERAGE_INDIKATOR = os.getenv(
+    "COVERAGE_INDIKATOR",
+    "2,10247,10264,10265,10266,10268,"  # Usaha (BKU/mandiri): prelist, tidak ditemukan, ditemukan, ditutup, ganda, baru
+    "10691,10693,10694,10695,10696,"    # Usaha dalam Keluarga: ditemukan, tutup, ganda, tidak ditemukan, baru
+    "14,15,20,10271",                   # Keluarga: prelist, ditemukan, baru, yang memiliki usaha
 )
 
 DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
@@ -96,8 +122,6 @@ def login_dashboard(ctx):
     print("[LOGIN] Berhasil.", flush=True)
 
 
-# ── Fetch KBLI ───────────────────────────────────────────────────────────────
-
 def warmup_session(ctx):
     """
     Hit /api/admin/config setelah login — sync_anomali.py selalu melakukan ini
@@ -112,11 +136,13 @@ def warmup_session(ctx):
         print(f"[WARMUP] Gagal: {e}", flush=True)
 
 
-def fetch_kbli(ctx, kode_kab, retries=3):
-    """Fetch agregat KBLI per sub_sls (satu request untuk semua kode indikator sekaligus)."""
+# ── Fetch agregat (dipakai bareng utk KBLI & Coverage) ───────────────────────
+
+def fetch_agregat(ctx, kode_kab, indikator, label, retries=3):
+    """Fetch agregat per sub_sls (satu request untuk semua kode indikator sekaligus)."""
     url = (
         f"{DASH_URL}/api/agregat/fasih"
-        f"?level=sub_sls&indikator={KBLI_INDIKATOR}&kabupaten={kode_kab}"
+        f"?level=sub_sls&indikator={indikator}&kabupaten={kode_kab}"
     )
     for attempt in range(1, retries + 1):
         try:
@@ -127,9 +153,9 @@ def fetch_kbli(ctx, kode_kab, retries=3):
                     body = r.text()[:500]
                 except Exception:
                     pass
-                print(f"  [WARN] HTTP {r.status} — {body}", flush=True)
+                print(f"  [{label}] [WARN] HTTP {r.status} — {body}", flush=True)
                 if r.status == 401 and attempt < retries:
-                    print(f"  [RETRY {attempt}/{retries}] Login ulang & warmup...", flush=True)
+                    print(f"  [{label}] [RETRY {attempt}/{retries}] Login ulang & warmup...", flush=True)
                     login_dashboard(ctx)
                     warmup_session(ctx)
                     time.sleep(3)
@@ -137,12 +163,12 @@ def fetch_kbli(ctx, kode_kab, retries=3):
                 return []
             items = r.json()
             if not isinstance(items, list):
-                print("  [WARN] Response bukan list", flush=True)
+                print(f"  [{label}] [WARN] Response bukan list", flush=True)
                 return []
-            print(f"  {len(items)} baris diterima.", flush=True)
+            print(f"  [{label}] {len(items)} baris diterima.", flush=True)
             return items
         except Exception as e:
-            print(f"  [RETRY {attempt}/{retries}] {e}", flush=True)
+            print(f"  [{label}] [RETRY {attempt}/{retries}] {e}", flush=True)
             if attempt < retries:
                 time.sleep(5 * attempt)
     return []
@@ -168,14 +194,15 @@ def load_sls_map(conn):
     return result
 
 
-def upsert_kbli(conn, sls_map, items):
+def upsert_agregat(conn, sls_map, items, table_name):
     """
-    Upsert baris KBLI ke tabel kbli_usaha. UNIQUE KEY (sls_id, kode_indikator) —
-    total_value NULL disimpan apa adanya (berarti 0 usaha utk kategori itu di SLS itu).
+    Upsert baris agregat ke tabel yang dituju (kbli_usaha / coverage_usaha_keluarga).
+    Kedua tabel skemanya identik. UNIQUE KEY (sls_id, kode_indikator) — total_value
+    NULL disimpan apa adanya (berarti 0 utk indikator itu di SLS itu).
     """
     cur = conn.cursor()
-    SQL = """
-        INSERT INTO kbli_usaha
+    SQL = f"""
+        INSERT INTO {table_name}
           (sls_id, kode_indikator, nama_indikator, satuan, total_value, is_agregat, synced_at)
         VALUES (%s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
@@ -214,7 +241,7 @@ def upsert_kbli(conn, sls_map, items):
 
 def run_once():
     print("=" * 55)
-    print(f"SYNC KBLI SE2026  [{datetime.now():%Y-%m-%d %H:%M:%S}]")
+    print(f"SYNC KBLI + COVERAGE SE2026  [{datetime.now():%Y-%m-%d %H:%M:%S}]")
     print(f"Kabupaten: {KODE_KAB}")
     print("=" * 55)
 
@@ -228,11 +255,17 @@ def run_once():
             sls_map = load_sls_map(conn)
 
             print("\n[KBLI] Mengambil data agregat...", flush=True)
-            items = fetch_kbli(ctx, KODE_KAB)
-            upserted, skipped = upsert_kbli(conn, sls_map, items)
-            conn.close()
+            kbli_items = fetch_agregat(ctx, KODE_KAB, KBLI_INDIKATOR, "KBLI")
+            kbli_up, kbli_skip = upsert_agregat(conn, sls_map, kbli_items, "kbli_usaha")
+            print(f"[KBLI] Selesai: {kbli_up} diupsert, {kbli_skip} dilewati.", flush=True)
 
-            print(f"\nSelesai! {upserted} baris diupsert, {skipped} dilewati (SLS tidak ada di DB).", flush=True)
+            print("\n[COVERAGE] Mengambil data agregat...", flush=True)
+            cov_items = fetch_agregat(ctx, KODE_KAB, COVERAGE_INDIKATOR, "COVERAGE")
+            cov_up, cov_skip = upsert_agregat(conn, sls_map, cov_items, "coverage_usaha_keluarga")
+            print(f"[COVERAGE] Selesai: {cov_up} diupsert, {cov_skip} dilewati.", flush=True)
+
+            conn.close()
+            print(f"\nSelesai semua! KBLI={kbli_up} baris, Coverage={cov_up} baris.", flush=True)
         finally:
             browser.close()
 
