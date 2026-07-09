@@ -974,42 +974,53 @@ func pctCoverage(cov map[string]int, ditemukanKode, baruKode, prelistKode string
 	return math.Min(float64(cov[ditemukanKode]+cov[baruKode])*100/float64(prelist), 100)
 }
 
-// queryCoverageIndikatorList mengambil daftar indikator coverage usaha & keluarga
-// yang sudah ada datanya (pola sama seperti queryKBLIIndikatorList di kbli.go).
-func queryCoverageIndikatorList() []KBLIIndikator {
-	rows, err := db.DB.Query(`SELECT DISTINCT kode_indikator, nama_indikator FROM coverage_usaha_keluarga`)
-	if err != nil {
-		return nil
-	}
-	defer rows.Close()
-	var list []KBLIIndikator
-	for rows.Next() {
-		var k KBLIIndikator
-		rows.Scan(&k.Kode, &k.Nama)
-		list = append(list, k)
-	}
-	sort.Slice(list, func(i, j int) bool {
-		ni, _ := strconv.Atoi(list[i].Kode)
-		nj, _ := strconv.Atoi(list[j].Kode)
-		return ni < nj
-	})
-	return list
+// progresRekapSortKeys adalah kunci sort yang valid di tabel Rekap Progres.
+// Karena kolom coverage dihitung di Go (bukan kolom SQL langsung), semua
+// sorting tabel ini dilakukan di Go (fetch semua baris dulu, baru sort+paginate)
+// — jumlah SLS (~1600-an) kecil sekali jadi tidak masalah performa.
+var progresRekapSortKeys = map[string]bool{
+	"lokasi": true, "petugas": true, "total": true, "submit": true, "draft": true,
+	"approved": true, "rejected": true, "progres": true, "verifikasi": true,
+	"cov_usaha_bku": true, "cov_usaha_keluarga": true, "cov_keluarga": true,
 }
 
-var progresRekapSortCols = map[string]string{
-	"lokasi":   "s.nama_kec, s.nama_desa, s.nama_sls",
-	"petugas":  "ppl.name",
-	"total":    "COALESCE(p.fasih_total,0)",
-	"submit":   "COALESCE(p.fasih_submitted,0)",
-	"draft":    "COALESCE(p.jumlah_draft,0)",
-	"approved": "COALESCE(p.fasih_approved_pengawas,0)",
-	"rejected": "COALESCE(p.fasih_rejected_pengawas,0)",
-	"progres":  "(CASE WHEN COALESCE(p.fasih_total,0)=0 THEN 0 ELSE COALESCE(p.jumlah_submit,0)/p.fasih_total END)",
-	"verifikasi": "(CASE WHEN COALESCE(p.jumlah_submit,0)=0 THEN 0 ELSE " +
-		"(COALESCE(p.fasih_approved_pengawas,0)+COALESCE(p.fasih_rejected_pengawas,0)+COALESCE(p.fasih_revoked_pengawas,0)+" +
-		"COALESCE(p.fasih_approved_kabupaten,0)+COALESCE(p.fasih_rejected_kabupaten,0)+" +
-		"COALESCE(p.fasih_approved_provinsi,0)+COALESCE(p.fasih_rejected_provinsi,0)+" +
-		"COALESCE(p.fasih_approved_pusat,0)+COALESCE(p.fasih_rejected_pusat,0)) / p.jumlah_submit END)",
+func progresRekapLess(list []ProgresRekapRow, sortCol string) func(i, j int) bool {
+	lokasiLess := func(i, j int) bool {
+		a, b := list[i], list[j]
+		if a.NamaKec != b.NamaKec {
+			return a.NamaKec < b.NamaKec
+		}
+		if a.NamaDesa != b.NamaDesa {
+			return a.NamaDesa < b.NamaDesa
+		}
+		return a.NamaSLS < b.NamaSLS
+	}
+	switch sortCol {
+	case "petugas":
+		return func(i, j int) bool { return list[i].NamaPPL < list[j].NamaPPL }
+	case "total":
+		return func(i, j int) bool { return list[i].FasihTotal < list[j].FasihTotal }
+	case "submit":
+		return func(i, j int) bool { return list[i].FasihSubmit < list[j].FasihSubmit }
+	case "draft":
+		return func(i, j int) bool { return list[i].JumlahDraft < list[j].JumlahDraft }
+	case "approved":
+		return func(i, j int) bool { return list[i].Diperiksa < list[j].Diperiksa }
+	case "rejected":
+		return func(i, j int) bool { return list[i].Error < list[j].Error }
+	case "progres":
+		return func(i, j int) bool { return list[i].PctSubmit < list[j].PctSubmit }
+	case "verifikasi":
+		return func(i, j int) bool { return list[i].PctTerverifikasi < list[j].PctTerverifikasi }
+	case "cov_usaha_bku":
+		return func(i, j int) bool { return list[i].PctCoverageUsahaBKU < list[j].PctCoverageUsahaBKU }
+	case "cov_usaha_keluarga":
+		return func(i, j int) bool { return list[i].PctCoverageUsahaKeluarga < list[j].PctCoverageUsahaKeluarga }
+	case "cov_keluarga":
+		return func(i, j int) bool { return list[i].PctCoverageKeluarga < list[j].PctCoverageKeluarga }
+	default:
+		return lokasiLess
+	}
 }
 
 // AdminProgresRekapTable — GET /admin/table/progres-rekap
@@ -1021,8 +1032,8 @@ func AdminProgresRekapTable(c echo.Context) error {
 		page = 1
 	}
 	q := c.QueryParam("q")
-	sort := c.QueryParam("sort")
-	dir := c.QueryParam("dir")
+	sortParam := c.QueryParam("sort")
+	dirParam := c.QueryParam("dir")
 	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
 	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
 	slsID, _ := strconv.Atoi(c.QueryParam("sls_id"))
@@ -1048,10 +1059,6 @@ func AdminProgresRekapTable(c echo.Context) error {
 		where += ` AND s.prioritas = 1`
 	}
 
-	var total int
-	countArgs := append([]interface{}{}, args...)
-	db.DB.QueryRow(`SELECT COUNT(*) FROM sls s`+where, countArgs...).Scan(&total)
-
 	extra := ""
 	if q != "" {
 		extra += "&q=" + q
@@ -1072,20 +1079,15 @@ func AdminProgresRekapTable(c echo.Context) error {
 		extra += "&metode=" + metode
 	}
 
-	sortCols := make(map[string]string, len(progresRekapSortCols))
-	for k, v := range progresRekapSortCols {
-		sortCols[k] = v
+	sortCol := sortParam
+	if !progresRekapSortKeys[sortCol] {
+		sortCol = ""
 	}
-	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(p.jumlah_submit,0)", "COALESCE(p.fasih_total,0)", "s.target_prelist_resmi")
-	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "s.nama_kec, s.nama_desa, s.nama_sls")
+	sortDir := "asc"
+	if dirParam == "desc" {
+		sortDir = "desc"
+	}
 
-	offset := (page - 1) * models.PerPage
-	pageInfo := models.NewPageInfo(page, total, "/admin/table/progres-rekap", "progres-rekap-result", extra+models.SortQueryString(sortCol, sortDir))
-	pageInfo.Sort = sortCol
-	pageInfo.Dir = sortDir
-	pageInfo.FilterExtra = extra
-
-	queryArgs := append(args, models.PerPage, offset)
 	rows, err := db.DB.Query(`
 		SELECT s.id, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
 		       ppl.name, pml.name, s.prioritas,
@@ -1099,9 +1101,7 @@ func AdminProgresRekapTable(c echo.Context) error {
 		FROM sls s
 		JOIN users ppl ON ppl.id = s.ppl_id
 		JOIN users pml ON pml.id = s.pml_id
-		LEFT JOIN progress p ON p.sls_id = s.id`+where+`
-		`+orderBy+`
-		LIMIT ? OFFSET ?`, queryArgs...)
+		LEFT JOIN progress p ON p.sls_id = s.id`+where, args...)
 
 	var list []ProgresRekapRow
 	if err == nil {
@@ -1125,7 +1125,6 @@ func AdminProgresRekapTable(c echo.Context) error {
 		}
 	}
 
-	coverageIndikators := queryCoverageIndikatorList()
 	if len(list) > 0 {
 		placeholders := make([]string, len(list))
 		covArgs := make([]interface{}, len(list))
@@ -1160,6 +1159,30 @@ func AdminProgresRekapTable(c echo.Context) error {
 		}
 	}
 
+	less := progresRekapLess(list, sortCol)
+	sort.SliceStable(list, func(i, j int) bool {
+		if sortDir == "desc" {
+			return less(j, i)
+		}
+		return less(i, j)
+	})
+
+	total := len(list)
+	pageInfo := models.NewPageInfo(page, total, "/admin/table/progres-rekap", "progres-rekap-result", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
+
+	start := (pageInfo.Current - 1) * models.PerPage
+	end := start + models.PerPage
+	if start > total {
+		start = total
+	}
+	if end > total {
+		end = total
+	}
+	pageRows := list[start:end]
+
 	pplSelect := OOBSelect{
 		TargetID: "progresrekap-ppl-select", Name: "ppl_id", Placeholder: "Semua PPL",
 		Options: queryPPLOptionsByFilter(nil, pmlID), Selected: pplID,
@@ -1172,16 +1195,15 @@ func AdminProgresRekapTable(c echo.Context) error {
 	}
 
 	return c.Render(http.StatusOK, "admin_progres_rekap_table.html", map[string]interface{}{
-		"Rows":               list,
-		"PageInfo":           pageInfo,
-		"Q":                  q,
-		"PmlID":              pmlID,
-		"PplID":              pplID,
-		"SlsID":              slsID,
-		"PrioritasOnly":      prioritasOnly,
-		"Metode":             metode,
-		"CoverageIndikators": coverageIndikators,
-		"PPLSelect":          pplSelect,
-		"SLSSelect":          slsSelect,
+		"Rows":          pageRows,
+		"PageInfo":      pageInfo,
+		"Q":             q,
+		"PmlID":         pmlID,
+		"PplID":         pplID,
+		"SlsID":         slsID,
+		"PrioritasOnly": prioritasOnly,
+		"Metode":        metode,
+		"PPLSelect":     pplSelect,
+		"SLSSelect":     slsSelect,
 	})
 }
