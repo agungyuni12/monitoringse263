@@ -145,6 +145,10 @@ func main() {
 	adminGrp.GET("/download/sls", handlers.DownloadSLS)
 	adminGrp.GET("/download/organik", handlers.DownloadOrganik)
 	adminGrp.GET("/download/keberadaan", handlers.DownloadKeberadaan)
+	adminGrp.GET("/download/anomali", handlers.DownloadAnomali)
+	adminGrp.GET("/download/progres-rekap", handlers.DownloadProgresRekap)
+	adminGrp.GET("/download/kbli", handlers.DownloadKBLI)
+	adminGrp.GET("/download/keberadaan-rekap", handlers.DownloadKeberadaanRekap)
 	adminGrp.POST("/sync/fasih", handlers.AdminSyncFasih)
 
 	// Organik routes

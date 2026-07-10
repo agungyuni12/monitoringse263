@@ -463,6 +463,13 @@
               <option value="belum">⏳ Belum Ditindaklanjuti (FASIH)</option>
               <option value="sudah">✅ Sudah Ditindaklanjuti (FASIH)</option>
             </select>
+            <a id="anomali-dl-btn" href="/admin/download/anomali"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
           </div>
           <div id="anomali-result"
             hx-get="/admin/table/anomali" hx-trigger="load" hx-swap="innerHTML">
@@ -562,6 +569,13 @@
                 class="accent-amber-600"/>
               SLS Prioritas saja
             </label>
+            <a id="progresrekap-dl-btn" href="/admin/download/progres-rekap"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
           </div>
           <div id="progres-rekap-result"
             hx-get="/admin/table/progres-rekap"
@@ -580,6 +594,13 @@
               hx-trigger="input changed delay:400ms" hx-include="#kbli-filter-bar"
               placeholder="Cari nama SLS, Desa, Kecamatan..."
               class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <a id="kbli-dl-btn" href="/admin/download/kbli"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
           </div>
           <div id="admin-kbli-wrap"
             hx-get="/admin/table/kbli" hx-trigger="load" hx-swap="innerHTML">
@@ -595,6 +616,13 @@
               hx-trigger="input changed delay:400ms" hx-include="#keberadaan-rekap-filter-bar"
               placeholder="Cari nama SLS, Desa, Kecamatan..."
               class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <a id="keberadaan-rekap-dl-btn" href="/admin/download/keberadaan-rekap"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
           </div>
           <div id="admin-keberadaan-coverage-wrap"
             hx-get="/admin/table/keberadaan-rekap" hx-trigger="load" hx-swap="innerHTML">
@@ -820,7 +848,44 @@
       if (pmlBar) {
         pmlBar.querySelector('[name="q"]').addEventListener('input', updatePMLDownload);
       }
+
+      // Tab-tab baru (Anomali, Rekap Progres, KBLI, Rekap Keberadaan): update href
+      // tombol download otomatis mengikuti filter yang lagi aktif di filter-bar-nya.
+      [
+        {bar: 'anomali-filter-bar', btn: 'anomali-dl-btn', path: '/admin/download/anomali'},
+        {bar: 'progres-rekap-filter-bar', btn: 'progresrekap-dl-btn', path: '/admin/download/progres-rekap', extra: '#global-metode-select'},
+        {bar: 'kbli-filter-bar', btn: 'kbli-dl-btn', path: '/admin/download/kbli'},
+        {bar: 'keberadaan-rekap-filter-bar', btn: 'keberadaan-rekap-dl-btn', path: '/admin/download/keberadaan-rekap'},
+      ].forEach(function(cfg) {
+        var bar = document.getElementById(cfg.bar);
+        if (!bar) return;
+        var update = function() { updateDownloadHref(cfg.bar, cfg.btn, cfg.path, cfg.extra); };
+        bar.addEventListener('input', update);
+        bar.addEventListener('change', update);
+      });
     });
+
+    // Kumpulkan semua field ber-name di dalam filter-bar (+ elemen extraSelector
+    // opsional di luar filter-bar, mis. dropdown metode global) jadi query string,
+    // lalu tempel ke href tombol download. Dipakai bareng oleh tab-tab baru di atas.
+    function updateDownloadHref(barId, btnId, path, extraSelector) {
+      var bar = document.getElementById(barId);
+      var btn = document.getElementById(btnId);
+      if (!bar || !btn) return;
+      var params = [];
+      bar.querySelectorAll('[name]').forEach(function(el) {
+        if (el.type === 'checkbox') {
+          if (el.checked) params.push(el.name + '=' + encodeURIComponent(el.value));
+        } else if (el.value) {
+          params.push(el.name + '=' + encodeURIComponent(el.value));
+        }
+      });
+      if (extraSelector) {
+        var extra = document.querySelector(extraSelector);
+        if (extra && extra.value) params.push(extra.name + '=' + encodeURIComponent(extra.value));
+      }
+      btn.href = path + (params.length ? '?' + params.join('&') : '');
+    }
 
     // ===== TREN PROGRES =====
     // Hanya satu tabel (PPL atau PML) yang tampil & dimuat sesuai pilihan dropdown "Tabel".

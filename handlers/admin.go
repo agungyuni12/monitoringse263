@@ -1030,19 +1030,10 @@ func progresRekapLess(list []ProgresRekapRow, sortCol string) func(i, j int) boo
 // AdminProgresRekapTable — GET /admin/table/progres-rekap
 // Rekap progres (data tabel progress) per SLS, dengan filter PML/PPL/SLS/prioritas
 // yang sama seperti rekap keberadaan sebelumnya. % Progres mengikuti metode global.
-func AdminProgresRekapTable(c echo.Context) error {
-	page, _ := strconv.Atoi(c.QueryParam("page"))
-	if page < 1 {
-		page = 1
-	}
-	q := c.QueryParam("q")
-	sortParam := c.QueryParam("sort")
-	dirParam := c.QueryParam("dir")
-	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
-	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
-	slsID, _ := strconv.Atoi(c.QueryParam("sls_id"))
-	prioritasOnly := c.QueryParam("prioritas") == "1"
-	metode := normalizeMetode(c.QueryParam("metode"))
+// queryProgresRekapRows mengambil SEMUA baris Rekap Progres (tanpa sort/paginate)
+// sesuai filter — dipakai bareng oleh AdminProgresRekapTable (sort+paginate utk
+// tampilan) dan DownloadProgresRekap (dump semua baris ke Excel).
+func queryProgresRekapRows(q string, pmlID, pplID, slsID int, prioritasOnly bool, metode string) []ProgresRekapRow {
 	like := "%" + q + "%"
 
 	where := ` WHERE (s.nama_sls LIKE ? OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?)`
@@ -1061,35 +1052,6 @@ func AdminProgresRekapTable(c echo.Context) error {
 	}
 	if prioritasOnly {
 		where += ` AND s.prioritas = 1`
-	}
-
-	extra := ""
-	if q != "" {
-		extra += "&q=" + q
-	}
-	if pmlID > 0 {
-		extra += fmt.Sprintf("&pml_id=%d", pmlID)
-	}
-	if pplID > 0 {
-		extra += fmt.Sprintf("&ppl_id=%d", pplID)
-	}
-	if slsID > 0 {
-		extra += fmt.Sprintf("&sls_id=%d", slsID)
-	}
-	if prioritasOnly {
-		extra += "&prioritas=1"
-	}
-	if metode != MetodeTotalVsTotal {
-		extra += "&metode=" + metode
-	}
-
-	sortCol := sortParam
-	if !progresRekapSortKeys[sortCol] {
-		sortCol = ""
-	}
-	sortDir := "asc"
-	if dirParam == "desc" {
-		sortDir = "desc"
 	}
 
 	rows, err := db.DB.Query(`
@@ -1162,6 +1124,54 @@ func AdminProgresRekapTable(c echo.Context) error {
 			r.PctCoverageKeluarga = pctCoverage(r.Coverage, kodeCovKeluargaDitemukan, kodeCovKeluargaBaru, kodeCovKeluargaPrelist)
 		}
 	}
+
+	return list
+}
+
+func AdminProgresRekapTable(c echo.Context) error {
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page < 1 {
+		page = 1
+	}
+	q := c.QueryParam("q")
+	sortParam := c.QueryParam("sort")
+	dirParam := c.QueryParam("dir")
+	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
+	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
+	slsID, _ := strconv.Atoi(c.QueryParam("sls_id"))
+	prioritasOnly := c.QueryParam("prioritas") == "1"
+	metode := normalizeMetode(c.QueryParam("metode"))
+
+	extra := ""
+	if q != "" {
+		extra += "&q=" + q
+	}
+	if pmlID > 0 {
+		extra += fmt.Sprintf("&pml_id=%d", pmlID)
+	}
+	if pplID > 0 {
+		extra += fmt.Sprintf("&ppl_id=%d", pplID)
+	}
+	if slsID > 0 {
+		extra += fmt.Sprintf("&sls_id=%d", slsID)
+	}
+	if prioritasOnly {
+		extra += "&prioritas=1"
+	}
+	if metode != MetodeTotalVsTotal {
+		extra += "&metode=" + metode
+	}
+
+	sortCol := sortParam
+	if !progresRekapSortKeys[sortCol] {
+		sortCol = ""
+	}
+	sortDir := "asc"
+	if dirParam == "desc" {
+		sortDir = "desc"
+	}
+
+	list := queryProgresRekapRows(q, pmlID, pplID, slsID, prioritasOnly, metode)
 
 	less := progresRekapLess(list, sortCol)
 	sort.SliceStable(list, func(i, j int) bool {
