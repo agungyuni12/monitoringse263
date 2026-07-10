@@ -355,15 +355,21 @@ def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at):
     Kalau assignment yang sama muncul lagi di fetch berikutnya, sudah_ditindaklanjuti_sigempar
     otomatis di-reset ke NULL lagi (dianggap aktif kembali).
     UNIQUE KEY adalah (assignment_id, rule_key) — satu baris per (assignment, tipe anomali).
+
+    first_detected_at diisi SEKALI waktu baris pertama kali di-INSERT dan sengaja
+    TIDAK disentuh lagi di ON DUPLICATE KEY UPDATE — itu yang jadi "kapan anomali
+    ini pertama kali muncul", beda dari synced_at yang selalu ke-refresh tiap kali
+    anomali yang sama masih terdeteksi aktif.
+
     Return (n_upserted, n_skipped, n_resolved).
     """
     cur = conn.cursor()
 
     SQL = """
         INSERT INTO anomali
-          (sls_id, assignment_id, nama, jenis, rule_key, rule_msg, rule_type, synced_at,
-           sudah_ditindaklanjuti_sigempar, is_resolved_fasih)
-        VALUES (%s, %s, %s, %s, %s, %s, 1, %s, NULL, %s)
+          (sls_id, assignment_id, nama, jenis, rule_key, rule_msg, rule_type,
+           first_detected_at, synced_at, sudah_ditindaklanjuti_sigempar, is_resolved_fasih)
+        VALUES (%s, %s, %s, %s, %s, %s, 1, %s, %s, NULL, %s)
         ON DUPLICATE KEY UPDATE
           sls_id    = VALUES(sls_id),
           nama      = IF(VALUES(nama) != '' AND VALUES(nama) IS NOT NULL, VALUES(nama), nama),
@@ -396,7 +402,7 @@ def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at):
         try:
             cur.execute(SQL, (
                 sls_id, assignment_id, nama, short_label,
-                rule_key, rule_msg, synced_at, is_resolved_fasih,
+                rule_key, rule_msg, synced_at, synced_at, is_resolved_fasih,
             ))
             upserted += 1
         except Exception as e:

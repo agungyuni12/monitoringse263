@@ -13,19 +13,20 @@ import (
 )
 
 type AnomaliRow struct {
-	ID            int
-	NamaSLS       string
-	NamaKec       string
-	NamaDesa      string
-	NamaPPL       string
-	NamaPML       string
-	Nama          string // nama usaha/KRT
-	Jenis         string // short_label
-	RuleKey       string
-	RuleMsg       string
-	SyncedAt      string
-	SigemparAt    string // kapan ditandai sudah ditindaklanjuti SIGEMPAR, kosong = belum
-	ResolvedFasih bool   // status is_resolved asli dari API FASIH/dashboard
+	ID              int
+	NamaSLS         string
+	NamaKec         string
+	NamaDesa        string
+	NamaPPL         string
+	NamaPML         string
+	Nama            string // nama usaha/KRT
+	Jenis           string // short_label
+	RuleKey         string
+	RuleMsg         string
+	FirstDetectedAt string // kapan anomali ini PERTAMA KALI terdeteksi (tidak berubah lagi setelahnya)
+	SyncedAt        string // kapan TERAKHIR KALI masih terdeteksi aktif (di-refresh tiap sync)
+	SigemparAt      string // kapan ditandai sudah ditindaklanjuti SIGEMPAR, kosong = belum
+	ResolvedFasih   bool   // status is_resolved asli dari API FASIH/dashboard
 }
 
 type PPLUser struct {
@@ -86,6 +87,7 @@ var anomaliSortCols = map[string]string{
 	"nama":       "a.nama",
 	"jenis":      "a.rule_key",
 	"keterangan": "a.rule_msg",
+	"muncul":     "a.first_detected_at",
 	"sync":       "a.synced_at",
 	"sigempar":   "a.sudah_ditindaklanjuti_sigempar",
 	"fasih":      "a.is_resolved_fasih",
@@ -121,7 +123,10 @@ func queryAnomaili(page int, q, kec, status, fasih, tglSampai, sort, dir string,
 		where += " AND a.is_resolved_fasih = 1"
 	}
 	if tglSampai != "" {
-		where += " AND DATE(a.synced_at) <= ?"
+		// Filter berdasarkan kapan anomali PERTAMA KALI muncul, bukan kapan
+		// terakhir sync — synced_at ikut ter-refresh tiap kali anomali yang
+		// sama masih aktif, jadi tidak cocok dipakai sebagai filter tanggal.
+		where += " AND DATE(a.first_detected_at) <= ?"
 		args = append(args, tglSampai)
 	}
 
@@ -165,6 +170,7 @@ func queryAnomaili(page int, q, kec, status, fasih, tglSampai, sort, dir string,
 		SELECT a.id, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
 		       ppl.name, pml.name,
 		       a.nama, a.jenis, a.rule_key, COALESCE(a.rule_msg,''),
+		       COALESCE(DATE_FORMAT(a.first_detected_at,'%d/%m/%Y %H:%i'),''),
 		       COALESCE(DATE_FORMAT(a.synced_at,'%d/%m/%Y %H:%i'),''),
 		       COALESCE(DATE_FORMAT(a.sudah_ditindaklanjuti_sigempar,'%d/%m/%Y %H:%i'),''),
 		       a.is_resolved_fasih
@@ -190,7 +196,7 @@ func queryAnomaili(page int, q, kec, status, fasih, tglSampai, sort, dir string,
 		var r AnomaliRow
 		rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa,
 			&r.NamaPPL, &r.NamaPML,
-			&r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.SyncedAt, &r.SigemparAt, &r.ResolvedFasih)
+			&r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.FirstDetectedAt, &r.SyncedAt, &r.SigemparAt, &r.ResolvedFasih)
 		list = append(list, r)
 	}
 	return list, pageInfo

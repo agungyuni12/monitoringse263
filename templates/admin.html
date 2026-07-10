@@ -463,8 +463,8 @@
               <option value="belum">⏳ Belum Ditindaklanjuti (FASIH)</option>
               <option value="sudah">✅ Sudah Ditindaklanjuti (FASIH)</option>
             </select>
-            <label class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-              s.d. tanggal
+            <label class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400" title="Filter berdasarkan tanggal anomali pertama kali muncul">
+              muncul s.d.
               <input type="date" name="tgl"
                 hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
                 hx-trigger="change" hx-include="#anomali-filter-bar"

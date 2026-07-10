@@ -547,7 +547,7 @@ func DownloadAnomali(c echo.Context) error {
 		where += " AND a.is_resolved_fasih = 1"
 	}
 	if tglSampai != "" {
-		where += " AND DATE(a.synced_at) <= ?"
+		where += " AND DATE(a.first_detected_at) <= ?"
 		args = append(args, tglSampai)
 	}
 
@@ -555,6 +555,7 @@ func DownloadAnomali(c echo.Context) error {
 		SELECT s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
 		       ppl.name, pml.name,
 		       a.nama, a.jenis, COALESCE(a.rule_msg,''),
+		       COALESCE(DATE_FORMAT(a.first_detected_at,'%d/%m/%Y %H:%i'),''),
 		       COALESCE(DATE_FORMAT(a.synced_at,'%d/%m/%Y %H:%i'),''),
 		       COALESCE(DATE_FORMAT(a.sudah_ditindaklanjuti_sigempar,'%d/%m/%Y %H:%i'),''),
 		       a.is_resolved_fasih
@@ -569,18 +570,18 @@ func DownloadAnomali(c echo.Context) error {
 	defer rows.Close()
 
 	type row struct {
-		sls, kec, desa, ppl, pml, nama, jenis, msg, syncedAt, sigemparAt string
-		resolvedFasih                                                    bool
+		sls, kec, desa, ppl, pml, nama, jenis, msg, firstDetectedAt, syncedAt, sigemparAt string
+		resolvedFasih                                                                     bool
 	}
 	var data []row
 	for rows.Next() {
 		var r row
-		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.nama, &r.jenis, &r.msg, &r.syncedAt, &r.sigemparAt, &r.resolvedFasih)
+		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.nama, &r.jenis, &r.msg, &r.firstDetectedAt, &r.syncedAt, &r.sigemparAt, &r.resolvedFasih)
 		data = append(data, r)
 	}
 
 	fname := fmt.Sprintf("monitoring_anomali_%s.xlsx", time.Now().In(wita).Format("20060102"))
-	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Nama Responden", "Jenis Anomali", "Keterangan", "Sync Terakhir", "Sudah Ditindaklanjuti SIGEMPAR", "Status FASIH"}
+	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Nama Responden", "Jenis Anomali", "Keterangan", "Pertama Muncul", "Terakhir Aktif", "Sudah Ditindaklanjuti SIGEMPAR", "Status FASIH"}
 	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
 		for i, r := range data {
 			n := i + 2
@@ -592,9 +593,10 @@ func DownloadAnomali(c echo.Context) error {
 			f.SetCellValue(sheet, cell(6, n), r.nama)
 			f.SetCellValue(sheet, cell(7, n), r.jenis)
 			f.SetCellValue(sheet, cell(8, n), r.msg)
-			f.SetCellValue(sheet, cell(9, n), r.syncedAt)
-			f.SetCellValue(sheet, cell(10, n), r.sigemparAt)
-			f.SetCellValue(sheet, cell(11, n), boolLabel(r.resolvedFasih, "Sudah", "Belum"))
+			f.SetCellValue(sheet, cell(9, n), r.firstDetectedAt)
+			f.SetCellValue(sheet, cell(10, n), r.syncedAt)
+			f.SetCellValue(sheet, cell(11, n), r.sigemparAt)
+			f.SetCellValue(sheet, cell(12, n), boolLabel(r.resolvedFasih, "Sudah", "Belum"))
 		}
 	})
 }
