@@ -463,6 +463,13 @@
               <option value="belum">⏳ Belum Ditindaklanjuti (FASIH)</option>
               <option value="sudah">✅ Sudah Ditindaklanjuti (FASIH)</option>
             </select>
+            <label class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+              s.d. tanggal
+              <input type="date" name="tgl"
+                hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
+                hx-trigger="change" hx-include="#anomali-filter-bar"
+                class="px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"/>
+            </label>
             <a id="anomali-dl-btn" href="/admin/download/anomali"
               class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

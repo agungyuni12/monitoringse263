@@ -189,8 +189,11 @@ def fetch_dashboard_synced_at(ctx, kode_kab):
                 return synced_str
     except Exception as e:
         print(f"[SYNC TIME] Gagal ambil updated_at: {e}", flush=True)
-    fallback = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[SYNC TIME] Fallback ke now: {fallback}", flush=True)
+    # Fallback HARUS tetap WITA — container ini jalan di UTC (Docker default),
+    # jadi datetime.now() polos di sini menghasilkan jam UTC yang salah 8 jam
+    # kalau langsung disimpan (kolom synced_at diasumsikan selalu WITA).
+    fallback = datetime.now(WITA).strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[SYNC TIME] Fallback ke now (WITA): {fallback}", flush=True)
     return fallback
 
 

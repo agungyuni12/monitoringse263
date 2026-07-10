@@ -517,6 +517,7 @@ func DownloadAnomali(c echo.Context) error {
 	kec := c.QueryParam("kec")
 	status := c.QueryParam("status")
 	fasih := c.QueryParam("fasih")
+	tglSampai := c.QueryParam("tgl")
 	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
 	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
 	like := "%" + q + "%"
@@ -544,6 +545,10 @@ func DownloadAnomali(c echo.Context) error {
 		where += " AND a.is_resolved_fasih = 0"
 	} else if fasih == "sudah" {
 		where += " AND a.is_resolved_fasih = 1"
+	}
+	if tglSampai != "" {
+		where += " AND DATE(a.synced_at) <= ?"
+		args = append(args, tglSampai)
 	}
 
 	rows, err := db.DB.Query(`

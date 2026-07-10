@@ -91,7 +91,7 @@ var anomaliSortCols = map[string]string{
 	"fasih":      "a.is_resolved_fasih",
 }
 
-func queryAnomaili(page int, q, kec, status, fasih, sort, dir string, pmlID, pplID int, targetID, baseURL string) ([]AnomaliRow, models.PageInfo) {
+func queryAnomaili(page int, q, kec, status, fasih, tglSampai, sort, dir string, pmlID, pplID int, targetID, baseURL string) ([]AnomaliRow, models.PageInfo) {
 	like := "%" + q + "%"
 
 	// Build WHERE clause
@@ -120,6 +120,10 @@ func queryAnomaili(page int, q, kec, status, fasih, sort, dir string, pmlID, ppl
 	} else if fasih == "sudah" {
 		where += " AND a.is_resolved_fasih = 1"
 	}
+	if tglSampai != "" {
+		where += " AND DATE(a.synced_at) <= ?"
+		args = append(args, tglSampai)
+	}
 
 	var total int
 	countArgs := make([]interface{}, len(args))
@@ -145,6 +149,9 @@ func queryAnomaili(page int, q, kec, status, fasih, sort, dir string, pmlID, ppl
 	}
 	if fasih != "" {
 		extra += "&fasih=" + fasih
+	}
+	if tglSampai != "" {
+		extra += "&tgl=" + tglSampai
 	}
 
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, anomaliSortCols, "s.nama_kec, s.nama_desa, s.nama_sls, a.rule_key")
@@ -199,12 +206,13 @@ func AdminAnomaliTable(c echo.Context) error {
 	kec := c.QueryParam("kec")
 	status := c.QueryParam("status")
 	fasih := c.QueryParam("fasih")
+	tglSampai := c.QueryParam("tgl")
 	sort := c.QueryParam("sort")
 	dir := c.QueryParam("dir")
 	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
 	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
 
-	list, pageInfo := queryAnomaili(page, q, kec, status, fasih, sort, dir, pmlID, pplID, "anomali-result", "/admin/table/anomali")
+	list, pageInfo := queryAnomaili(page, q, kec, status, fasih, tglSampai, sort, dir, pmlID, pplID, "anomali-result", "/admin/table/anomali")
 
 	var kecs []string
 	if kec != "" {
@@ -226,6 +234,7 @@ func AdminAnomaliTable(c echo.Context) error {
 		"PageInfo":  pageInfo,
 		"PMLSelect": pmlSelect,
 		"PPLSelect": pplSelect,
+		"TglSampai": tglSampai,
 	})
 }
 
