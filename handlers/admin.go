@@ -966,12 +966,16 @@ const (
 )
 
 // pctCoverage menghitung (ditemukan+baru)/prelist*100, dibatasi maks 100.
+// pctCoverage TIDAK dibatasi 100% — assignment tambahan di luar prelist resmi
+// bisa bikin (ditemukan+baru) lebih banyak dari prelist awal, jadi coverage
+// >100% itu valid & informatif (bukan bug), sama seperti metode Total/Prelist
+// di % Progres.
 func pctCoverage(cov map[string]int, ditemukanKode, baruKode, prelistKode string) float64 {
 	prelist := cov[prelistKode]
 	if prelist <= 0 {
 		return 0
 	}
-	return math.Min(float64(cov[ditemukanKode]+cov[baruKode])*100/float64(prelist), 100)
+	return float64(cov[ditemukanKode]+cov[baruKode]) * 100 / float64(prelist)
 }
 
 // progresRekapSortKeys adalah kunci sort yang valid di tabel Rekap Progres.

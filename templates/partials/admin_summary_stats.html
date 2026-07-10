@@ -1,20 +1,20 @@
 {{define "admin_summary_stats.html"}}
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-  <div class="group bg-white dark:bg-gray-900 rounded-xl shadow-sm dark:shadow-none dark:ring-1 dark:ring-gray-800 p-4 border-l-4 border-gray-400 dark:border-gray-600 hover:shadow-md transition-shadow">
+  <div class="group bg-white dark:bg-gray-900 rounded-xl shadow-sm dark:shadow-none dark:ring-1 dark:ring-gray-800 p-4 border-l-4 border-gray-400 dark:border-gray-600 hover:shadow-md hover:-translate-y-0.5 transition-all">
     <div class="flex items-center justify-between mb-1">
       <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium">Total SLS</p>
       <svg class="w-4 h-4 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7l9-4 9 4-9 4-9-4zm0 0v10l9 4 9-4V7"/></svg>
     </div>
     <p class="text-3xl font-bold text-gray-700 dark:text-gray-100">{{.Summary.TotalSLS}}</p>
   </div>
-  <div class="group bg-white dark:bg-gray-900 rounded-xl shadow-sm dark:shadow-none dark:ring-1 dark:ring-gray-800 p-4 border-l-4 border-gray-400 dark:border-gray-600 hover:shadow-md transition-shadow">
+  <div class="group bg-white dark:bg-gray-900 rounded-xl shadow-sm dark:shadow-none dark:ring-1 dark:ring-gray-800 p-4 border-l-4 border-gray-400 dark:border-gray-600 hover:shadow-md hover:-translate-y-0.5 transition-all">
     <div class="flex items-center justify-between mb-1">
       <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium">Total Target</p>
       <svg class="w-4 h-4 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" stroke-width="1.5"/><circle cx="12" cy="12" r="3" stroke-width="1.5"/></svg>
     </div>
     <p class="text-3xl font-bold text-gray-700 dark:text-gray-100">{{.Summary.TotalTarget}}</p>
   </div>
-  <div class="group bg-white dark:bg-gray-900 rounded-xl shadow-sm dark:shadow-none dark:ring-1 dark:ring-gray-800 p-4 border-l-4 border-green-500 hover:shadow-md transition-shadow">
+  <div class="group bg-white dark:bg-gray-900 rounded-xl shadow-sm dark:shadow-none dark:ring-1 dark:ring-gray-800 p-4 border-l-4 border-green-500 hover:shadow-md hover:-translate-y-0.5 transition-all">
     <div class="flex items-center justify-between mb-1">
       <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium">Submit PPL</p>
       <svg class="w-4 h-4 text-green-300 dark:text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7"/></svg>
@@ -22,7 +22,7 @@
     <p class="text-3xl font-bold text-green-600 dark:text-green-400">{{.Summary.TotalFasihSubmit}}</p>
     <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Pending review PML</p>
   </div>
-  <div class="group bg-white dark:bg-gray-900 rounded-xl shadow-sm dark:shadow-none dark:ring-1 dark:ring-gray-800 p-4 border-l-4 border-se hover:shadow-md transition-shadow">
+  <div class="group bg-white dark:bg-gray-900 rounded-xl shadow-sm dark:shadow-none dark:ring-1 dark:ring-gray-800 p-4 border-l-4 border-se hover:shadow-md hover:-translate-y-0.5 transition-all">
     <div class="flex items-center justify-between mb-1">
       <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium">Draft PPL</p>
       <svg class="w-4 h-4 text-orange-200 dark:text-orange-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 4h2m-1 0v16m-7-4h14"/></svg>

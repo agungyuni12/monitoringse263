@@ -74,25 +74,25 @@
           <td class="px-3 py-2 min-w-[110px]">
             <div class="flex items-center gap-1.5">
               <div class="flex-1 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                <div class="h-full bg-amber-500 rounded-full" style="width:{{$r.PctCoverageUsahaBKU}}%"></div>
+                <div class="h-full {{if gt $r.PctCoverageUsahaBKU 100.0}}bg-purple-500{{else}}bg-amber-500{{end}} rounded-full" style="width:{{if gt $r.PctCoverageUsahaBKU 100.0}}100{{else}}{{$r.PctCoverageUsahaBKU}}{{end}}%"></div>
               </div>
-              <span class="text-xs {{if gt $r.PctCoverageUsahaBKU 0.0}}text-amber-600 dark:text-amber-500 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} w-10 text-right">{{pctf $r.PctCoverageUsahaBKU}}%</span>
+              <span class="text-xs {{if gt $r.PctCoverageUsahaBKU 100.0}}text-purple-600 dark:text-purple-400 font-semibold{{else if gt $r.PctCoverageUsahaBKU 0.0}}text-amber-600 dark:text-amber-500 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} w-12 text-right">{{pctf $r.PctCoverageUsahaBKU}}%</span>
             </div>
           </td>
           <td class="px-3 py-2 min-w-[110px]">
             <div class="flex items-center gap-1.5">
               <div class="flex-1 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                <div class="h-full bg-teal-500 rounded-full" style="width:{{$r.PctCoverageUsahaKeluarga}}%"></div>
+                <div class="h-full {{if gt $r.PctCoverageUsahaKeluarga 100.0}}bg-purple-500{{else}}bg-teal-500{{end}} rounded-full" style="width:{{if gt $r.PctCoverageUsahaKeluarga 100.0}}100{{else}}{{$r.PctCoverageUsahaKeluarga}}{{end}}%"></div>
               </div>
-              <span class="text-xs {{if gt $r.PctCoverageUsahaKeluarga 0.0}}text-teal-600 dark:text-teal-500 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} w-10 text-right">{{pctf $r.PctCoverageUsahaKeluarga}}%</span>
+              <span class="text-xs {{if gt $r.PctCoverageUsahaKeluarga 100.0}}text-purple-600 dark:text-purple-400 font-semibold{{else if gt $r.PctCoverageUsahaKeluarga 0.0}}text-teal-600 dark:text-teal-500 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} w-12 text-right">{{pctf $r.PctCoverageUsahaKeluarga}}%</span>
             </div>
           </td>
           <td class="px-3 py-2 min-w-[110px]">
             <div class="flex items-center gap-1.5">
               <div class="flex-1 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                <div class="h-full bg-indigo-500 rounded-full" style="width:{{$r.PctCoverageKeluarga}}%"></div>
+                <div class="h-full {{if gt $r.PctCoverageKeluarga 100.0}}bg-purple-500{{else}}bg-indigo-500{{end}} rounded-full" style="width:{{if gt $r.PctCoverageKeluarga 100.0}}100{{else}}{{$r.PctCoverageKeluarga}}{{end}}%"></div>
               </div>
-              <span class="text-xs {{if gt $r.PctCoverageKeluarga 0.0}}text-indigo-600 dark:text-indigo-500 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} w-10 text-right">{{pctf $r.PctCoverageKeluarga}}%</span>
+              <span class="text-xs {{if gt $r.PctCoverageKeluarga 100.0}}text-purple-600 dark:text-purple-400 font-semibold{{else if gt $r.PctCoverageKeluarga 0.0}}text-indigo-600 dark:text-indigo-500 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} w-12 text-right">{{pctf $r.PctCoverageKeluarga}}%</span>
             </div>
           </td>
         </tr>
