@@ -24,8 +24,8 @@ func writeXlsx(c echo.Context, filename string, headers []string, fillRows func(
 	f.SetSheetName("Sheet1", sheet)
 
 	bold, _ := f.NewStyle(&excelize.Style{
-		Font: &excelize.Font{Bold: true, Color: "FFFFFF"},
-		Fill: excelize.Fill{Type: "pattern", Color: []string{"F37021"}, Pattern: 1},
+		Font:      &excelize.Font{Bold: true, Color: "FFFFFF"},
+		Fill:      excelize.Fill{Type: "pattern", Color: []string{"F37021"}, Pattern: 1},
 		Alignment: &excelize.Alignment{Horizontal: "center"},
 	})
 
@@ -65,7 +65,7 @@ func DownloadPML(c echo.Context) error {
 	defer rows.Close()
 
 	type row struct {
-		name                              string
+		name                                              string
 		jmlPPL, jmlSLS, submit, draft, approved, rejected int
 	}
 	var data []row
@@ -123,7 +123,7 @@ func DownloadPPL(c echo.Context) error {
 	defer rows.Close()
 
 	type row struct {
-		ppl, pml         string
+		ppl, pml                      string
 		jmlSLS, submit, draft, target int
 	}
 	var data []row
@@ -177,7 +177,7 @@ func DownloadSLS(c echo.Context) error {
 		}
 		defer rows.Close()
 		type row struct {
-			kec                                     string
+			kec                                           string
 			jml, total, submit, draft, approved, rejected int
 		}
 		var data []row
@@ -218,7 +218,7 @@ func DownloadSLS(c echo.Context) error {
 		}
 		defer rows.Close()
 		type row struct {
-			desa, kec                               string
+			desa, kec                                     string
 			jml, total, submit, draft, approved, rejected int
 		}
 		var data []row
@@ -264,7 +264,7 @@ func DownloadSLS(c echo.Context) error {
 		}
 		defer rows.Close()
 		type row struct {
-			kode, nama, ppl, pml, desa, kec    string
+			kode, nama, ppl, pml, desa, kec          string
 			total, submit, draft, approved, rejected int
 		}
 		var data []row
@@ -318,7 +318,7 @@ func DownloadOrganik(c echo.Context) error {
 
 	type row struct {
 		org, sls, desa, kec, ppl, pml, tgl, kendala, solusi string
-		diawasi                                              int
+		diawasi                                             int
 	}
 	var data []row
 	for rows.Next() {
@@ -565,7 +565,7 @@ func DownloadAnomali(c echo.Context) error {
 
 	type row struct {
 		sls, kec, desa, ppl, pml, nama, jenis, msg, syncedAt, sigemparAt string
-		resolvedFasih                                                   bool
+		resolvedFasih                                                    bool
 	}
 	var data []row
 	for rows.Next() {
