@@ -135,6 +135,7 @@ func main() {
 	adminGrp.GET("/table/keberadaan", handlers.AdminKeberadaanTable)
 	adminGrp.GET("/table/progres-rekap", handlers.AdminProgresRekapTable)
 	adminGrp.GET("/table/kbli", handlers.AdminKBLITable)
+	adminGrp.GET("/table/keberadaan-rekap", handlers.AdminKeberadaanRekapTable)
 	adminGrp.GET("/table/trend/ppl", handlers.AdminTableTrendPPL)
 	adminGrp.GET("/table/trend/pml", handlers.AdminTableTrendPML)
 	adminGrp.GET("/geo/stats", handlers.AdminGeoStats)

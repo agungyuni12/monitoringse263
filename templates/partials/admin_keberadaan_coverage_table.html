@@ -1,6 +1,6 @@
-{{define "admin_kbli_table.html"}}
+{{define "admin_keberadaan_coverage_table.html"}}
 <div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
-  Jumlah usaha per kategori KBLI, disinkron dari Dashboard SE2026 (data per SLS).
+  Status keberadaan usaha (mandiri & dalam keluarga) dan keluarga per SLS, disinkron dari Dashboard SE2026.
 </div>
 <div class="overflow-x-auto">
   <table class="w-full text-sm">
@@ -35,7 +35,7 @@
         {{end}}
       </tr>
       {{else}}
-      <tr><td colspan="20" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">Belum ada data KBLI. Jalankan sinkronisasi terlebih dahulu.</td></tr>
+      <tr><td colspan="20" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">Belum ada data keberadaan. Jalankan sinkronisasi terlebih dahulu.</td></tr>
       {{end}}
     </tbody>
   </table>

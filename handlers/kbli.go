@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -12,15 +13,18 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// KBLIIndikator adalah satu kategori KBLI (kode + label), diambil dinamis dari
-// data yang sudah disinkron — bukan di-hardcode, supaya tidak salah kalau BPS
-// ubah daftar/urutan kategori indikator.
+// KBLIIndikator adalah satu kategori/indikator (kode + label), diambil dinamis
+// dari data yang sudah disinkron — bukan di-hardcode, supaya tidak salah kalau
+// BPS ubah daftar/urutan kategori indikator.
 type KBLIIndikator struct {
 	Kode string
 	Nama string
 }
 
-type KBLIRow struct {
+// WideAgregatRow adalah satu baris SLS di tabel lebar per-indikator, dipakai
+// bareng oleh tab "KBLI per SLS" (tabel kbli_usaha) dan "Rekap Keberadaan"
+// (tabel coverage_usaha_keluarga) — keduanya skema identik: sls_id + kode_indikator + total_value.
+type WideAgregatRow struct {
 	ID       int
 	KodeSLS  string
 	NamaSLS  string
@@ -28,11 +32,11 @@ type KBLIRow struct {
 	NamaDesa string
 	NamaPPL  string
 	NamaPML  string
-	Values   map[string]int // kode_indikator -> jumlah usaha
-	Total    int            // jumlah usaha semua kategori utk SLS ini
+	Values   map[string]int // kode_indikator -> jumlah
+	Total    int            // jumlah semua kategori/indikator utk SLS ini
 }
 
-var kbliSortCols = map[string]string{
+var wideAgregatSortCols = map[string]string{
 	"kode_sls": "s.kode_sls",
 	"nama_sls": "s.nama_sls",
 	"ppl":      "ppl.name",
@@ -40,10 +44,12 @@ var kbliSortCols = map[string]string{
 	"lokasi":   "s.nama_kec, s.nama_desa",
 }
 
-// queryKBLIIndikatorList mengambil daftar kategori KBLI yang sudah ada datanya,
-// diurutkan numerik berdasarkan kode_indikator (mis. 60, 63, 66, ..., 10254).
-func queryKBLIIndikatorList() []KBLIIndikator {
-	rows, err := db.DB.Query(`SELECT DISTINCT kode_indikator, nama_indikator FROM kbli_usaha`)
+// queryAgregatIndikatorList mengambil daftar indikator yang sudah ada datanya
+// di tabel agregat tertentu, diurutkan numerik berdasarkan kode_indikator.
+// table adalah nama tabel yang di-hardcode oleh caller (bukan input pengguna),
+// jadi aman diselipkan langsung ke query.
+func queryAgregatIndikatorList(table string) []KBLIIndikator {
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT DISTINCT kode_indikator, nama_indikator FROM %s`, table))
 	if err != nil {
 		return nil
 	}
@@ -62,9 +68,12 @@ func queryKBLIIndikatorList() []KBLIIndikator {
 	return list
 }
 
-// AdminKBLITable — GET /admin/table/kbli
-// Tabel lebar: 1 baris per SLS, 1 kolom per kategori KBLI (jumlah usaha).
-func AdminKBLITable(c echo.Context) error {
+// adminWideAgregatTable adalah handler generik: tabel lebar per SLS, 1 kolom
+// per indikator, dari sebuah tabel agregat "kode_indikator -> total_value".
+// Dipakai oleh AdminKBLITable & AdminKeberadaanRekapTable — sengaja generik
+// supaya kalau nanti ada dataset agregat baru dari dashboard-se2026 (skema
+// sama persis), tinggal tambah satu wrapper tipis tanpa duplikasi query.
+func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath string) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
 		page = 1
@@ -87,15 +96,15 @@ func AdminKBLITable(c echo.Context) error {
 	if q != "" {
 		extra = "&q=" + q
 	}
-	orderBy, sortCol, sortDir := models.BuildOrderBy(sortKey, dir, kbliSortCols, "s.kode_kec, s.kode_desa, s.kode_sls")
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sortKey, dir, wideAgregatSortCols, "s.kode_kec, s.kode_desa, s.kode_sls")
 
 	offset := (page - 1) * models.PerPage
-	pageInfo := models.NewPageInfo(page, total, "/admin/table/kbli", "admin-kbli-wrap", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo := models.NewPageInfo(page, total, routePath, wrapID, extra+models.SortQueryString(sortCol, sortDir))
 	pageInfo.Sort = sortCol
 	pageInfo.Dir = sortDir
 	pageInfo.FilterExtra = extra
 
-	indikatorList := queryKBLIIndikatorList()
+	indikatorList := queryAgregatIndikatorList(table)
 
 	rows, err := db.DB.Query(`
 		SELECT s.id, s.kode_sls, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
@@ -109,17 +118,17 @@ func AdminKBLITable(c echo.Context) error {
 		LIMIT ? OFFSET ?`,
 		like, like, like, like, like, models.PerPage, offset)
 	if err != nil {
-		return c.Render(http.StatusOK, "admin_kbli_table.html", map[string]interface{}{
-			"Rows": nil, "KBLIPage": pageInfo, "Indikators": indikatorList, "Q": q,
+		return c.Render(http.StatusOK, tmplName, map[string]interface{}{
+			"Rows": nil, "Page": pageInfo, "Indikators": indikatorList, "Q": q,
 		})
 	}
 	defer rows.Close()
 
 	var slsIDs []int
-	bySLS := map[int]*KBLIRow{}
-	var list []*KBLIRow
+	bySLS := map[int]*WideAgregatRow{}
+	var list []*WideAgregatRow
 	for rows.Next() {
-		var r KBLIRow
+		var r WideAgregatRow
 		rows.Scan(&r.ID, &r.KodeSLS, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML)
 		r.Values = map[string]int{}
 		list = append(list, &r)
@@ -134,10 +143,10 @@ func AdminKBLITable(c echo.Context) error {
 			placeholders[i] = "?"
 			args[i] = id
 		}
-		valRows, err := db.DB.Query(`
+		valRows, err := db.DB.Query(fmt.Sprintf(`
 			SELECT sls_id, kode_indikator, COALESCE(total_value,0)
-			FROM kbli_usaha
-			WHERE sls_id IN (`+strings.Join(placeholders, ",")+`)`, args...)
+			FROM %s
+			WHERE sls_id IN (%s)`, table, strings.Join(placeholders, ",")), args...)
 		if err == nil {
 			defer valRows.Close()
 			for valRows.Next() {
@@ -153,7 +162,21 @@ func AdminKBLITable(c echo.Context) error {
 		}
 	}
 
-	return c.Render(http.StatusOK, "admin_kbli_table.html", map[string]interface{}{
-		"Rows": list, "KBLIPage": pageInfo, "Indikators": indikatorList, "Q": q,
+	return c.Render(http.StatusOK, tmplName, map[string]interface{}{
+		"Rows": list, "Page": pageInfo, "Indikators": indikatorList, "Q": q,
 	})
+}
+
+// AdminKBLITable — GET /admin/table/kbli
+// Tabel lebar: 1 baris per SLS, 1 kolom per kategori KBLI (jumlah usaha).
+func AdminKBLITable(c echo.Context) error {
+	return adminWideAgregatTable(c, "kbli_usaha", "admin_kbli_table.html", "admin-kbli-wrap", "/admin/table/kbli")
+}
+
+// AdminKeberadaanRekapTable — GET /admin/table/keberadaan-rekap
+// Tabel lebar: 1 baris per SLS, 1 kolom per status keberadaan usaha & keluarga
+// (Ditemukan/Baru/Tutup/Ganda/Tidak Ditemukan, utk usaha BKU & usaha dalam
+// keluarga, plus keluarga) — sumbernya coverage_usaha_keluarga (sync coverage).
+func AdminKeberadaanRekapTable(c echo.Context) error {
+	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_coverage_table.html", "admin-keberadaan-coverage-wrap", "/admin/table/keberadaan-rekap")
 }
