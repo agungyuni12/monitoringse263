@@ -1,4 +1,32 @@
 {{define "admin_summary_stats.html"}}
+<!-- Coverage Usaha & Keluarga se-kabupaten -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+  <div class="group bg-white dark:bg-gray-900 rounded-xl shadow-sm dark:shadow-none dark:ring-1 dark:ring-gray-800 p-4 border-l-4 {{if gt .Summary.PctCoverageUsahaBKU 100.0}}border-purple-500{{else}}border-amber-500{{end}} hover:shadow-md hover:-translate-y-0.5 transition-all">
+    <div class="flex items-center justify-between mb-1">
+      <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium">Coverage Usaha BKU</p>
+      <svg class="w-4 h-4 text-amber-300 dark:text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg>
+    </div>
+    <p class="text-3xl font-bold {{if gt .Summary.PctCoverageUsahaBKU 100.0}}text-purple-600 dark:text-purple-400{{else}}text-amber-600 dark:text-amber-400{{end}}">{{pctf .Summary.PctCoverageUsahaBKU}}%</p>
+    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Ditemukan+Baru vs Prelist</p>
+  </div>
+  <div class="group bg-white dark:bg-gray-900 rounded-xl shadow-sm dark:shadow-none dark:ring-1 dark:ring-gray-800 p-4 border-l-4 {{if gt .Summary.PctCoverageUsahaKeluarga 100.0}}border-purple-500{{else}}border-amber-500{{end}} hover:shadow-md hover:-translate-y-0.5 transition-all">
+    <div class="flex items-center justify-between mb-1">
+      <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium">Coverage Usaha Keluarga</p>
+      <svg class="w-4 h-4 text-amber-300 dark:text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg>
+    </div>
+    <p class="text-3xl font-bold {{if gt .Summary.PctCoverageUsahaKeluarga 100.0}}text-purple-600 dark:text-purple-400{{else}}text-amber-600 dark:text-amber-400{{end}}">{{pctf .Summary.PctCoverageUsahaKeluarga}}%</p>
+    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Ditemukan+Baru vs Prelist</p>
+  </div>
+  <div class="group bg-white dark:bg-gray-900 rounded-xl shadow-sm dark:shadow-none dark:ring-1 dark:ring-gray-800 p-4 border-l-4 {{if gt .Summary.PctCoverageKeluarga 100.0}}border-purple-500{{else}}border-amber-500{{end}} hover:shadow-md hover:-translate-y-0.5 transition-all">
+    <div class="flex items-center justify-between mb-1">
+      <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium">Coverage Keluarga</p>
+      <svg class="w-4 h-4 text-amber-300 dark:text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m5-3.13a4 4 0 100-8 4 4 0 000 8zm6 3a4 4 0 00-3-3.87"/></svg>
+    </div>
+    <p class="text-3xl font-bold {{if gt .Summary.PctCoverageKeluarga 100.0}}text-purple-600 dark:text-purple-400{{else}}text-amber-600 dark:text-amber-400{{end}}">{{pctf .Summary.PctCoverageKeluarga}}%</p>
+    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Ditemukan+Baru vs Prelist</p>
+  </div>
+</div>
+
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
   <div class="group bg-white dark:bg-gray-900 rounded-xl shadow-sm dark:shadow-none dark:ring-1 dark:ring-gray-800 p-4 border-l-4 border-gray-400 dark:border-gray-600 hover:shadow-md hover:-translate-y-0.5 transition-all">
     <div class="flex items-center justify-between mb-1">

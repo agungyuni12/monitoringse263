@@ -101,6 +101,11 @@ type AdminSummary struct {
 	PctSubmit          float64
 	PctDiperiksa       float64
 	PctProgres         float64
+	// Coverage usaha & keluarga se-kabupaten (lihat pctCoverage/ProgresRekapRow
+	// utk versi per-SLS-nya)
+	PctCoverageUsahaBKU      float64
+	PctCoverageUsahaKeluarga float64
+	PctCoverageKeluarga      float64
 }
 
 type PMLRow struct {
@@ -330,6 +335,22 @@ func computeAdminSummary(metode string) AdminSummary {
 		s.PctDiperiksa = math.Min(float64(s.TotalDiperiksa)*100/float64(s.TotalSubmit), 100)
 	}
 	s.PctProgres = computePctProgres(metode, s.TotalSubmit, s.TotalFasihTotal, s.TotalTargetPrelist)
+
+	covTotal := map[string]int{}
+	covRows, err := db.DB.Query(`SELECT kode_indikator, COALESCE(SUM(total_value),0) FROM coverage_usaha_keluarga GROUP BY kode_indikator`)
+	if err == nil {
+		defer covRows.Close()
+		for covRows.Next() {
+			var kode string
+			var val int
+			covRows.Scan(&kode, &val)
+			covTotal[kode] = val
+		}
+	}
+	s.PctCoverageUsahaBKU = pctCoverage(covTotal, kodeCovUsahaDitemukan, kodeCovUsahaBaru, kodeCovUsahaPrelist)
+	s.PctCoverageUsahaKeluarga = pctCoverage(covTotal, kodeCovUsahaKelDitemukan, kodeCovUsahaKelBaru, kodeCovUsahaKelPrelist)
+	s.PctCoverageKeluarga = pctCoverage(covTotal, kodeCovKeluargaDitemukan, kodeCovKeluargaBaru, kodeCovKeluargaPrelist)
+
 	return s
 }
 
