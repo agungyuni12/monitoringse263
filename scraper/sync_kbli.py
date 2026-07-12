@@ -43,6 +43,18 @@ from playwright_stealth import Stealth
 
 _stealth = Stealth(navigator_webdriver=True)
 
+try:
+    import zoneinfo
+    _wita_tz = zoneinfo.ZoneInfo("Asia/Makassar")
+except Exception:
+    import datetime as _dt
+    _wita_tz = _dt.timezone(_dt.timedelta(hours=8))
+
+
+def _now_wita():
+    return datetime.now(_wita_tz)
+
+
 DASH_URL = "https://dashboard-se2026.apps.bps.go.id"
 SSO_USER = os.getenv("DASH_USER",      "nurfitriati")
 SSO_PASS = os.getenv("DASH_PASS",      "triemam95")
@@ -212,7 +224,10 @@ def upsert_agregat(conn, sls_map, items, table_name):
           is_agregat     = VALUES(is_agregat),
           synced_at      = VALUES(synced_at)
     """
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # Container ini jalan di UTC (Docker default) — datetime.now() polos akan
+    # menyimpan jam yang salah 8 jam kalau langsung dipakai sbg synced_at
+    # (kolom itu diasumsikan selalu WITA).
+    now = _now_wita().strftime("%Y-%m-%d %H:%M:%S")
     upserted = skipped = 0
     for item in items:
         kode16 = str(item.get("id_wilayah") or "").strip()
@@ -241,7 +256,7 @@ def upsert_agregat(conn, sls_map, items, table_name):
 
 def run_once():
     print("=" * 55)
-    print(f"SYNC KBLI + COVERAGE SE2026  [{datetime.now():%Y-%m-%d %H:%M:%S}]")
+    print(f"SYNC KBLI + COVERAGE SE2026  [{_now_wita():%Y-%m-%d %H:%M:%S} WITA]")
     print(f"Kabupaten: {KODE_KAB}")
     print("=" * 55)
 
@@ -268,18 +283,6 @@ def run_once():
             print(f"\nSelesai semua! KBLI={kbli_up} baris, Coverage={cov_up} baris.", flush=True)
         finally:
             browser.close()
-
-
-try:
-    import zoneinfo
-    _wita_tz = zoneinfo.ZoneInfo("Asia/Makassar")
-except Exception:
-    import datetime as _dt
-    _wita_tz = _dt.timezone(_dt.timedelta(hours=8))
-
-
-def _now_wita():
-    return datetime.now(_wita_tz)
 
 
 def _next_run():
