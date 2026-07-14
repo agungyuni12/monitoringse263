@@ -850,6 +850,11 @@
     }
 
     // Update href download SLS sesuai level & q
+    function currentMetode() {
+      var sel = document.getElementById('global-metode-select');
+      return sel ? sel.value : '';
+    }
+
     function updateSLSDownload() {
       var bar = document.getElementById('sls-filter-bar');
       var level = bar.querySelector('[name="level"]').value;
@@ -857,6 +862,7 @@
       var params = [];
       if (level) params.push('level=' + level);
       if (q) params.push('q=' + encodeURIComponent(q));
+      if (currentMetode()) params.push('metode=' + currentMetode());
       document.getElementById('sls-dl-btn').href = '/admin/download/sls' + (params.length ? '?' + params.join('&') : '');
     }
 
@@ -868,6 +874,7 @@
       var params = [];
       if (q) params.push('q=' + encodeURIComponent(q));
       if (pmlID) params.push('pml_id=' + pmlID);
+      if (currentMetode()) params.push('metode=' + currentMetode());
       document.getElementById('ppl-dl-btn').href = '/admin/download/ppl' + (params.length ? '?' + params.join('&') : '');
     }
 
@@ -875,7 +882,10 @@
     function updatePMLDownload() {
       var bar = document.getElementById('pml-filter-bar');
       var q = bar.querySelector('[name="q"]').value;
-      document.getElementById('pml-dl-btn').href = '/admin/download/pml' + (q ? '?q=' + encodeURIComponent(q) : '');
+      var params = [];
+      if (q) params.push('q=' + encodeURIComponent(q));
+      if (currentMetode()) params.push('metode=' + currentMetode());
+      document.getElementById('pml-dl-btn').href = '/admin/download/pml' + (params.length ? '?' + params.join('&') : '');
     }
 
     // Update href download Keberadaan sesuai semua filter aktif (termasuk checkbox kec/skala)
@@ -917,6 +927,17 @@
       var pmlBar = document.getElementById('pml-filter-bar');
       if (pmlBar) {
         pmlBar.querySelector('[name="q"]').addEventListener('input', updatePMLDownload);
+      }
+      // Dropdown metode global juga ikut mempengaruhi % Progres di Excel — href
+      // download PML/PPL/SLS harus ikut ter-update begitu metode-nya diganti,
+      // bukan cuma pas filter lain disentuh.
+      var globalMetodeSelect = document.getElementById('global-metode-select');
+      if (globalMetodeSelect) {
+        globalMetodeSelect.addEventListener('change', function() {
+          if (slsBar) updateSLSDownload();
+          if (pplBar) updatePPLDownload();
+          if (pmlBar) updatePMLDownload();
+        });
       }
 
       // Tab-tab baru (Anomali, Rekap Progres, KBLI, Rekap Keberadaan): update href
