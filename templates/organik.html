@@ -4,39 +4,53 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Organik – SIGEMPAR SE2026</title>
+  <link rel="icon" href="/static/logo-sigempar.png" type="image/png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <script>
     tailwind.config = {
-      theme: { extend: { colors: { se: { DEFAULT:'#F37021', dark:'#d45f10', light:'#f59548', bg:'#FFF4ED' } } } }
+      theme: { extend: {
+        fontFamily: { sans: ['Plus Jakarta Sans', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+        colors: { se: { DEFAULT:'#F37021', dark:'#d45f10', light:'#f59548', bg:'#FFF4ED' } } } }
     }
   </script>
   <style>
+    html { font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif; }
     .htmx-indicator { display:none; }
     .htmx-request .htmx-indicator { display:inline-block; }
+    table td { font-variant-numeric: tabular-nums; }
+    .bg-white.rounded-xl, .bg-white.rounded-2xl { box-shadow: 0 1px 2px rgba(120,60,10,.04), 0 8px 20px -8px rgba(120,60,10,.10); }
+    button:active, a:active { transform: scale(.98); }
+    button, a { transition-property: color, background-color, border-color, box-shadow, transform, opacity; transition-duration: .15s; }
   </style>
 </head>
 <body class="bg-se-bg min-h-screen">
 
   <!-- Header -->
-  <header class="bg-se shadow-md">
-    <div class="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+  <header class="relative overflow-hidden shadow-md" style="background:linear-gradient(135deg,#F37021,#d45f10);">
+    <div class="absolute inset-0 opacity-[.07]" style="background-image:radial-gradient(circle at 85% 20%, white 0, transparent 45%);"></div>
+    <div class="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between relative">
       <div class="flex items-center gap-3">
-        <img src="/static/logo-sigempar.png" alt="SIGEMPAR" class="w-10 h-10 rounded-xl object-contain"/>
+        <div class="w-10 h-10 rounded-xl bg-white/15 ring-1 ring-white/25 p-1.5 shrink-0">
+          <img src="/static/logo-sigempar.png" alt="SIGEMPAR" class="w-full h-full object-contain"/>
+        </div>
         <div>
-          <h1 class="text-white font-bold text-base leading-tight">SIGEMPAR – Organik</h1>
-          <p class="text-orange-100 text-xs">SE 2026 | {{.Name}}</p>
+          <h1 class="text-white font-extrabold text-base leading-tight tracking-tight">SIGEMPAR – Organik</h1>
+          <p class="text-orange-100/90 text-xs mt-0.5">SE 2026 &middot; {{.Name}}</p>
         </div>
       </div>
       <div class="flex items-center gap-4">
-        <a href="/kendala" class="text-orange-100 hover:text-white text-sm flex items-center gap-1 transition-colors">
+        <a href="/kendala" class="text-orange-100 hover:text-white text-sm flex items-center gap-1.5 transition-colors">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
           </svg>
           Daftar Kendala
         </a>
-        <a href="/logout" class="text-orange-100 hover:text-white text-sm flex items-center gap-1 transition-colors">
+        <a href="/logout" class="text-orange-100 hover:text-white text-sm flex items-center gap-1.5 transition-colors">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>

@@ -4,12 +4,17 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dasbor Verifikasi PML – SIGEMPAR SE2026</title>
+  <link rel="icon" href="/static/logo-sigempar.png" type="image/png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
+          fontFamily: { sans: ['Plus Jakarta Sans', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
           colors: {
             se: { DEFAULT:'#F37021', dark:'#d45f10', light:'#f59548', bg:'#FFF4ED' }
           }
@@ -18,6 +23,7 @@
     }
   </script>
   <style>
+    html { font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif; }
     .htmx-indicator { display:none; }
     .htmx-request .htmx-indicator { display:inline-block; }
     #toast { transition: opacity 0.4s ease, transform 0.4s ease; }
@@ -29,6 +35,11 @@
     .tab-btn.active    { border-bottom: 2px solid #F37021; color:#F37021; font-weight:600; }
     .tab-panel         { display:none; }
     .tab-panel.active  { display:block; }
+    table td { font-variant-numeric: tabular-nums; }
+    table tbody tr { transition: background-color .12s ease-out; }
+    .bg-white.rounded-xl, .bg-white.rounded-2xl { box-shadow: 0 1px 2px rgba(120,60,10,.04), 0 8px 20px -8px rgba(120,60,10,.10); }
+    button:active, a:active { transform: scale(.98); }
+    button, a { transition-property: color, background-color, border-color, box-shadow, transform, opacity; transition-duration: .15s; }
   </style>
 </head>
 <body class="bg-se-bg min-h-screen">
@@ -44,24 +55,27 @@
   </div>
 
   <!-- Header -->
-  <header class="bg-se shadow-md">
-    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+  <header class="relative overflow-hidden shadow-md" style="background:linear-gradient(135deg,#F37021,#d45f10);">
+    <div class="absolute inset-0 opacity-[.07]" style="background-image:radial-gradient(circle at 85% 20%, white 0, transparent 45%);"></div>
+    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between relative">
       <div class="flex items-center gap-3">
-        <img src="/static/logo-sigempar.png" alt="SIGEMPAR" class="w-10 h-10 rounded-xl object-contain"/>
+        <div class="w-10 h-10 rounded-xl bg-white/15 ring-1 ring-white/25 p-1.5 shrink-0">
+          <img src="/static/logo-sigempar.png" alt="SIGEMPAR" class="w-full h-full object-contain"/>
+        </div>
         <div>
-          <h1 class="text-white font-bold text-base leading-tight">SIGEMPAR – Dasbor Verifikasi PML</h1>
-          <p class="text-orange-100 text-xs">SE 2026 | Pengawas: {{.Name}}</p>
+          <h1 class="text-white font-extrabold text-base leading-tight tracking-tight">SIGEMPAR – Dasbor Verifikasi PML</h1>
+          <p class="text-orange-100/90 text-xs mt-0.5">SE 2026 &middot; Pengawas: {{.Name}}</p>
         </div>
       </div>
       <div class="flex items-center gap-4">
-        <a href="/kendala" class="text-orange-100 hover:text-white text-sm flex items-center gap-1 transition-colors">
+        <a href="/kendala" class="text-orange-100 hover:text-white text-sm flex items-center gap-1.5 transition-colors">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
           </svg>
           Daftar Kendala
         </a>
-        <a href="/logout" class="text-orange-100 hover:text-white text-sm flex items-center gap-1 transition-colors">
+        <a href="/logout" class="text-orange-100 hover:text-white text-sm flex items-center gap-1.5 transition-colors">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
@@ -75,22 +89,42 @@
   <main class="max-w-7xl mx-auto px-4 py-6">
 
     <!-- Summary Cards -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-      <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-green-500">
-        <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Total Submit PPL</p>
-        <p class="text-2xl font-bold text-green-600">{{.TotSubmit}}</p>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">
+      <div class="bg-white rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">Total Submit PPL</p>
+          <div class="w-7 h-7 rounded-full bg-green-50 flex items-center justify-center shrink-0">
+            <svg class="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          </div>
+        </div>
+        <p class="text-[26px] leading-none font-extrabold tracking-tight text-green-600">{{.TotSubmit}}</p>
       </div>
-      <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-se">
-        <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Diperiksa PML</p>
-        <p class="text-2xl font-bold text-se">{{.TotDiperiksa}}</p>
+      <div class="bg-white rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">Diperiksa PML</p>
+          <div class="w-7 h-7 rounded-full bg-se-bg flex items-center justify-center shrink-0">
+            <svg class="w-3.5 h-3.5 text-se" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </div>
+        </div>
+        <p class="text-[26px] leading-none font-extrabold tracking-tight text-se">{{.TotDiperiksa}}</p>
       </div>
-      <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-red-500">
-        <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Dikembalikan (Error)</p>
-        <p class="text-2xl font-bold text-red-600">{{.TotError}}</p>
+      <div class="bg-white rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">Dikembalikan (Error)</p>
+          <div class="w-7 h-7 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+            <svg class="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </div>
+        </div>
+        <p class="text-[26px] leading-none font-extrabold tracking-tight text-red-600">{{.TotError}}</p>
       </div>
-      <div class="bg-white rounded-xl shadow-sm p-4 border-l-4 border-purple-500">
-        <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Observasi Lapangan</p>
-        <p class="text-2xl font-bold text-purple-600">{{.TotObs}}</p>
+      <div class="bg-white rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">Observasi Lapangan</p>
+          <div class="w-7 h-7 rounded-full bg-purple-50 flex items-center justify-center shrink-0">
+            <svg class="w-3.5 h-3.5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21s-7-6.5-7-11a7 7 0 1114 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5" stroke-width="2"/></svg>
+          </div>
+        </div>
+        <p class="text-[26px] leading-none font-extrabold tracking-tight text-purple-600">{{.TotObs}}</p>
       </div>
     </div>
 
