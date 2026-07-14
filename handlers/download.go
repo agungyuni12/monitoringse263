@@ -51,12 +51,14 @@ func DownloadPML(c echo.Context) error {
 	rows, err := db.DB.Query(`
 		SELECT u.name,
 		       COUNT(DISTINCT s.ppl_id), COUNT(s.id),
-		       COALESCE(SUM(p.jumlah_submit),0),
+		       COALESCE(SUM(p.fasih_total),0), COALESCE(SUM(s.target_prelist_resmi),0),
+		       COALESCE(SUM(p.fasih_submitted),0), COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
-		       COALESCE(SUM(p.fasih_approved_pengawas),0),
-		       COALESCE(SUM(p.fasih_rejected_pengawas),0),
-		       COALESCE(SUM(p.fasih_total),0),
-		       COALESCE(SUM(s.target_prelist_resmi),0)
+		       COALESCE(SUM(p.fasih_approved_pengawas),0), COALESCE(SUM(p.fasih_rejected_pengawas),0),
+		       COALESCE(SUM(p.fasih_revoked_pengawas),0),
+		       COALESCE(SUM(p.fasih_approved_kabupaten),0), COALESCE(SUM(p.fasih_rejected_kabupaten),0),
+		       COALESCE(SUM(p.fasih_approved_provinsi),0),  COALESCE(SUM(p.fasih_rejected_provinsi),0),
+		       COALESCE(SUM(p.fasih_approved_pusat),0),     COALESCE(SUM(p.fasih_rejected_pusat),0)
 		FROM users u
 		JOIN sls s ON s.pml_id = u.id
 		LEFT JOIN progress p ON p.sls_id = s.id
@@ -68,29 +70,41 @@ func DownloadPML(c echo.Context) error {
 	defer rows.Close()
 
 	type row struct {
-		name                                                                    string
-		jmlPPL, jmlSLS, submit, draft, approved, rejected, total, targetPrelist int
+		name                                                                   string
+		jmlPPL, jmlSLS, total, targetPrelist, fasihSubmit, jumlahSubmit, draft int
+		apprPengawas, rejPengawas, revPengawas                                 int
+		apprKab, rejKab, apprProv, rejProv, apprPusat, rejPusat                int
 	}
 	var data []row
 	for rows.Next() {
 		var r row
-		rows.Scan(&r.name, &r.jmlPPL, &r.jmlSLS, &r.submit, &r.draft, &r.approved, &r.rejected, &r.total, &r.targetPrelist)
+		rows.Scan(&r.name, &r.jmlPPL, &r.jmlSLS, &r.total, &r.targetPrelist, &r.fasihSubmit, &r.jumlahSubmit, &r.draft,
+			&r.apprPengawas, &r.rejPengawas, &r.revPengawas,
+			&r.apprKab, &r.rejKab, &r.apprProv, &r.rejProv, &r.apprPusat, &r.rejPusat)
 		data = append(data, r)
 	}
 
 	fname := fmt.Sprintf("monitoring_pml_%s.xlsx", time.Now().In(wita).Format("20060102"))
-	headers := []string{"Nama PML", "Jml PPL", "Jml SLS", "Submit", "Draft", "Approved", "Rejected", "% Progres"}
+	headers := []string{"Nama PML", "Jml PPL", "Jml SLS", "Total", "Submit", "Draft", "Approved", "Rejected", "% Progres", "% Terverifikasi"}
 	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
 		for i, r := range data {
 			n := i + 2
+			terverifikasi := r.apprPengawas + r.rejPengawas + r.revPengawas +
+				r.apprKab + r.rejKab + r.apprProv + r.rejProv + r.apprPusat + r.rejPusat
+			pctTerverifikasi := 0.0
+			if r.jumlahSubmit > 0 {
+				pctTerverifikasi = math.Min(float64(terverifikasi)*100/float64(r.jumlahSubmit), 100)
+			}
 			f.SetCellValue(sheet, cell(1, n), r.name)
 			f.SetCellValue(sheet, cell(2, n), r.jmlPPL)
 			f.SetCellValue(sheet, cell(3, n), r.jmlSLS)
-			f.SetCellValue(sheet, cell(4, n), r.submit)
-			f.SetCellValue(sheet, cell(5, n), r.draft)
-			f.SetCellValue(sheet, cell(6, n), r.approved)
-			f.SetCellValue(sheet, cell(7, n), r.rejected)
-			f.SetCellValue(sheet, cell(8, n), roundPct(computePctProgres(metode, r.submit, r.total, r.targetPrelist)))
+			f.SetCellValue(sheet, cell(4, n), r.total)
+			f.SetCellValue(sheet, cell(5, n), r.fasihSubmit)
+			f.SetCellValue(sheet, cell(6, n), r.draft)
+			f.SetCellValue(sheet, cell(7, n), r.apprPengawas)
+			f.SetCellValue(sheet, cell(8, n), r.rejPengawas)
+			f.SetCellValue(sheet, cell(9, n), roundPct(computePctProgres(metode, r.jumlahSubmit, r.total, r.targetPrelist)))
+			f.SetCellValue(sheet, cell(10, n), roundPct(pctTerverifikasi))
 		}
 	})
 }
@@ -111,12 +125,12 @@ func DownloadPPL(c echo.Context) error {
 	}
 
 	rows, err := db.DB.Query(`
-		SELECT u.name, pml.name, COUNT(s.id),
-		       COALESCE(SUM(p.jumlah_submit),0),
+		SELECT u.id, u.name, pml.name, COUNT(s.id),
+		       COALESCE(SUM(p.fasih_total),0), COALESCE(SUM(s.target_prelist_resmi),0),
+		       COALESCE(SUM(p.fasih_submitted),0), COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
-		       COALESCE(SUM(s.target),0),
-		       COALESCE(SUM(p.fasih_total),0),
-		       COALESCE(SUM(s.target_prelist_resmi),0)
+		       COALESCE(SUM(p.fasih_approved_pengawas),0),
+		       COALESCE(SUM(p.fasih_rejected_pengawas),0)
 		FROM users u
 		JOIN sls s ON s.ppl_id = u.id
 		JOIN users pml ON pml.id = s.pml_id
@@ -130,28 +144,47 @@ func DownloadPPL(c echo.Context) error {
 	defer rows.Close()
 
 	type row struct {
-		ppl, pml                                         string
-		jmlSLS, submit, draft, target, total, tgtPrelist int
+		id                                                      int
+		ppl, pml                                                string
+		jmlSLS, total, targetPrelist, fasihSubmit, jumlahSubmit int
+		draft, approved, rejected                               int
 	}
 	var data []row
 	for rows.Next() {
 		var r row
-		rows.Scan(&r.ppl, &r.pml, &r.jmlSLS, &r.submit, &r.draft, &r.target, &r.total, &r.tgtPrelist)
+		rows.Scan(&r.id, &r.ppl, &r.pml, &r.jmlSLS, &r.total, &r.targetPrelist, &r.fasihSubmit, &r.jumlahSubmit,
+			&r.draft, &r.approved, &r.rejected)
 		data = append(data, r)
 	}
 
+	// Persentase SLS (sama seperti kolom "Persentase SLS" di tabel Per PPL):
+	// dari semua SLS milik PPL ini, berapa persen yang % Progres per-SLS-nya
+	// sudah >= 95%.
+	ppls := make([]PPLRow, len(data))
+	for i, r := range data {
+		ppls[i] = PPLRow{ID: r.id}
+	}
+	fillPctSLSSelesai(ppls, metode)
+	pctSLSSelesai := make(map[int]float64, len(ppls))
+	for _, p := range ppls {
+		pctSLSSelesai[p.ID] = p.PctSLSSelesai
+	}
+
 	fname := fmt.Sprintf("monitoring_ppl_%s.xlsx", time.Now().In(wita).Format("20060102"))
-	headers := []string{"Nama PPL", "Nama PML", "Jml SLS", "Submit", "Draft", "Total (FASIH)", "% Progres"}
+	headers := []string{"Nama PPL", "Supervisor (PML)", "Jml SLS", "Total", "Submit", "Draft", "Approved", "Rejected", "Persentase Muatan", "Persentase SLS"}
 	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
 		for i, r := range data {
 			n := i + 2
 			f.SetCellValue(sheet, cell(1, n), r.ppl)
 			f.SetCellValue(sheet, cell(2, n), r.pml)
 			f.SetCellValue(sheet, cell(3, n), r.jmlSLS)
-			f.SetCellValue(sheet, cell(4, n), r.submit)
-			f.SetCellValue(sheet, cell(5, n), r.draft)
-			f.SetCellValue(sheet, cell(6, n), r.target)
-			f.SetCellValue(sheet, cell(7, n), roundPct(computePctProgres(metode, r.submit, r.total, r.tgtPrelist)))
+			f.SetCellValue(sheet, cell(4, n), r.total)
+			f.SetCellValue(sheet, cell(5, n), r.fasihSubmit)
+			f.SetCellValue(sheet, cell(6, n), r.draft)
+			f.SetCellValue(sheet, cell(7, n), r.approved)
+			f.SetCellValue(sheet, cell(8, n), r.rejected)
+			f.SetCellValue(sheet, cell(9, n), roundPct(computePctProgres(metode, r.jumlahSubmit, r.total, r.targetPrelist)))
+			f.SetCellValue(sheet, cell(10, n), roundPct(pctSLSSelesai[r.id]))
 		}
 	})
 }
@@ -173,6 +206,7 @@ func DownloadSLS(c echo.Context) error {
 		rows, err := db.DB.Query(`
 			SELECT s.nama_kec, COUNT(DISTINCT s.id),
 			       COALESCE(SUM(p.fasih_total),0),
+			       COALESCE(SUM(p.fasih_submitted),0),
 			       COALESCE(SUM(p.jumlah_submit),0),
 			       COALESCE(SUM(p.jumlah_draft),0),
 			       COALESCE(SUM(p.fasih_approved_pengawas),0),
@@ -187,27 +221,27 @@ func DownloadSLS(c echo.Context) error {
 		}
 		defer rows.Close()
 		type row struct {
-			kec                                                       string
-			jml, total, submit, draft, approved, rejected, tgtPrelist int
+			kec                                                                          string
+			jml, total, fasihSubmit, jumlahSubmit, draft, approved, rejected, tgtPrelist int
 		}
 		var data []row
 		for rows.Next() {
 			var r row
-			rows.Scan(&r.kec, &r.jml, &r.total, &r.submit, &r.draft, &r.approved, &r.rejected, &r.tgtPrelist)
+			rows.Scan(&r.kec, &r.jml, &r.total, &r.fasihSubmit, &r.jumlahSubmit, &r.draft, &r.approved, &r.rejected, &r.tgtPrelist)
 			data = append(data, r)
 		}
-		headers := []string{"Kecamatan", "Jml SLS", "Total (FASIH)", "Submit", "Draft", "Approved", "Rejected", "% Progres"}
+		headers := []string{"Kecamatan", "Jml SLS", "Total", "Submit", "Draft", "Approved", "Rejected", "% Isian"}
 		return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
 			for i, r := range data {
 				n := i + 2
 				f.SetCellValue(sheet, cell(1, n), r.kec)
 				f.SetCellValue(sheet, cell(2, n), r.jml)
 				f.SetCellValue(sheet, cell(3, n), r.total)
-				f.SetCellValue(sheet, cell(4, n), r.submit)
+				f.SetCellValue(sheet, cell(4, n), r.fasihSubmit)
 				f.SetCellValue(sheet, cell(5, n), r.draft)
 				f.SetCellValue(sheet, cell(6, n), r.approved)
 				f.SetCellValue(sheet, cell(7, n), r.rejected)
-				f.SetCellValue(sheet, cell(8, n), roundPct(computePctProgres(metode, r.submit, r.total, r.tgtPrelist)))
+				f.SetCellValue(sheet, cell(8, n), roundPct(computePctProgres(metode, r.jumlahSubmit, r.total, r.tgtPrelist)))
 			}
 		})
 
@@ -215,6 +249,7 @@ func DownloadSLS(c echo.Context) error {
 		rows, err := db.DB.Query(`
 			SELECT s.nama_desa, s.nama_kec, COUNT(DISTINCT s.id),
 			       COALESCE(SUM(p.fasih_total),0),
+			       COALESCE(SUM(p.fasih_submitted),0),
 			       COALESCE(SUM(p.jumlah_submit),0),
 			       COALESCE(SUM(p.jumlah_draft),0),
 			       COALESCE(SUM(p.fasih_approved_pengawas),0),
@@ -230,16 +265,16 @@ func DownloadSLS(c echo.Context) error {
 		}
 		defer rows.Close()
 		type row struct {
-			desa, kec                                                 string
-			jml, total, submit, draft, approved, rejected, tgtPrelist int
+			desa, kec                                                                    string
+			jml, total, fasihSubmit, jumlahSubmit, draft, approved, rejected, tgtPrelist int
 		}
 		var data []row
 		for rows.Next() {
 			var r row
-			rows.Scan(&r.desa, &r.kec, &r.jml, &r.total, &r.submit, &r.draft, &r.approved, &r.rejected, &r.tgtPrelist)
+			rows.Scan(&r.desa, &r.kec, &r.jml, &r.total, &r.fasihSubmit, &r.jumlahSubmit, &r.draft, &r.approved, &r.rejected, &r.tgtPrelist)
 			data = append(data, r)
 		}
-		headers := []string{"Desa", "Kecamatan", "Jml SLS", "Total (FASIH)", "Submit", "Draft", "Approved", "Rejected", "% Progres"}
+		headers := []string{"Nama Desa", "Kecamatan", "Jml SLS", "Total", "Submit", "Draft", "Approved", "Rejected", "% Isian"}
 		return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
 			for i, r := range data {
 				n := i + 2
@@ -247,11 +282,11 @@ func DownloadSLS(c echo.Context) error {
 				f.SetCellValue(sheet, cell(2, n), r.kec)
 				f.SetCellValue(sheet, cell(3, n), r.jml)
 				f.SetCellValue(sheet, cell(4, n), r.total)
-				f.SetCellValue(sheet, cell(5, n), r.submit)
+				f.SetCellValue(sheet, cell(5, n), r.fasihSubmit)
 				f.SetCellValue(sheet, cell(6, n), r.draft)
 				f.SetCellValue(sheet, cell(7, n), r.approved)
 				f.SetCellValue(sheet, cell(8, n), r.rejected)
-				f.SetCellValue(sheet, cell(9, n), roundPct(computePctProgres(metode, r.submit, r.total, r.tgtPrelist)))
+				f.SetCellValue(sheet, cell(9, n), roundPct(computePctProgres(metode, r.jumlahSubmit, r.total, r.tgtPrelist)))
 			}
 		})
 
@@ -260,6 +295,7 @@ func DownloadSLS(c echo.Context) error {
 			SELECT s.kode_sls, s.nama_sls, ppl.name, pml.name,
 			       COALESCE(s.nama_desa,''), COALESCE(s.nama_kec,''),
 			       COALESCE(p.fasih_total,0),
+			       COALESCE(p.fasih_submitted,0),
 			       COALESCE(p.jumlah_submit,0),
 			       COALESCE(p.jumlah_draft,0),
 			       COALESCE(p.fasih_approved_pengawas,0),
@@ -278,17 +314,17 @@ func DownloadSLS(c echo.Context) error {
 		}
 		defer rows.Close()
 		type row struct {
-			kode, nama, ppl, pml, desa, kec                      string
-			total, submit, draft, approved, rejected, tgtPrelist int
+			kode, nama, ppl, pml, desa, kec                                         string
+			total, fasihSubmit, jumlahSubmit, draft, approved, rejected, tgtPrelist int
 		}
 		var data []row
 		for rows.Next() {
 			var r row
 			rows.Scan(&r.kode, &r.nama, &r.ppl, &r.pml, &r.desa, &r.kec,
-				&r.total, &r.submit, &r.draft, &r.approved, &r.rejected, &r.tgtPrelist)
+				&r.total, &r.fasihSubmit, &r.jumlahSubmit, &r.draft, &r.approved, &r.rejected, &r.tgtPrelist)
 			data = append(data, r)
 		}
-		headers := []string{"Kode SLS", "Nama SLS", "PPL", "PML", "Desa", "Kecamatan", "Total (FASIH)", "Submit", "Draft", "Approved", "Rejected", "% Progres"}
+		headers := []string{"Kode SLS", "Nama SLS", "PPL", "PML", "Desa / Kec", "Total", "Submit", "Draft", "Approved", "Rejected", "Progres"}
 		return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
 			for i, r := range data {
 				n := i + 2
@@ -296,14 +332,13 @@ func DownloadSLS(c echo.Context) error {
 				f.SetCellValue(sheet, cell(2, n), r.nama)
 				f.SetCellValue(sheet, cell(3, n), r.ppl)
 				f.SetCellValue(sheet, cell(4, n), r.pml)
-				f.SetCellValue(sheet, cell(5, n), r.desa)
-				f.SetCellValue(sheet, cell(6, n), r.kec)
-				f.SetCellValue(sheet, cell(7, n), r.total)
-				f.SetCellValue(sheet, cell(8, n), r.submit)
-				f.SetCellValue(sheet, cell(9, n), r.draft)
-				f.SetCellValue(sheet, cell(10, n), r.approved)
-				f.SetCellValue(sheet, cell(11, n), r.rejected)
-				f.SetCellValue(sheet, cell(12, n), roundPct(computePctProgres(metode, r.submit, r.total, r.tgtPrelist)))
+				f.SetCellValue(sheet, cell(5, n), r.desa+" / "+r.kec)
+				f.SetCellValue(sheet, cell(6, n), r.total)
+				f.SetCellValue(sheet, cell(7, n), r.fasihSubmit)
+				f.SetCellValue(sheet, cell(8, n), r.draft)
+				f.SetCellValue(sheet, cell(9, n), r.approved)
+				f.SetCellValue(sheet, cell(10, n), r.rejected)
+				f.SetCellValue(sheet, cell(11, n), roundPct(computePctProgres(metode, r.jumlahSubmit, r.total, r.tgtPrelist)))
 			}
 		})
 	}
