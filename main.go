@@ -138,6 +138,8 @@ func main() {
 	adminGrp.GET("/table/keberadaan-bku", handlers.AdminKeberadaanBKUTable)
 	adminGrp.GET("/table/keberadaan-usaha-keluarga", handlers.AdminKeberadaanUsahaKeluargaTable)
 	adminGrp.GET("/table/keberadaan-keluarga", handlers.AdminKeberadaanKeluargaTable)
+	adminGrp.GET("/options/pml-by-kec", handlers.OptionsPMLByKec)
+	adminGrp.GET("/options/ppl-by-filter", handlers.OptionsPPLByFilter)
 	adminGrp.GET("/table/trend/ppl", handlers.AdminTableTrendPPL)
 	adminGrp.GET("/table/trend/pml", handlers.AdminTableTrendPML)
 	adminGrp.GET("/geo/stats", handlers.AdminGeoStats)

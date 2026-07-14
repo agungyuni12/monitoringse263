@@ -691,9 +691,26 @@
               <button type="button" onclick="switchKeberadaanRekapSub(this,'/admin/table/keberadaan-keluarga','/admin/download/keberadaan-keluarga')"
                 class="keberadaan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Keluarga</button>
             </div>
-            <input type="text" id="keberadaan-rekap-q" oninput="onKeberadaanRekapSearch(this.value)"
+            <input type="text" id="keberadaan-rekap-q" oninput="onKeberadaanRekapSearch()"
               placeholder="Cari nama SLS, Desa, Kecamatan..."
               class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <!-- Filter bertingkat: pilih Kecamatan -> opsi PML ikut mengecil,
+                 pilih PML -> opsi PPL ikut mengecil (lihat onKebKecChange/onKebPmlChange) -->
+            <select id="keb-kec-select" onchange="onKebKecChange()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Kecamatan</option>
+              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
+            </select>
+            <select id="keb-pml-select" onchange="onKebPmlChange()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PML</option>
+              {{range .PMLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <select id="keb-ppl-select" onchange="onKebPplChange()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PPL</option>
+              {{range .PPLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
             <a id="keberadaan-rekap-dl-btn" href="/admin/download/keberadaan-bku"
               class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -992,7 +1009,50 @@
     // Beda dari sub-tab lain: masing2 sub-tab punya route table & download
     // terpisah (bukan cuma query param `level` di route yang sama), jadi filter
     // bar-nya nyimpen path aktif di data-tbl-path/data-dl-path lalu dipakai
-    // manual lewat htmx.ajax(), bukan hx-get statis.
+    // manual lewat htmx.ajax(), bukan hx-get statis. Filter Kecamatan/PML/PPL
+    // bertingkat: pilih Kecamatan -> opsi PML & PPL ikut mengecil (cuma yg
+    // punya SLS di kecamatan itu), pilih PML -> opsi PPL ikut mengecil lagi.
+    function kebFilterParams() {
+      var q = document.getElementById('keberadaan-rekap-q').value;
+      var kec = document.getElementById('keb-kec-select').value;
+      var pml = document.getElementById('keb-pml-select').value;
+      var ppl = document.getElementById('keb-ppl-select').value;
+      var params = [];
+      if (q) params.push('q=' + encodeURIComponent(q));
+      if (kec) params.push('kec=' + encodeURIComponent(kec));
+      if (pml) params.push('pml_id=' + pml);
+      if (ppl) params.push('ppl_id=' + ppl);
+      return params.length ? ('?' + params.join('&')) : '';
+    }
+
+    function reloadKeberadaanRekapTable() {
+      var bar = document.getElementById('keberadaan-rekap-filter-bar');
+      var qs = kebFilterParams();
+      htmx.ajax('GET', bar.dataset.tblPath + qs, { target: '#admin-keberadaan-rekap-wrap', swap: 'innerHTML' });
+      document.getElementById('keberadaan-rekap-dl-btn').href = bar.dataset.dlPath + qs;
+    }
+
+    // Isi ulang <select> dari daftar {id,name} hasil fetch, sambil pertahankan
+    // pilihan lama kalau masih valid di daftar baru (biar tidak ke-reset kalau
+    // kebetulan masih cocok).
+    function fillOptionSelect(sel, list, placeholder) {
+      var cur = sel.value;
+      sel.innerHTML = '';
+      var optAll = document.createElement('option');
+      optAll.value = '';
+      optAll.textContent = placeholder;
+      sel.appendChild(optAll);
+      var stillValid = false;
+      list.forEach(function(item) {
+        var opt = document.createElement('option');
+        opt.value = String(item.ID);
+        opt.textContent = item.Name;
+        if (String(item.ID) === cur) stillValid = true;
+        sel.appendChild(opt);
+      });
+      sel.value = stillValid ? cur : '';
+    }
+
     function switchKeberadaanRekapSub(btn, tblPath, dlPath) {
       var bar = document.getElementById('keberadaan-rekap-filter-bar');
       bar.querySelectorAll('.keberadaan-subtab-btn').forEach(function(b) {
@@ -1003,21 +1063,42 @@
       btn.classList.remove('text-gray-600', 'dark:text-gray-400');
       bar.dataset.tblPath = tblPath;
       bar.dataset.dlPath = dlPath;
-      var q = document.getElementById('keberadaan-rekap-q').value;
-      var qs = q ? ('?q=' + encodeURIComponent(q)) : '';
+      var qs = kebFilterParams();
       htmx.ajax('GET', tblPath + qs, { target: '#admin-keberadaan-rekap-wrap', swap: 'innerHTML' });
       document.getElementById('keberadaan-rekap-dl-btn').href = dlPath + qs;
     }
 
     var _keberadaanRekapDebounce = null;
-    function onKeberadaanRekapSearch(q) {
+    function onKeberadaanRekapSearch() {
       clearTimeout(_keberadaanRekapDebounce);
-      _keberadaanRekapDebounce = setTimeout(function() {
-        var bar = document.getElementById('keberadaan-rekap-filter-bar');
-        var qs = q ? ('?q=' + encodeURIComponent(q)) : '';
-        htmx.ajax('GET', bar.dataset.tblPath + qs, { target: '#admin-keberadaan-rekap-wrap', swap: 'innerHTML' });
-        document.getElementById('keberadaan-rekap-dl-btn').href = bar.dataset.dlPath + qs;
-      }, 400);
+      _keberadaanRekapDebounce = setTimeout(reloadKeberadaanRekapTable, 400);
+    }
+
+    function onKebKecChange() {
+      var kec = document.getElementById('keb-kec-select').value;
+      var pmlSel = document.getElementById('keb-pml-select');
+      var pplSel = document.getElementById('keb-ppl-select');
+      fetch('/admin/options/pml-by-kec?kec=' + encodeURIComponent(kec))
+        .then(function(r) { return r.json(); })
+        .then(function(list) { fillOptionSelect(pmlSel, list, 'Semua PML'); });
+      fetch('/admin/options/ppl-by-filter?kec=' + encodeURIComponent(kec) + '&pml_id=' + encodeURIComponent(pmlSel.value))
+        .then(function(r) { return r.json(); })
+        .then(function(list) { fillOptionSelect(pplSel, list, 'Semua PPL'); });
+      reloadKeberadaanRekapTable();
+    }
+
+    function onKebPmlChange() {
+      var kec = document.getElementById('keb-kec-select').value;
+      var pmlID = document.getElementById('keb-pml-select').value;
+      var pplSel = document.getElementById('keb-ppl-select');
+      fetch('/admin/options/ppl-by-filter?kec=' + encodeURIComponent(kec) + '&pml_id=' + encodeURIComponent(pmlID))
+        .then(function(r) { return r.json(); })
+        .then(function(list) { fillOptionSelect(pplSel, list, 'Semua PPL'); });
+      reloadKeberadaanRekapTable();
+    }
+
+    function onKebPplChange() {
+      reloadKeberadaanRekapTable();
     }
 
     // ===== TREN PROGRES =====

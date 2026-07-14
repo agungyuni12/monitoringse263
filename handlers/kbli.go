@@ -101,29 +101,56 @@ func queryAgregatIndikatorList(table string, kodeFilter []string, prelistKode st
 // tipis tanpa duplikasi query. kodeFilter opsional (lihat queryAgregatIndikatorList).
 // prelistKode/baruKode opsional: kalau diisi, template bisa tampilkan badge
 // persentase (nilai/Prelist Awal) di tiap kolom kecuali kolom Prelist &
-// Baru itu sendiri (lihat admin_keberadaan_*_table.html).
+// Baru itu sendiri (lihat admin_keberadaan_*_table.html). Filter kec/pml_id/
+// ppl_id (query param, opsional) dipakai oleh filter bertingkat Rekap
+// Keberadaan — dibaca langsung dari request, aman dipakai bareng KBLI juga
+// krn UI KBLI tidak pernah mengirim param ini.
 func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath string, kodeFilter []string, prelistKode, baruKode string) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
 		page = 1
 	}
 	q := c.QueryParam("q")
+	kec := c.QueryParam("kec")
+	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
+	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
 	sortKey := c.QueryParam("sort")
 	dir := c.QueryParam("dir")
 	like := "%" + q + "%"
+
+	where := ` WHERE (s.nama_sls LIKE ? OR ppl.name LIKE ? OR pml.name LIKE ? OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?)`
+	args := []interface{}{like, like, like, like, like}
+	if kec != "" {
+		where += ` AND s.nama_kec = ?`
+		args = append(args, kec)
+	}
+	if pmlID > 0 {
+		where += ` AND s.pml_id = ?`
+		args = append(args, pmlID)
+	}
+	if pplID > 0 {
+		where += ` AND s.ppl_id = ?`
+		args = append(args, pplID)
+	}
 
 	var total int
 	db.DB.QueryRow(`
 		SELECT COUNT(*) FROM sls s
 		JOIN users ppl ON ppl.id = s.ppl_id
-		JOIN users pml ON pml.id = s.pml_id
-		WHERE s.nama_sls LIKE ? OR ppl.name LIKE ? OR pml.name LIKE ?
-		  OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?`,
-		like, like, like, like, like).Scan(&total)
+		JOIN users pml ON pml.id = s.pml_id`+where, args...).Scan(&total)
 
 	extra := ""
 	if q != "" {
-		extra = "&q=" + q
+		extra += "&q=" + q
+	}
+	if kec != "" {
+		extra += "&kec=" + kec
+	}
+	if pmlID > 0 {
+		extra += fmt.Sprintf("&pml_id=%d", pmlID)
+	}
+	if pplID > 0 {
+		extra += fmt.Sprintf("&ppl_id=%d", pplID)
 	}
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sortKey, dir, wideAgregatSortCols, "s.kode_kec, s.kode_desa, s.kode_sls")
 
@@ -135,17 +162,17 @@ func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath st
 
 	indikatorList := queryAgregatIndikatorList(table, kodeFilter, prelistKode)
 
+	queryArgs := append(append([]interface{}{}, args...), models.PerPage, offset)
 	rows, err := db.DB.Query(`
 		SELECT s.id, s.kode_sls, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
 		       ppl.name, pml.name
 		FROM sls s
 		JOIN users ppl ON ppl.id = s.ppl_id
 		JOIN users pml ON pml.id = s.pml_id
-		WHERE s.nama_sls LIKE ? OR ppl.name LIKE ? OR pml.name LIKE ?
-		  OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?
+		`+where+`
 		`+orderBy+`
 		LIMIT ? OFFSET ?`,
-		like, like, like, like, like, models.PerPage, offset)
+		queryArgs...)
 	if err != nil {
 		return c.Render(http.StatusOK, tmplName, map[string]interface{}{
 			"Rows": nil, "Page": pageInfo, "Indikators": indikatorList, "Q": q,
@@ -242,4 +269,62 @@ func AdminKeberadaanUsahaKeluargaTable(c echo.Context) error {
 // AdminKeberadaanKeluargaTable — GET /admin/table/keberadaan-keluarga
 func AdminKeberadaanKeluargaTable(c echo.Context) error {
 	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_keluarga_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-keluarga", kodeCovKeluargaAll, kodeCovKeluargaPrelist, kodeCovKeluargaBaru)
+}
+
+// OptionsPMLByKec — GET /admin/options/pml-by-kec?kec=X
+// Dipakai filter bertingkat Kecamatan → PML → PPL di Rekap Keberadaan: begitu
+// Kecamatan dipilih, dropdown PML ikut mengecil ke PML yang punya SLS di
+// kecamatan itu saja. kec kosong = semua PML (sama seperti queryPMLUsers).
+func OptionsPMLByKec(c echo.Context) error {
+	kec := c.QueryParam("kec")
+	query := `SELECT u.id, u.name FROM users u JOIN sls s ON s.pml_id=u.id WHERE u.role='pml'`
+	var args []interface{}
+	if kec != "" {
+		query += ` AND s.nama_kec = ?`
+		args = append(args, kec)
+	}
+	query += ` GROUP BY u.id, u.name ORDER BY u.name`
+	rows, err := db.DB.Query(query, args...)
+	if err != nil {
+		return c.JSON(http.StatusOK, []PMLUser{})
+	}
+	defer rows.Close()
+	list := []PMLUser{}
+	for rows.Next() {
+		var p PMLUser
+		rows.Scan(&p.ID, &p.Name)
+		list = append(list, p)
+	}
+	return c.JSON(http.StatusOK, list)
+}
+
+// OptionsPPLByFilter — GET /admin/options/ppl-by-filter?kec=X&pml_id=Y
+// Sama seperti OptionsPMLByKec tapi utk dropdown PPL — ikut mengecil kalau
+// Kecamatan dan/atau PML sudah dipilih.
+func OptionsPPLByFilter(c echo.Context) error {
+	kec := c.QueryParam("kec")
+	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
+	query := `SELECT u.id, u.name FROM users u JOIN sls s ON s.ppl_id=u.id WHERE u.role='ppl'`
+	var args []interface{}
+	if kec != "" {
+		query += ` AND s.nama_kec = ?`
+		args = append(args, kec)
+	}
+	if pmlID > 0 {
+		query += ` AND s.pml_id = ?`
+		args = append(args, pmlID)
+	}
+	query += ` GROUP BY u.id, u.name ORDER BY u.name`
+	rows, err := db.DB.Query(query, args...)
+	if err != nil {
+		return c.JSON(http.StatusOK, []PPLUser{})
+	}
+	defer rows.Close()
+	list := []PPLUser{}
+	for rows.Next() {
+		var p PPLUser
+		rows.Scan(&p.ID, &p.Name)
+		list = append(list, p)
+	}
+	return c.JSON(http.StatusOK, list)
 }

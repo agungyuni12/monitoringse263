@@ -739,9 +739,27 @@ func roundPct(v float64) float64 {
 // adminWideAgregatTable di kbli.go). kodeFilter & prelistKode opsional, lihat kbli.go.
 func downloadWideAgregat(c echo.Context, table, filenamePrefix string, kodeFilter []string, prelistKode string) error {
 	q := c.QueryParam("q")
+	kec := c.QueryParam("kec")
+	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
+	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
 	like := "%" + q + "%"
 
 	indikatorList := queryAgregatIndikatorList(table, kodeFilter, prelistKode)
+
+	where := ` WHERE (s.nama_sls LIKE ? OR ppl.name LIKE ? OR pml.name LIKE ? OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?)`
+	args := []interface{}{like, like, like, like, like}
+	if kec != "" {
+		where += ` AND s.nama_kec = ?`
+		args = append(args, kec)
+	}
+	if pmlID > 0 {
+		where += ` AND s.pml_id = ?`
+		args = append(args, pmlID)
+	}
+	if pplID > 0 {
+		where += ` AND s.ppl_id = ?`
+		args = append(args, pplID)
+	}
 
 	rows, err := db.DB.Query(`
 		SELECT s.id, s.kode_sls, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
@@ -749,10 +767,9 @@ func downloadWideAgregat(c echo.Context, table, filenamePrefix string, kodeFilte
 		FROM sls s
 		JOIN users ppl ON ppl.id = s.ppl_id
 		JOIN users pml ON pml.id = s.pml_id
-		WHERE s.nama_sls LIKE ? OR ppl.name LIKE ? OR pml.name LIKE ?
-		  OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?
+		`+where+`
 		ORDER BY s.kode_kec, s.kode_desa, s.kode_sls`,
-		like, like, like, like, like)
+		args...)
 	if err != nil {
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
