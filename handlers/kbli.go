@@ -50,7 +50,11 @@ var wideAgregatSortCols = map[string]string{
 // jadi aman diselipkan langsung ke query. kodeFilter opsional: kalau diisi,
 // cuma indikator dgn kode di daftar itu yang diambil (dipakai utk memecah
 // coverage_usaha_keluarga jadi sub-tabel Usaha BKU / Usaha Keluarga).
-func queryAgregatIndikatorList(table string, kodeFilter []string) []KBLIIndikator {
+// prelistKode opsional: kalau diisi, indikator dgn kode itu dipindah ke depan
+// (kolom Prelist Awal harus paling kiri) — perlu krn urutan numerik kode
+// tidak selalu menaruh Prelist di depan (mis. kode sintetis 90001 utk Usaha
+// Keluarga, yg sebenarnya konsep "awal" tapi angkanya paling besar).
+func queryAgregatIndikatorList(table string, kodeFilter []string, prelistKode string) []KBLIIndikator {
 	query := fmt.Sprintf(`SELECT DISTINCT kode_indikator, nama_indikator FROM %s`, table)
 	var args []interface{}
 	if len(kodeFilter) > 0 {
@@ -77,6 +81,15 @@ func queryAgregatIndikatorList(table string, kodeFilter []string) []KBLIIndikato
 		nj, _ := strconv.Atoi(list[j].Kode)
 		return ni < nj
 	})
+	if prelistKode != "" {
+		for i, k := range list {
+			if k.Kode == prelistKode && i > 0 {
+				list = append(list[:i], list[i+1:]...)
+				list = append([]KBLIIndikator{k}, list...)
+				break
+			}
+		}
+	}
 	return list
 }
 
@@ -86,7 +99,10 @@ func queryAgregatIndikatorList(table string, kodeFilter []string) []KBLIIndikato
 // Keluarga) — sengaja generik supaya kalau nanti ada dataset agregat baru
 // dari dashboard-se2026 (skema sama persis), tinggal tambah satu wrapper
 // tipis tanpa duplikasi query. kodeFilter opsional (lihat queryAgregatIndikatorList).
-func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath string, kodeFilter []string) error {
+// prelistKode/baruKode opsional: kalau diisi, template bisa tampilkan badge
+// persentase (nilai/Prelist Awal) di tiap kolom kecuali kolom Prelist &
+// Baru itu sendiri (lihat admin_keberadaan_*_table.html).
+func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath string, kodeFilter []string, prelistKode, baruKode string) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
 		page = 1
@@ -117,7 +133,7 @@ func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath st
 	pageInfo.Dir = sortDir
 	pageInfo.FilterExtra = extra
 
-	indikatorList := queryAgregatIndikatorList(table, kodeFilter)
+	indikatorList := queryAgregatIndikatorList(table, kodeFilter, prelistKode)
 
 	rows, err := db.DB.Query(`
 		SELECT s.id, s.kode_sls, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
@@ -133,6 +149,7 @@ func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath st
 	if err != nil {
 		return c.Render(http.StatusOK, tmplName, map[string]interface{}{
 			"Rows": nil, "Page": pageInfo, "Indikators": indikatorList, "Q": q,
+			"PrelistKode": prelistKode, "BaruKode": baruKode,
 		})
 	}
 	defer rows.Close()
@@ -186,13 +203,14 @@ func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath st
 
 	return c.Render(http.StatusOK, tmplName, map[string]interface{}{
 		"Rows": list, "Page": pageInfo, "Indikators": indikatorList, "Q": q,
+		"PrelistKode": prelistKode, "BaruKode": baruKode,
 	})
 }
 
 // AdminKBLITable — GET /admin/table/kbli
 // Tabel lebar: 1 baris per SLS, 1 kolom per kategori KBLI (jumlah usaha).
 func AdminKBLITable(c echo.Context) error {
-	return adminWideAgregatTable(c, "kbli_usaha", "admin_kbli_table.html", "admin-kbli-wrap", "/admin/table/kbli", nil)
+	return adminWideAgregatTable(c, "kbli_usaha", "admin_kbli_table.html", "admin-kbli-wrap", "/admin/table/kbli", nil, "", "")
 }
 
 // Kode indikator coverage_usaha_keluarga per kategori (lihat juga kode
@@ -213,15 +231,15 @@ var kodeCovKeluargaAll = []string{"14", "15", "16", "17", "18", "19", "20", "21"
 
 // AdminKeberadaanBKUTable — GET /admin/table/keberadaan-bku
 func AdminKeberadaanBKUTable(c echo.Context) error {
-	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_bku_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-bku", kodeCovBKUAll)
+	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_bku_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-bku", kodeCovBKUAll, kodeCovUsahaPrelist, kodeCovUsahaBaru)
 }
 
 // AdminKeberadaanUsahaKeluargaTable — GET /admin/table/keberadaan-usaha-keluarga
 func AdminKeberadaanUsahaKeluargaTable(c echo.Context) error {
-	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_usahakeluarga_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-usaha-keluarga", kodeCovUsahaKeluargaAll)
+	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_usahakeluarga_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-usaha-keluarga", kodeCovUsahaKeluargaAll, kodeCovUsahaKelPrelist, kodeCovUsahaKelBaru)
 }
 
 // AdminKeberadaanKeluargaTable — GET /admin/table/keberadaan-keluarga
 func AdminKeberadaanKeluargaTable(c echo.Context) error {
-	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_keluarga_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-keluarga", kodeCovKeluargaAll)
+	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_keluarga_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-keluarga", kodeCovKeluargaAll, kodeCovKeluargaPrelist, kodeCovKeluargaBaru)
 }

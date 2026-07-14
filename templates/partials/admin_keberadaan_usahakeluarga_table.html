@@ -11,7 +11,6 @@
         {{template "sortable_th" dict "Label" "PPL" "Col" "ppl" "PageInfo" .Page "Class" "px-4 py-3 font-medium"}}
         {{template "sortable_th" dict "Label" "PML" "Col" "pml" "PageInfo" .Page "Class" "px-4 py-3 font-medium"}}
         {{template "sortable_th" dict "Label" "Desa / Kec" "Col" "lokasi" "PageInfo" .Page "Class" "px-4 py-3 font-medium"}}
-        <th class="px-3 py-3 font-medium text-center whitespace-nowrap">Total</th>
         {{range .Indikators}}
         <th class="px-3 py-3 font-medium text-center whitespace-nowrap" title="{{.Nama}}">{{.Nama}}</th>
         {{end}}
@@ -28,14 +27,19 @@
           <p>{{$r.NamaDesa}}</p>
           <p class="text-gray-400 dark:text-gray-500">Kec. {{$r.NamaKec}}</p>
         </td>
-        <td class="px-3 py-3 text-center font-bold text-se">{{$r.Total}}</td>
         {{range $k := $.Indikators}}
         {{$v := index $r.Values $k.Kode}}
-        <td class="px-3 py-3 text-center text-xs {{if gt $v 0}}text-gray-700 dark:text-gray-300 font-semibold{{else}}text-gray-300 dark:text-gray-600{{end}}">{{$v}}</td>
+        <td class="px-3 py-3 text-center text-xs whitespace-nowrap {{if gt $v 0}}text-gray-700 dark:text-gray-300 font-semibold{{else}}text-gray-300 dark:text-gray-600{{end}}">
+          {{$v}}
+          {{if and (ne $k.Kode $.PrelistKode) (ne $k.Kode $.BaruKode)}}
+          {{$pre := index $r.Values $.PrelistKode}}
+          {{if gt $pre 0}}<span class="ml-1 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-[10px] font-semibold">{{pct $v $pre}}%</span>{{end}}
+          {{end}}
+        </td>
         {{end}}
       </tr>
       {{else}}
-      <tr><td colspan="13" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">Belum ada data keberadaan Usaha Keluarga. Jalankan sinkronisasi terlebih dahulu.</td></tr>
+      <tr><td colspan="12" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">Belum ada data keberadaan Usaha Keluarga. Jalankan sinkronisasi terlebih dahulu.</td></tr>
       {{end}}
     </tbody>
   </table>

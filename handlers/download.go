@@ -734,14 +734,14 @@ func roundPct(v float64) float64 {
 }
 
 // downloadWideAgregat — dipakai bareng oleh DownloadKBLI & sub-download Rekap
-// Keberadaan (Usaha BKU / Usaha Keluarga): tabel lebar per SLS, 1 kolom per
-// indikator, dari sebuah tabel agregat generik (skema sama seperti
-// adminWideAgregatTable di kbli.go). kodeFilter opsional, lihat kbli.go.
-func downloadWideAgregat(c echo.Context, table, filenamePrefix string, kodeFilter []string) error {
+// Keberadaan (Usaha BKU / Usaha Keluarga / Keluarga): tabel lebar per SLS, 1
+// kolom per indikator, dari sebuah tabel agregat generik (skema sama seperti
+// adminWideAgregatTable di kbli.go). kodeFilter & prelistKode opsional, lihat kbli.go.
+func downloadWideAgregat(c echo.Context, table, filenamePrefix string, kodeFilter []string, prelistKode string) error {
 	q := c.QueryParam("q")
 	like := "%" + q + "%"
 
-	indikatorList := queryAgregatIndikatorList(table, kodeFilter)
+	indikatorList := queryAgregatIndikatorList(table, kodeFilter, prelistKode)
 
 	rows, err := db.DB.Query(`
 		SELECT s.id, s.kode_sls, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
@@ -829,20 +829,20 @@ func downloadWideAgregat(c echo.Context, table, filenamePrefix string, kodeFilte
 
 // DownloadKBLI — GET /admin/download/kbli
 func DownloadKBLI(c echo.Context) error {
-	return downloadWideAgregat(c, "kbli_usaha", "monitoring_kbli", nil)
+	return downloadWideAgregat(c, "kbli_usaha", "monitoring_kbli", nil, "")
 }
 
 // DownloadKeberadaanBKU — GET /admin/download/keberadaan-bku
 func DownloadKeberadaanBKU(c echo.Context) error {
-	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_bku", kodeCovBKUAll)
+	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_bku", kodeCovBKUAll, kodeCovUsahaPrelist)
 }
 
 // DownloadKeberadaanUsahaKeluarga — GET /admin/download/keberadaan-usaha-keluarga
 func DownloadKeberadaanUsahaKeluarga(c echo.Context) error {
-	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_usaha_keluarga", kodeCovUsahaKeluargaAll)
+	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_usaha_keluarga", kodeCovUsahaKeluargaAll, kodeCovUsahaKelPrelist)
 }
 
 // DownloadKeberadaanKeluarga — GET /admin/download/keberadaan-keluarga
 func DownloadKeberadaanKeluarga(c echo.Context) error {
-	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_keluarga", kodeCovKeluargaAll)
+	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_keluarga", kodeCovKeluargaAll, kodeCovKeluargaPrelist)
 }
