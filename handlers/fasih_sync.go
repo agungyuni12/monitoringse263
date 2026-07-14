@@ -20,12 +20,12 @@ import (
 )
 
 const (
-	fasihBase       = "https://fasih-sm.bps.go.id"
-	fasihSurveyID   = "a0429e96-51a5-477b-a415-485f9c153004"
-	fasihPeriodID   = "fd68e454-ba45-4b85-8205-f3bf777ded24"
-	fasihRoleID     = "6d7d919a-45e5-4779-bb87-2905b49fd31a" // Pencacah
-	fasihRegion2ID  = "546a26bf-e388-41ab-9083-e02cbbc093d4" // Dompu
-	fasihPageSize   = 10
+	fasihBase      = "https://fasih-sm.bps.go.id"
+	fasihSurveyID  = "a0429e96-51a5-477b-a415-485f9c153004"
+	fasihPeriodID  = "fd68e454-ba45-4b85-8205-f3bf777ded24"
+	fasihRoleID    = "6d7d919a-45e5-4779-bb87-2905b49fd31a" // Pencacah
+	fasihRegion2ID = "546a26bf-e388-41ab-9083-e02cbbc093d4" // Dompu
+	fasihPageSize  = 10
 )
 
 var (
@@ -69,8 +69,10 @@ func LastSyncFromDB() struct {
 	if err != nil || syncedAt == nil {
 		return result
 	}
-	wita := time.FixedZone("WITA", 8*3600)
-	result.Time = syncedAt.In(wita).Format("02/01/2006 15:04:05 WITA")
+	// fasih_synced_at disimpan sbg wall-clock WITA murni (lihat upsertProgress
+	// & scraper/sync_fasih.py, bukan UTC) — jangan di-.In(wita) lagi di sini,
+	// nanti malah kegeser +8 jam dobel dari yang sudah benar.
+	result.Time = syncedAt.Format("02/01/2006 15:04:05 WITA")
 	result.Updated = count
 	return result
 }
@@ -443,7 +445,7 @@ func upsertProgress(agg map[string]*slsAgg) (int, error) {
 		   fasih_approved_pusat, fasih_rejected_pusat,
 		   fasih_edited_admin, fasih_completed_admin,
 		   fasih_total, fasih_synced_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())
 		ON DUPLICATE KEY UPDATE
 		  jumlah_submit             = VALUES(jumlah_submit),
 		  jumlah_draft              = VALUES(jumlah_draft),
@@ -461,11 +463,14 @@ func upsertProgress(agg map[string]*slsAgg) (int, error) {
 		  fasih_edited_admin        = VALUES(fasih_edited_admin),
 		  fasih_completed_admin     = VALUES(fasih_completed_admin),
 		  fasih_total               = VALUES(fasih_total),
-		  fasih_synced_at           = NOW(),
+		  fasih_synced_at           = VALUES(fasih_synced_at),
 		  updated_at                = NOW()`
 
-	syncedAt := time.Now()
-	_ = syncedAt
+	// fasih_synced_at disimpan sbg wall-clock WITA murni (sama seperti
+	// scraper/sync_fasih.py), bukan NOW() bawaan MySQL — supaya kedua jalur
+	// sync (Python & Go) konsisten dan LastSyncFromDB() tidak perlu konversi
+	// timezone lagi saat ditampilkan.
+	syncedAt := time.Now().In(wita).Format("2006-01-02 15:04:05")
 
 	n := 0
 	for kode, a := range agg {
@@ -481,7 +486,7 @@ func upsertProgress(agg map[string]*slsAgg) (int, error) {
 			a.approvedProvinsi, a.rejectedProvinsi,
 			a.approvedPusat, a.rejectedPusat,
 			a.editedAdmin, a.completedAdmin,
-			a.total)
+			a.total, syncedAt)
 		if err != nil {
 			log.Printf("[FASIH] upsert %s: %v", kode, err)
 			continue
