@@ -273,6 +273,8 @@ type slsAgg struct {
 	rejectedProvinsi  int
 	approvedPusat     int
 	rejectedPusat     int
+	editedAdmin       int // "EDITED BY Admin ..." — digabung semua level (Kab/Prov/Pusat)
+	completedAdmin    int // "COMPLETED BY Admin ..." — digabung semua level
 	total             int
 }
 
@@ -397,6 +399,10 @@ func processPencacah(content []fasihPencacah, agg map[string]*slsAgg, unknownSta
 					a.approvedPusat += cnt
 				case "REJECTED BY Admin Pusat":
 					a.rejectedPusat += cnt
+				case "EDITED BY Admin Kabupaten", "EDITED BY Admin Provinsi", "EDITED BY Admin Pusat":
+					a.editedAdmin += cnt
+				case "COMPLETED BY Admin Kabupaten", "COMPLETED BY Admin Provinsi", "COMPLETED BY Admin Pusat":
+					a.completedAdmin += cnt
 				default:
 					knownBucket = false
 				}
@@ -435,8 +441,9 @@ func upsertProgress(agg map[string]*slsAgg) (int, error) {
 		   fasih_approved_kabupaten, fasih_rejected_kabupaten,
 		   fasih_approved_provinsi, fasih_rejected_provinsi,
 		   fasih_approved_pusat, fasih_rejected_pusat,
+		   fasih_edited_admin, fasih_completed_admin,
 		   fasih_total, fasih_synced_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())
 		ON DUPLICATE KEY UPDATE
 		  jumlah_submit             = VALUES(jumlah_submit),
 		  jumlah_draft              = VALUES(jumlah_draft),
@@ -451,6 +458,8 @@ func upsertProgress(agg map[string]*slsAgg) (int, error) {
 		  fasih_rejected_provinsi   = VALUES(fasih_rejected_provinsi),
 		  fasih_approved_pusat      = VALUES(fasih_approved_pusat),
 		  fasih_rejected_pusat      = VALUES(fasih_rejected_pusat),
+		  fasih_edited_admin        = VALUES(fasih_edited_admin),
+		  fasih_completed_admin     = VALUES(fasih_completed_admin),
 		  fasih_total               = VALUES(fasih_total),
 		  fasih_synced_at           = NOW(),
 		  updated_at                = NOW()`
@@ -471,6 +480,7 @@ func upsertProgress(agg map[string]*slsAgg) (int, error) {
 			a.approvedKabupaten, a.rejectedKabupaten,
 			a.approvedProvinsi, a.rejectedProvinsi,
 			a.approvedPusat, a.rejectedPusat,
+			a.editedAdmin, a.completedAdmin,
 			a.total)
 		if err != nil {
 			log.Printf("[FASIH] upsert %s: %v", kode, err)

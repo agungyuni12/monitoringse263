@@ -22,6 +22,9 @@ type PMLModalData struct {
 }
 
 // verifCols: submit/draft/diperiksa/error dari progress (FASIH), observasi dari verifikasi_harian
+// Diperiksa/"Approved" pakai formula yang sama dengan tabel admin (lihat
+// approvedColSQLRow di admin.go): approved pengawas + (approved ATAU rejected)
+// di level kabupaten/provinsi/pusat + edited/completed admin.
 const verifCols = `
 	s.id, s.kode_sls, s.nama_sls, s.target,
 	COALESCE(s.kode_kec,''), COALESCE(s.nama_kec,''),
@@ -29,7 +32,7 @@ const verifCols = `
 	u.name,
 	COALESCE(p.jumlah_submit,0),
 	COALESCE(p.jumlah_draft,0),
-	COALESCE(p.fasih_approved_pengawas,0),
+	` + approvedColSQLRow + `,
 	COALESCE(p.fasih_rejected_pengawas,0),
 	COALESCE((SELECT SUM(vh2.jumlah_observasi) FROM verifikasi_harian vh2 WHERE vh2.sls_id=s.id),0),
 	COALESCE((SELECT vh2.kendala FROM verifikasi_harian vh2 WHERE vh2.sls_id=s.id ORDER BY vh2.tanggal DESC LIMIT 1),''),
@@ -43,7 +46,7 @@ var pmlTableSortCols = map[string]string{
 	"target":   "s.target",
 	"submit":   "COALESCE(p.jumlah_submit,0)",
 	"draft":    "COALESCE(p.jumlah_draft,0)",
-	"approved": "COALESCE(p.fasih_approved_pengawas,0)",
+	"approved": approvedColSQLRow,
 	"rejected": "COALESCE(p.fasih_rejected_pengawas,0)",
 }
 
@@ -85,7 +88,7 @@ var pmlProgresPPLSortCols = map[string]string{
 	"total":    "COALESCE(SUM(p.fasih_total),0)",
 	"submit":   "COALESCE(SUM(p.fasih_submitted),0)",
 	"draft":    "COALESCE(SUM(p.jumlah_draft),0)",
-	"approved": "COALESCE(SUM(p.fasih_approved_pengawas),0)",
+	"approved": approvedColSQLAgg,
 	"rejected": "COALESCE(SUM(p.fasih_rejected_pengawas),0)",
 	"progres":  "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
 }
@@ -135,6 +138,8 @@ func PMLProgresPPL(c echo.Context) error {
 		       COALESCE(SUM(p.fasih_rejected_provinsi),0),
 		       COALESCE(SUM(p.fasih_approved_pusat),0),
 		       COALESCE(SUM(p.fasih_rejected_pusat),0),
+		       COALESCE(SUM(p.fasih_edited_admin),0),
+		       COALESCE(SUM(p.fasih_completed_admin),0),
 		       COALESCE(SUM(p.fasih_total),0)
 		FROM users u
 		JOIN sls s ON s.ppl_id = u.id
@@ -149,14 +154,21 @@ func PMLProgresPPL(c echo.Context) error {
 		defer rows.Close()
 		for rows.Next() {
 			var r PPLRow
+			var editedAdmin, completedAdmin int
 			rows.Scan(&r.ID, &r.Name, &r.JmlSLS,
 				&r.Submit, &r.JumlahSubmit, &r.Draft,
 				&r.ApprovedPengawas, &r.RejectedPengawas,
 				&r.ApprovedKabupaten, &r.RejectedKabupaten,
 				&r.ApprovedProvinsi, &r.RejectedProvinsi,
 				&r.ApprovedPusat, &r.RejectedPusat,
+				&editedAdmin, &completedAdmin,
 				&r.FasihTotal)
-			r.Diperiksa = r.ApprovedPengawas
+			// Diperiksa/"Approved" (lihat catatan formula approvedColSQLAgg/Row di admin.go).
+			r.Diperiksa = r.ApprovedPengawas +
+				r.ApprovedKabupaten + r.RejectedKabupaten +
+				r.ApprovedProvinsi + r.RejectedProvinsi +
+				r.ApprovedPusat + r.RejectedPusat +
+				editedAdmin + completedAdmin
 			r.Error = r.RejectedPengawas
 			if r.FasihTotal > 0 {
 				r.PctSubmit = math.Min(float64(r.JumlahSubmit)*100/float64(r.FasihTotal), 100)
@@ -191,7 +203,7 @@ func PMLDashboard(c echo.Context) error {
 	db.DB.QueryRow(`
 		SELECT
 		  COALESCE(SUM(p.jumlah_submit),0),
-		  COALESCE(SUM(p.fasih_approved_pengawas),0),
+		  `+approvedColSQLAgg+`,
 		  COALESCE(SUM(p.fasih_rejected_pengawas),0),
 		  COALESCE((SELECT SUM(jumlah_observasi) FROM verifikasi_harian vh WHERE vh.sls_id IN (SELECT id FROM sls WHERE pml_id=?)),0)
 		FROM sls s
@@ -358,8 +370,8 @@ func PMLSaveVerif(c echo.Context) error {
 
 	// Ambil diperiksa & error otomatis dari FASIH (progress)
 	var diperiksa, errDoc int
-	db.DB.QueryRow(`SELECT COALESCE(fasih_approved_pengawas,0), COALESCE(fasih_rejected_pengawas,0)
-		FROM progress WHERE sls_id=?`, slsID).Scan(&diperiksa, &errDoc)
+	db.DB.QueryRow(`SELECT `+approvedColSQLRow+`, COALESCE(p.fasih_rejected_pengawas,0)
+		FROM progress p WHERE p.sls_id=?`, slsID).Scan(&diperiksa, &errDoc)
 
 	_, err := db.DB.Exec(`
 		INSERT INTO verifikasi_harian

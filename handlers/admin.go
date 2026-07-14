@@ -92,6 +92,8 @@ type AdminSummary struct {
 	TotalRejectedKabupaten int
 	TotalRejectedProvinsi  int
 	TotalRejectedPusat     int
+	TotalEditedAdmin       int
+	TotalCompletedAdmin    int
 	// Legacy aliases untuk progress bar (gunakan approved pengawas)
 	TotalDiperiksa     int // = TotalApprovedPengawas
 	TotalError         int // = TotalRejectedPengawas
@@ -226,6 +228,24 @@ const (
 	MetodePrelistVsPrelist = "3"
 )
 
+// Formula kolom "Approved": Approved Pengawas + (Approved ATAU Rejected) di
+// level Kabupaten/Provinsi/Pusat + Edited/Completed admin (semua level).
+// Rejected/Revoked di level Pengawas TIDAK ikut (tetap kolom "Rejected"
+// terpisah) — tapi begitu suatu assignment naik ke level admin (Kabupaten ke
+// atas), apapun hasilnya (approve, reject, edit, atau complete) itu berarti
+// sudah lolos diperiksa Pengawas duluan, jadi ikut dihitung "Approved".
+const approvedColSQLAgg = "(COALESCE(SUM(p.fasih_approved_pengawas),0)+" +
+	"COALESCE(SUM(p.fasih_approved_kabupaten),0)+COALESCE(SUM(p.fasih_rejected_kabupaten),0)+" +
+	"COALESCE(SUM(p.fasih_approved_provinsi),0)+COALESCE(SUM(p.fasih_rejected_provinsi),0)+" +
+	"COALESCE(SUM(p.fasih_approved_pusat),0)+COALESCE(SUM(p.fasih_rejected_pusat),0)+" +
+	"COALESCE(SUM(p.fasih_edited_admin),0)+COALESCE(SUM(p.fasih_completed_admin),0))"
+
+const approvedColSQLRow = "(COALESCE(p.fasih_approved_pengawas,0)+" +
+	"COALESCE(p.fasih_approved_kabupaten,0)+COALESCE(p.fasih_rejected_kabupaten,0)+" +
+	"COALESCE(p.fasih_approved_provinsi,0)+COALESCE(p.fasih_rejected_provinsi,0)+" +
+	"COALESCE(p.fasih_approved_pusat,0)+COALESCE(p.fasih_rejected_pusat,0)+" +
+	"COALESCE(p.fasih_edited_admin,0)+COALESCE(p.fasih_completed_admin,0))"
+
 func normalizeMetode(m string) string {
 	if m != MetodeTotalVsPrelist && m != MetodePrelistVsPrelist {
 		return MetodeTotalVsTotal
@@ -317,6 +337,8 @@ func computeAdminSummary(metode string) AdminSummary {
 		  (SELECT COALESCE(SUM(fasih_rejected_provinsi),0) FROM progress),
 		  (SELECT COALESCE(SUM(fasih_approved_pusat),0) FROM progress),
 		  (SELECT COALESCE(SUM(fasih_rejected_pusat),0) FROM progress),
+		  (SELECT COALESCE(SUM(fasih_edited_admin),0) FROM progress),
+		  (SELECT COALESCE(SUM(fasih_completed_admin),0) FROM progress),
 		  (SELECT COALESCE(SUM(jumlah_observasi),0) FROM verifikasi_harian),
 		  (SELECT COALESCE(SUM(fasih_total),0) FROM progress)`).
 		Scan(&s.TotalSLS, &s.TotalTarget, &s.TotalTargetPrelist, &s.TotalSubmit, &s.TotalFasihSubmit, &s.TotalDraft,
@@ -324,9 +346,15 @@ func computeAdminSummary(metode string) AdminSummary {
 			&s.TotalApprovedKabupaten, &s.TotalRejectedKabupaten,
 			&s.TotalApprovedProvinsi, &s.TotalRejectedProvinsi,
 			&s.TotalApprovedPusat, &s.TotalRejectedPusat,
+			&s.TotalEditedAdmin, &s.TotalCompletedAdmin,
 			&s.TotalObservasi, &s.TotalFasihTotal)
-	// Isi alias lama supaya template lama tetap kompatibel
-	s.TotalDiperiksa = s.TotalApprovedPengawas
+	// Isi alias lama supaya template lama tetap kompatibel. Diperiksa/"Approved"
+	// (lihat catatan formula approvedColSQLAgg/Row).
+	s.TotalDiperiksa = s.TotalApprovedPengawas +
+		s.TotalApprovedKabupaten + s.TotalRejectedKabupaten +
+		s.TotalApprovedProvinsi + s.TotalRejectedProvinsi +
+		s.TotalApprovedPusat + s.TotalRejectedPusat +
+		s.TotalEditedAdmin + s.TotalCompletedAdmin
 	s.TotalError = s.TotalRejectedPengawas
 	if s.TotalFasihTotal > 0 {
 		s.PctSubmit = math.Min(float64(s.TotalSubmit)*100/float64(s.TotalFasihTotal), 100)
@@ -481,7 +509,7 @@ var adminPMLSortCols = map[string]string{
 	"total":    "COALESCE(SUM(p.fasih_total),0)",
 	"submit":   "COALESCE(SUM(p.fasih_submitted),0)",
 	"draft":    "COALESCE(SUM(p.jumlah_draft),0)",
-	"approved": "COALESCE(SUM(p.fasih_approved_pengawas),0)",
+	"approved": approvedColSQLAgg,
 	"rejected": "COALESCE(SUM(p.fasih_rejected_pengawas),0)",
 	"progres":  "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
 	"terverifikasi": "(COALESCE(SUM(p.fasih_approved_pengawas),0)+COALESCE(SUM(p.fasih_rejected_pengawas),0)+COALESCE(SUM(p.fasih_revoked_pengawas),0)+" +
@@ -519,6 +547,7 @@ func queryAdminPML(page int, q, sort, dir, metode string) ([]PMLRow, models.Page
 		       COALESCE(SUM(p.fasih_approved_kabupaten),0), COALESCE(SUM(p.fasih_rejected_kabupaten),0),
 		       COALESCE(SUM(p.fasih_approved_provinsi),0),  COALESCE(SUM(p.fasih_rejected_provinsi),0),
 		       COALESCE(SUM(p.fasih_approved_pusat),0),     COALESCE(SUM(p.fasih_rejected_pusat),0),
+		       COALESCE(SUM(p.fasih_edited_admin),0),       COALESCE(SUM(p.fasih_completed_admin),0),
 		       COALESCE(SUM(p.fasih_total),0), COALESCE(SUM(s.target_prelist_resmi),0),
 		       COALESCE((SELECT SUM(vh2.jumlah_observasi) FROM verifikasi_harian vh2 WHERE vh2.sls_id IN (SELECT id FROM sls WHERE pml_id=u.id)),0),
 		       COUNT(DISTINCT CASE WHEN vh3.status_kendala IN ('open','in_progress','escalated') THEN s.id END)
@@ -547,15 +576,25 @@ func queryAdminPML(page int, q, sort, dir, metode string) ([]PMLRow, models.Page
 	var pmls []PMLRow
 	for rows.Next() {
 		var r PMLRow
+		var editedAdmin, completedAdmin int
 		rows.Scan(&r.ID, &r.Name, &r.JmlPPL, &r.JmlSLS,
 			&r.Submit, &r.JumlahSubmit, &r.Draft,
 			&r.ApprovedPengawas, &r.RejectedPengawas, &r.RevokedPengawas,
 			&r.ApprovedKabupaten, &r.RejectedKabupaten,
 			&r.ApprovedProvinsi, &r.RejectedProvinsi,
 			&r.ApprovedPusat, &r.RejectedPusat,
+			&editedAdmin, &completedAdmin,
 			&r.FasihTotal, &r.TargetPrelist, &r.Observasi, &r.KendalaTerbuka)
-		// Isi alias lama
-		r.Diperiksa = r.ApprovedPengawas
+		// Isi alias lama. Diperiksa/"Approved" = Approved Pengawas + (Approved
+		// ATAU Rejected) di level Kabupaten/Provinsi/Pusat + Edited/Completed
+		// admin — naik ke level admin (apapun hasilnya) berarti sudah lolos
+		// diperiksa Pengawas duluan. Rejected/Revoked Pengawas TETAP di kolom
+		// "Rejected" sendiri, tidak ikut sini.
+		r.Diperiksa = r.ApprovedPengawas +
+			r.ApprovedKabupaten + r.RejectedKabupaten +
+			r.ApprovedProvinsi + r.RejectedProvinsi +
+			r.ApprovedPusat + r.RejectedPusat +
+			editedAdmin + completedAdmin
 		r.Error = r.RejectedPengawas
 		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.TargetPrelist)
 		// Terverifikasi = semua status kecuali open, submit, draft
@@ -581,7 +620,7 @@ var adminPPLSortCols = map[string]string{
 	"total":    "COALESCE(SUM(p.fasih_total),0)",
 	"submit":   "COALESCE(SUM(p.fasih_submitted),0)",
 	"draft":    "COALESCE(SUM(p.jumlah_draft),0)",
-	"approved": "COALESCE(SUM(p.fasih_approved_pengawas),0)",
+	"approved": approvedColSQLAgg,
 	"rejected": "COALESCE(SUM(p.fasih_rejected_pengawas),0)",
 	"progres":  "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
 }
@@ -634,6 +673,8 @@ func queryAdminPPL(page int, q string, pmlID int, sort, dir, metode string) ([]P
 		       COALESCE(SUM(p.fasih_rejected_provinsi),0),
 		       COALESCE(SUM(p.fasih_approved_pusat),0),
 		       COALESCE(SUM(p.fasih_rejected_pusat),0),
+		       COALESCE(SUM(p.fasih_edited_admin),0),
+		       COALESCE(SUM(p.fasih_completed_admin),0),
 		       COALESCE(SUM(p.fasih_total),0), COALESCE(SUM(s.target_prelist_resmi),0)
 		FROM users u
 		JOIN sls s ON s.ppl_id = u.id
@@ -656,15 +697,22 @@ func queryAdminPPL(page int, q string, pmlID int, sort, dir, metode string) ([]P
 	var ppls []PPLRow
 	for rows.Next() {
 		var r PPLRow
+		var editedAdmin, completedAdmin int
 		rows.Scan(&r.ID, &r.Name, &r.PMLName, &r.JmlSLS,
 			&r.Submit, &r.JumlahSubmit, &r.Draft,
 			&r.ApprovedPengawas, &r.RejectedPengawas,
 			&r.ApprovedKabupaten, &r.RejectedKabupaten,
 			&r.ApprovedProvinsi, &r.RejectedProvinsi,
 			&r.ApprovedPusat, &r.RejectedPusat,
+			&editedAdmin, &completedAdmin,
 			&r.FasihTotal, &r.TargetPrelist)
-		// Isi alias lama
-		r.Diperiksa = r.ApprovedPengawas
+		// Isi alias lama. Diperiksa/"Approved" (lihat catatan yang sama di
+		// queryAdminPML).
+		r.Diperiksa = r.ApprovedPengawas +
+			r.ApprovedKabupaten + r.RejectedKabupaten +
+			r.ApprovedProvinsi + r.RejectedProvinsi +
+			r.ApprovedPusat + r.RejectedPusat +
+			editedAdmin + completedAdmin
 		r.Error = r.RejectedPengawas
 		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.TargetPrelist)
 		ppls = append(ppls, r)
@@ -727,7 +775,7 @@ var adminSLSSortCols = map[string]string{
 	"total":    "COALESCE(p.fasih_total,0)",
 	"submit":   "COALESCE(p.fasih_submitted,0)",
 	"draft":    "COALESCE(p.jumlah_draft,0)",
-	"approved": "COALESCE(p.fasih_approved_pengawas,0)",
+	"approved": approvedColSQLRow,
 	"rejected": "COALESCE(p.fasih_rejected_pengawas,0)",
 	"progres":  "(CASE WHEN COALESCE(p.fasih_total,0)=0 THEN 0 ELSE COALESCE(p.jumlah_submit,0)/p.fasih_total END)",
 }
@@ -764,7 +812,8 @@ func queryAdminSLS(page int, q, sort, dir, metode string) ([]SLSAdminRow, models
 		       COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''), s.target, s.target_prelist_resmi,
 		       COALESCE(p.fasih_submitted,0), COALESCE(p.jumlah_submit,0),
 		       COALESCE(p.jumlah_draft,0),
-		       COALESCE(p.fasih_approved_pengawas,0), COALESCE(p.fasih_rejected_pengawas,0),
+		       `+approvedColSQLRow+`,
+		       COALESCE(p.fasih_rejected_pengawas,0),
 		       COALESCE((SELECT SUM(vh.jumlah_observasi) FROM verifikasi_harian vh WHERE vh.sls_id=s.id),0),
 		       COALESCE(p.fasih_total,0),
 		       COALESCE((SELECT vh2.status_kendala FROM verifikasi_harian vh2 WHERE vh2.sls_id=s.id ORDER BY vh2.tanggal DESC LIMIT 1),'open'),
@@ -809,7 +858,7 @@ var adminDesaSortCols = map[string]string{
 	"total":     "COALESCE(SUM(p.fasih_total),0)",
 	"submit":    "COALESCE(SUM(p.fasih_submitted),0)",
 	"draft":     "COALESCE(SUM(p.jumlah_draft),0)",
-	"approved":  "COALESCE(SUM(p.fasih_approved_pengawas),0)",
+	"approved":  approvedColSQLAgg,
 	"rejected":  "COALESCE(SUM(p.fasih_rejected_pengawas),0)",
 	"progres":   "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
 }
@@ -842,7 +891,7 @@ func queryAdminSLSByDesa(page int, q, sort, dir, metode string) ([]DesaRow, mode
 		       COALESCE(SUM(p.fasih_submitted),0),
 		       COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
-		       COALESCE(SUM(p.fasih_approved_pengawas),0),
+		       `+approvedColSQLAgg+`,
 		       COALESCE(SUM(p.fasih_rejected_pengawas),0),
 		       COALESCE(SUM(p.fasih_total),0)
 		FROM sls s
@@ -877,7 +926,7 @@ var adminKecSortCols = map[string]string{
 	"total":    "COALESCE(SUM(p.fasih_total),0)",
 	"submit":   "COALESCE(SUM(p.fasih_submitted),0)",
 	"draft":    "COALESCE(SUM(p.jumlah_draft),0)",
-	"approved": "COALESCE(SUM(p.fasih_approved_pengawas),0)",
+	"approved": approvedColSQLAgg,
 	"rejected": "COALESCE(SUM(p.fasih_rejected_pengawas),0)",
 	"progres":  "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
 }
@@ -908,7 +957,7 @@ func queryAdminSLSByKec(page int, q, sort, dir, metode string) ([]KecRow, models
 		       COALESCE(SUM(p.fasih_submitted),0),
 		       COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
-		       COALESCE(SUM(p.fasih_approved_pengawas),0),
+		       `+approvedColSQLAgg+`,
 		       COALESCE(SUM(p.fasih_rejected_pengawas),0),
 		       COALESCE(SUM(p.fasih_total),0)
 		FROM sls s
@@ -949,7 +998,7 @@ type ProgresRekapRow struct {
 	FasihSubmit  int // fasih_submitted: pending review PML (kolom Submit)
 	JumlahSubmit int // jumlah_submit: semua status (untuk % progress)
 	JumlahDraft  int
-	Diperiksa    int // = fasih_approved_pengawas
+	Diperiksa    int // "Approved" (lihat formula approvedColSQLAgg/Row)
 	Error        int // = fasih_rejected_pengawas
 	// Breakdown verifikasi per level lain (dipakai utk PctTerverifikasi, sama seperti Per PML)
 	RevokedPengawas   int
@@ -1084,6 +1133,7 @@ func queryProgresRekapRows(q string, pmlID, pplID, slsID int, prioritasOnly bool
 		       COALESCE(p.fasih_approved_kabupaten,0), COALESCE(p.fasih_rejected_kabupaten,0),
 		       COALESCE(p.fasih_approved_provinsi,0), COALESCE(p.fasih_rejected_provinsi,0),
 		       COALESCE(p.fasih_approved_pusat,0), COALESCE(p.fasih_rejected_pusat,0),
+		       COALESCE(p.fasih_edited_admin,0), COALESCE(p.fasih_completed_admin,0),
 		       s.target_prelist_resmi
 		FROM sls s
 		JOIN users ppl ON ppl.id = s.ppl_id
@@ -1095,10 +1145,12 @@ func queryProgresRekapRows(q string, pmlID, pplID, slsID int, prioritasOnly bool
 		defer rows.Close()
 		for rows.Next() {
 			var r ProgresRekapRow
+			var editedAdmin, completedAdmin int
 			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML, &r.Prioritas,
 				&r.FasihTotal, &r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft, &r.Diperiksa, &r.Error,
 				&r.RevokedPengawas, &r.ApprovedKabupaten, &r.RejectedKabupaten,
 				&r.ApprovedProvinsi, &r.RejectedProvinsi, &r.ApprovedPusat, &r.RejectedPusat,
+				&editedAdmin, &completedAdmin,
 				&r.TargetPrelist)
 			r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.TargetPrelist)
 			r.Terverifikasi = r.Diperiksa + r.Error + r.RevokedPengawas +
@@ -1108,6 +1160,12 @@ func queryProgresRekapRows(q string, pmlID, pplID, slsID int, prioritasOnly bool
 			if r.JumlahSubmit > 0 {
 				r.PctTerverifikasi = math.Min(float64(r.Terverifikasi)*100/float64(r.JumlahSubmit), 100)
 			}
+			// Diperiksa/"Approved" (lihat catatan formula approvedColSQLAgg/Row).
+			r.Diperiksa = r.Diperiksa +
+				r.ApprovedKabupaten + r.RejectedKabupaten +
+				r.ApprovedProvinsi + r.RejectedProvinsi +
+				r.ApprovedPusat + r.RejectedPusat +
+				editedAdmin + completedAdmin
 			list = append(list, r)
 		}
 	}

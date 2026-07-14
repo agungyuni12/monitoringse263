@@ -58,7 +58,8 @@ func DownloadPML(c echo.Context) error {
 		       COALESCE(SUM(p.fasih_revoked_pengawas),0),
 		       COALESCE(SUM(p.fasih_approved_kabupaten),0), COALESCE(SUM(p.fasih_rejected_kabupaten),0),
 		       COALESCE(SUM(p.fasih_approved_provinsi),0),  COALESCE(SUM(p.fasih_rejected_provinsi),0),
-		       COALESCE(SUM(p.fasih_approved_pusat),0),     COALESCE(SUM(p.fasih_rejected_pusat),0)
+		       COALESCE(SUM(p.fasih_approved_pusat),0),     COALESCE(SUM(p.fasih_rejected_pusat),0),
+		       COALESCE(SUM(p.fasih_edited_admin),0),       COALESCE(SUM(p.fasih_completed_admin),0)
 		FROM users u
 		JOIN sls s ON s.pml_id = u.id
 		LEFT JOIN progress p ON p.sls_id = s.id
@@ -74,13 +75,15 @@ func DownloadPML(c echo.Context) error {
 		jmlPPL, jmlSLS, total, targetPrelist, fasihSubmit, jumlahSubmit, draft int
 		apprPengawas, rejPengawas, revPengawas                                 int
 		apprKab, rejKab, apprProv, rejProv, apprPusat, rejPusat                int
+		editedAdmin, completedAdmin                                            int
 	}
 	var data []row
 	for rows.Next() {
 		var r row
 		rows.Scan(&r.name, &r.jmlPPL, &r.jmlSLS, &r.total, &r.targetPrelist, &r.fasihSubmit, &r.jumlahSubmit, &r.draft,
 			&r.apprPengawas, &r.rejPengawas, &r.revPengawas,
-			&r.apprKab, &r.rejKab, &r.apprProv, &r.rejProv, &r.apprPusat, &r.rejPusat)
+			&r.apprKab, &r.rejKab, &r.apprProv, &r.rejProv, &r.apprPusat, &r.rejPusat,
+			&r.editedAdmin, &r.completedAdmin)
 		data = append(data, r)
 	}
 
@@ -95,13 +98,18 @@ func DownloadPML(c echo.Context) error {
 			if r.jumlahSubmit > 0 {
 				pctTerverifikasi = math.Min(float64(terverifikasi)*100/float64(r.jumlahSubmit), 100)
 			}
+			approved := r.apprPengawas +
+				r.apprKab + r.rejKab +
+				r.apprProv + r.rejProv +
+				r.apprPusat + r.rejPusat +
+				r.editedAdmin + r.completedAdmin
 			f.SetCellValue(sheet, cell(1, n), r.name)
 			f.SetCellValue(sheet, cell(2, n), r.jmlPPL)
 			f.SetCellValue(sheet, cell(3, n), r.jmlSLS)
 			f.SetCellValue(sheet, cell(4, n), r.total)
 			f.SetCellValue(sheet, cell(5, n), r.fasihSubmit)
 			f.SetCellValue(sheet, cell(6, n), r.draft)
-			f.SetCellValue(sheet, cell(7, n), r.apprPengawas)
+			f.SetCellValue(sheet, cell(7, n), approved)
 			f.SetCellValue(sheet, cell(8, n), r.rejPengawas)
 			f.SetCellValue(sheet, cell(9, n), roundPct(computePctProgres(metode, r.jumlahSubmit, r.total, r.targetPrelist)))
 			f.SetCellValue(sheet, cell(10, n), roundPct(pctTerverifikasi))
@@ -130,6 +138,10 @@ func DownloadPPL(c echo.Context) error {
 		       COALESCE(SUM(p.fasih_submitted),0), COALESCE(SUM(p.jumlah_submit),0),
 		       COALESCE(SUM(p.jumlah_draft),0),
 		       COALESCE(SUM(p.fasih_approved_pengawas),0),
+		       COALESCE(SUM(p.fasih_approved_kabupaten),0), COALESCE(SUM(p.fasih_rejected_kabupaten),0),
+		       COALESCE(SUM(p.fasih_approved_provinsi),0),  COALESCE(SUM(p.fasih_rejected_provinsi),0),
+		       COALESCE(SUM(p.fasih_approved_pusat),0),     COALESCE(SUM(p.fasih_rejected_pusat),0),
+		       COALESCE(SUM(p.fasih_edited_admin),0),       COALESCE(SUM(p.fasih_completed_admin),0),
 		       COALESCE(SUM(p.fasih_rejected_pengawas),0)
 		FROM users u
 		JOIN sls s ON s.ppl_id = u.id
@@ -144,16 +156,18 @@ func DownloadPPL(c echo.Context) error {
 	defer rows.Close()
 
 	type row struct {
-		id                                                      int
-		ppl, pml                                                string
-		jmlSLS, total, targetPrelist, fasihSubmit, jumlahSubmit int
-		draft, approved, rejected                               int
+		id                                                         int
+		ppl, pml                                                   string
+		jmlSLS, total, targetPrelist, fasihSubmit, jumlahSubmit    int
+		draft, apprPengawas, apprKab, rejKab, apprProv, rejProv    int
+		apprPusat, rejPusat, editedAdmin, completedAdmin, rejected int
 	}
 	var data []row
 	for rows.Next() {
 		var r row
 		rows.Scan(&r.id, &r.ppl, &r.pml, &r.jmlSLS, &r.total, &r.targetPrelist, &r.fasihSubmit, &r.jumlahSubmit,
-			&r.draft, &r.approved, &r.rejected)
+			&r.draft, &r.apprPengawas, &r.apprKab, &r.rejKab, &r.apprProv, &r.rejProv,
+			&r.apprPusat, &r.rejPusat, &r.editedAdmin, &r.completedAdmin, &r.rejected)
 		data = append(data, r)
 	}
 
@@ -181,7 +195,12 @@ func DownloadPPL(c echo.Context) error {
 			f.SetCellValue(sheet, cell(4, n), r.total)
 			f.SetCellValue(sheet, cell(5, n), r.fasihSubmit)
 			f.SetCellValue(sheet, cell(6, n), r.draft)
-			f.SetCellValue(sheet, cell(7, n), r.approved)
+			approved := r.apprPengawas +
+				r.apprKab + r.rejKab +
+				r.apprProv + r.rejProv +
+				r.apprPusat + r.rejPusat +
+				r.editedAdmin + r.completedAdmin
+			f.SetCellValue(sheet, cell(7, n), approved)
 			f.SetCellValue(sheet, cell(8, n), r.rejected)
 			f.SetCellValue(sheet, cell(9, n), roundPct(computePctProgres(metode, r.jumlahSubmit, r.total, r.targetPrelist)))
 			f.SetCellValue(sheet, cell(10, n), roundPct(pctSLSSelesai[r.id]))
@@ -209,7 +228,7 @@ func DownloadSLS(c echo.Context) error {
 			       COALESCE(SUM(p.fasih_submitted),0),
 			       COALESCE(SUM(p.jumlah_submit),0),
 			       COALESCE(SUM(p.jumlah_draft),0),
-			       COALESCE(SUM(p.fasih_approved_pengawas),0),
+			       `+approvedColSQLAgg+`,
 			       COALESCE(SUM(p.fasih_rejected_pengawas),0),
 			       COALESCE(SUM(s.target_prelist_resmi),0)
 			FROM sls s
@@ -227,7 +246,8 @@ func DownloadSLS(c echo.Context) error {
 		var data []row
 		for rows.Next() {
 			var r row
-			rows.Scan(&r.kec, &r.jml, &r.total, &r.fasihSubmit, &r.jumlahSubmit, &r.draft, &r.approved, &r.rejected, &r.tgtPrelist)
+			rows.Scan(&r.kec, &r.jml, &r.total, &r.fasihSubmit, &r.jumlahSubmit, &r.draft,
+				&r.approved, &r.rejected, &r.tgtPrelist)
 			data = append(data, r)
 		}
 		headers := []string{"Kecamatan", "Jml SLS", "Total", "Submit", "Draft", "Approved", "Rejected", "% Isian"}
@@ -252,7 +272,7 @@ func DownloadSLS(c echo.Context) error {
 			       COALESCE(SUM(p.fasih_submitted),0),
 			       COALESCE(SUM(p.jumlah_submit),0),
 			       COALESCE(SUM(p.jumlah_draft),0),
-			       COALESCE(SUM(p.fasih_approved_pengawas),0),
+			       `+approvedColSQLAgg+`,
 			       COALESCE(SUM(p.fasih_rejected_pengawas),0),
 			       COALESCE(SUM(s.target_prelist_resmi),0)
 			FROM sls s
@@ -271,7 +291,8 @@ func DownloadSLS(c echo.Context) error {
 		var data []row
 		for rows.Next() {
 			var r row
-			rows.Scan(&r.desa, &r.kec, &r.jml, &r.total, &r.fasihSubmit, &r.jumlahSubmit, &r.draft, &r.approved, &r.rejected, &r.tgtPrelist)
+			rows.Scan(&r.desa, &r.kec, &r.jml, &r.total, &r.fasihSubmit, &r.jumlahSubmit, &r.draft,
+				&r.approved, &r.rejected, &r.tgtPrelist)
 			data = append(data, r)
 		}
 		headers := []string{"Nama Desa", "Kecamatan", "Jml SLS", "Total", "Submit", "Draft", "Approved", "Rejected", "% Isian"}
@@ -298,7 +319,7 @@ func DownloadSLS(c echo.Context) error {
 			       COALESCE(p.fasih_submitted,0),
 			       COALESCE(p.jumlah_submit,0),
 			       COALESCE(p.jumlah_draft,0),
-			       COALESCE(p.fasih_approved_pengawas,0),
+			       `+approvedColSQLRow+`,
 			       COALESCE(p.fasih_rejected_pengawas,0),
 			       COALESCE(s.target_prelist_resmi,0)
 			FROM sls s
@@ -321,7 +342,8 @@ func DownloadSLS(c echo.Context) error {
 		for rows.Next() {
 			var r row
 			rows.Scan(&r.kode, &r.nama, &r.ppl, &r.pml, &r.desa, &r.kec,
-				&r.total, &r.fasihSubmit, &r.jumlahSubmit, &r.draft, &r.approved, &r.rejected, &r.tgtPrelist)
+				&r.total, &r.fasihSubmit, &r.jumlahSubmit, &r.draft,
+				&r.approved, &r.rejected, &r.tgtPrelist)
 			data = append(data, r)
 		}
 		headers := []string{"Kode SLS", "Nama SLS", "PPL", "PML", "Desa / Kec", "Total", "Submit", "Draft", "Approved", "Rejected", "Progres"}

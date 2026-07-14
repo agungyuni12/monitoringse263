@@ -198,6 +198,8 @@ def aggregate(all_content):
         "fasih_rejected_provinsi": 0,
         "fasih_approved_pusat":    0,
         "fasih_rejected_pusat":    0,
+        "fasih_edited_admin":      0,  # "EDITED BY Admin ..." — digabung semua level (Kab/Prov/Pusat)
+        "fasih_completed_admin":  0,  # "COMPLETED BY Admin ..." — digabung semua level
         "fasih_total":             0,
     })
 
@@ -239,6 +241,10 @@ def aggregate(all_content):
                         a["fasih_approved_kabupaten"] += cnt
                     elif "REJECTED" in su:
                         a["fasih_rejected_kabupaten"] += cnt
+                    elif "EDITED" in su:
+                        a["fasih_edited_admin"] += cnt
+                    elif "COMPLETED" in su:
+                        a["fasih_completed_admin"] += cnt
                     else:
                         known_bucket = False
                 elif "PROVINSI" in su:
@@ -246,6 +252,10 @@ def aggregate(all_content):
                         a["fasih_approved_provinsi"] += cnt
                     elif "REJECTED" in su:
                         a["fasih_rejected_provinsi"] += cnt
+                    elif "EDITED" in su:
+                        a["fasih_edited_admin"] += cnt
+                    elif "COMPLETED" in su:
+                        a["fasih_completed_admin"] += cnt
                     else:
                         known_bucket = False
                 elif "PUSAT" in su:
@@ -253,6 +263,10 @@ def aggregate(all_content):
                         a["fasih_approved_pusat"] += cnt
                     elif "REJECTED" in su:
                         a["fasih_rejected_pusat"] += cnt
+                    elif "EDITED" in su:
+                        a["fasih_edited_admin"] += cnt
+                    elif "COMPLETED" in su:
+                        a["fasih_completed_admin"] += cnt
                     else:
                         known_bucket = False
                 else:
@@ -335,8 +349,9 @@ def upload(sls_agg):
            fasih_approved_kabupaten, fasih_rejected_kabupaten,
            fasih_approved_provinsi, fasih_rejected_provinsi,
            fasih_approved_pusat, fasih_rejected_pusat,
+           fasih_edited_admin, fasih_completed_admin,
            fasih_total, fasih_synced_at, updated_at)
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
         ON DUPLICATE KEY UPDATE
           jumlah_submit             = VALUES(jumlah_submit),
           jumlah_draft              = VALUES(jumlah_draft),
@@ -351,6 +366,8 @@ def upload(sls_agg):
           fasih_rejected_provinsi   = VALUES(fasih_rejected_provinsi),
           fasih_approved_pusat      = VALUES(fasih_approved_pusat),
           fasih_rejected_pusat      = VALUES(fasih_rejected_pusat),
+          fasih_edited_admin        = VALUES(fasih_edited_admin),
+          fasih_completed_admin     = VALUES(fasih_completed_admin),
           fasih_total               = VALUES(fasih_total),
           fasih_synced_at           = VALUES(fasih_synced_at),
           updated_at                = NOW()
@@ -369,6 +386,7 @@ def upload(sls_agg):
             agg["fasih_approved_kabupaten"], agg["fasih_rejected_kabupaten"],
             agg["fasih_approved_provinsi"],  agg["fasih_rejected_provinsi"],
             agg["fasih_approved_pusat"],     agg["fasih_rejected_pusat"],
+            agg["fasih_edited_admin"],       agg["fasih_completed_admin"],
             agg["fasih_total"],              synced_at,
         ))
         if cur.rowcount == 1:
