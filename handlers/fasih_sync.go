@@ -461,16 +461,25 @@ func upsertProgress(agg map[string]*slsAgg) (int, error) {
 }
 
 // applyNonSLSApprovedOverride: SLS "Non SLS" (area kosong seperti gunung/sawah/
-// ladang tanpa usaha/keluarga nyata) selalu dianggap punya minimal 1 assignment
-// approved oleh pengawas, terlepas dari status approval asli di FASIH — supaya
-// tidak nyangkut "belum diperiksa" di rekap progres. Dijalankan tiap kali sync
-// FASIH selesai, jadi override ini tidak hilang walau data di-sync ulang.
+// kebun/ladang tanpa usaha/keluarga nyata) selalu dianggap punya minimal 1
+// assignment approved oleh pengawas, terlepas dari status approval asli di
+// FASIH — supaya tidak nyangkut "belum diperiksa" di rekap progres. Dijalankan
+// tiap kali sync FASIH selesai, jadi override ini tidak hilang walau data
+// di-sync ulang.
+//
+// Identifikasi Non SLS BUKAN dari nama_sls (variasinya banyak: "NON SLS...",
+// "KEBUN...", "SAWAH...", "LADANG...", "GUNUNG...", "HUTAN...", dst — tidak
+// konsisten), tapi dari KODE SLS: kode_sls 16 digit = prov(2)+kab(2)+kec(3)+
+// desa(3)+sls(4)+subsls(2). SLS residensial normal (RT/dusun) diberi nomor
+// segmen sls < 1000, sedangkan Non SLS (wilayah kerja statistik non-permukiman)
+// selalu diberi nomor segmen sls >= 1000 (mis. "1001", "2003", dst) — ini
+// konvensi baku BPS, jadi jauh lebih andal dipakai sebagai penanda.
 func applyNonSLSApprovedOverride() {
 	_, err := db.DB.Exec(`
 		UPDATE progress p
 		JOIN sls s ON s.id = p.sls_id
 		SET p.fasih_approved_pengawas = LEAST(GREATEST(p.fasih_approved_pengawas, 1), p.fasih_total)
-		WHERE (s.nama_sls LIKE 'NON SLS%' OR s.nama_sls LIKE 'WILAYAH NON SLS%')
+		WHERE CAST(SUBSTRING(s.kode_sls, 11, 4) AS UNSIGNED) >= 1000
 		  AND p.fasih_total > 0`)
 	if err != nil {
 		log.Printf("[FASIH] applyNonSLSApprovedOverride: %v", err)
