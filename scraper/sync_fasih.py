@@ -45,8 +45,11 @@ DOMPU_REGION2_ID = "546a26bf-e388-41ab-9083-e02cbbc093d4"
 SUBMIT_STATUSES = frozenset({
     "SUBMITTED BY Pencacah", "SUBMITTED RESPONDENT",
     "APPROVED BY Pengawas",  "REJECTED BY Pengawas",  "REVOKED BY Pengawas",
+    "EDITED BY Admin Kabupaten",   "COMPLETED BY Admin Kabupaten",
     "APPROVED BY Admin Kabupaten", "REJECTED BY Admin Kabupaten",
+    "EDITED BY Admin Provinsi",    "COMPLETED BY Admin Provinsi",
     "APPROVED BY Admin Provinsi",  "REJECTED BY Admin Provinsi",
+    "EDITED BY Admin Pusat",       "COMPLETED BY Admin Pusat",
     "APPROVED BY Admin Pusat",     "REJECTED BY Admin Pusat",
 })
 
@@ -198,6 +201,8 @@ def aggregate(all_content):
         "fasih_total":             0,
     })
 
+    unknown_statuses = defaultdict(int)
+
     for pencacah in all_content:
         for rs in pencacah.get("regionSummary", []):
             kode = rs.get("regionCode", "")
@@ -213,8 +218,11 @@ def aggregate(all_content):
                 if status == "DRAFT":
                     a["jumlah_draft"] += cnt
                 su = status.upper()
+                known_bucket = True
                 if status == "OPEN":
                     a["fasih_open"] += cnt
+                elif status == "DRAFT":
+                    pass  # sudah dihitung di jumlah_draft di atas
                 elif "SUBMITTED" in su:
                     a["fasih_submitted"] += cnt
                 elif "PENGAWAS" in su:
@@ -224,23 +232,78 @@ def aggregate(all_content):
                         a["fasih_rejected_pengawas"] += cnt
                     elif "REVOKED" in su:
                         a["fasih_revoked_pengawas"] += cnt
+                    else:
+                        known_bucket = False
                 elif "KABUPATEN" in su:
                     if "APPROVED" in su:
                         a["fasih_approved_kabupaten"] += cnt
                     elif "REJECTED" in su:
                         a["fasih_rejected_kabupaten"] += cnt
+                    else:
+                        known_bucket = False
                 elif "PROVINSI" in su:
                     if "APPROVED" in su:
                         a["fasih_approved_provinsi"] += cnt
                     elif "REJECTED" in su:
                         a["fasih_rejected_provinsi"] += cnt
+                    else:
+                        known_bucket = False
                 elif "PUSAT" in su:
                     if "APPROVED" in su:
                         a["fasih_approved_pusat"] += cnt
                     elif "REJECTED" in su:
                         a["fasih_rejected_pusat"] += cnt
+                    else:
+                        known_bucket = False
+                else:
+                    known_bucket = False
+                # Status yang tidak masuk bucket manapun DAN tidak ada di
+                # SUBMIT_STATUSES berarti benar-benar belum dikenali sistem ini
+                # (bukan sekadar "EDITED"/"COMPLETED" yang sudah masuk
+                # SUBMIT_STATUSES tapi memang tidak perlu bucket approved/
+                # rejected tersendiri) — kejadian nyata: "EDITED BY Admin
+                # Kabupaten" & "COMPLETED BY Admin Kabupaten" sempat tidak
+                # dihitung selama beberapa waktu sebelum status ini diketahui.
+                if not known_bucket and status not in SUBMIT_STATUSES:
+                    unknown_statuses[status] += cnt
 
     print(f"[AGGREGATE] SLS unik: {len(sls_agg)}", flush=True)
+    if unknown_statuses:
+        print(f"[AGGREGATE] PERINGATAN: status belum dikenali (tidak masuk hitungan submit/approved): {dict(unknown_statuses)}", flush=True)
+    return sls_agg
+
+
+def apply_non_sls_override(sls_agg):
+    """
+    SLS "Non SLS" (area kosong seperti gunung/sawah/kebun/ladang tanpa usaha/
+    keluarga nyata) selalu dianggap punya minimal 1 assignment approved oleh
+    pengawas (dan otomatis ikut submit), terlepas dari status approval asli
+    di FASIH — supaya tidak nyangkut "belum diperiksa" di rekap progres.
+
+    Identifikasi Non SLS BUKAN dari nama_sls (variasinya banyak: "NON SLS...",
+    "KEBUN...", "SAWAH...", "LADANG...", "GUNUNG...", "HUTAN...", dst — tidak
+    konsisten), tapi dari KODE SLS: kode_sls 16 digit = prov(2)+kab(2)+kec(3)+
+    desa(3)+sls(4)+subsls(2). SLS residensial normal (RT/dusun) diberi nomor
+    segmen sls < 1000, sedangkan Non SLS (wilayah kerja statistik non-
+    permukiman) selalu diberi nomor segmen sls >= 1000 — konvensi baku BPS.
+    """
+    n = 0
+    for kode, a in sls_agg.items():
+        if len(kode) < 14 or not kode[10:14].isdigit():
+            continue
+        if int(kode[10:14]) < 1000:
+            continue
+        total = a["fasih_total"]
+        if total <= 0:
+            continue
+        approved = min(max(a["fasih_approved_pengawas"], 1), total)
+        if approved != a["fasih_approved_pengawas"]:
+            a["fasih_approved_pengawas"] = approved
+            n += 1
+        submit = min(max(a["jumlah_submit"], approved), total)
+        a["jumlah_submit"] = submit
+    if n:
+        print(f"[NON-SLS OVERRIDE] {n} SLS di-set minimal 1 approved", flush=True)
     return sls_agg
 
 
@@ -258,7 +321,10 @@ def upload(sls_agg):
     db_sls = {row[1]: row[0] for row in cur.fetchall()}
     print(f"[DB] SLS di database: {len(db_sls)}", flush=True)
 
-    synced_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # Container ini jalan di UTC (Docker default) — datetime.now() polos akan
+    # menyimpan jam yang salah 8 jam kalau langsung dipakai sbg fasih_synced_at
+    # (kolom itu diasumsikan selalu WITA).
+    synced_at = _now_wita().strftime("%Y-%m-%d %H:%M:%S")
     inserted = updated = skipped = 0
 
     SQL = """
@@ -363,7 +429,7 @@ def _next_run():
 
 def run_once():
     print("="*50)
-    print(f"SYNC FASIH → se2026  [{datetime.now():%Y-%m-%d %H:%M:%S}]")
+    print(f"SYNC FASIH → se2026  [{_now_wita():%Y-%m-%d %H:%M:%S} WITA]")
     print("="*50)
 
     with sync_playwright() as pw:
@@ -377,6 +443,7 @@ def run_once():
 
     print("\n[STEP 2] Aggregate per SLS...")
     sls_agg = aggregate(all_content)
+    sls_agg = apply_non_sls_override(sls_agg)
     summary(sls_agg)
 
     print("[STEP 3] Upload ke database...")
