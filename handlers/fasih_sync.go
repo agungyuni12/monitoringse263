@@ -282,10 +282,16 @@ var submitStatuses = map[string]bool{
 	"APPROVED BY Pengawas":         true,
 	"REJECTED BY Pengawas":         true,
 	"REVOKED BY Pengawas":          true,
+	"EDITED BY Admin Kabupaten":    true,
+	"COMPLETED BY Admin Kabupaten": true,
 	"APPROVED BY Admin Kabupaten":  true,
 	"REJECTED BY Admin Kabupaten":  true,
+	"EDITED BY Admin Provinsi":     true,
+	"COMPLETED BY Admin Provinsi":  true,
 	"APPROVED BY Admin Provinsi":   true,
 	"REJECTED BY Admin Provinsi":   true,
+	"EDITED BY Admin Pusat":        true,
+	"COMPLETED BY Admin Pusat":     true,
 	"APPROVED BY Admin Pusat":      true,
 	"REJECTED BY Admin Pusat":      true,
 }
@@ -320,7 +326,8 @@ func doFasihSync() (int, error) {
 
 	// Aggregate semua halaman
 	agg := make(map[string]*slsAgg)
-	processPencacah(first.Data.Content, agg)
+	unknownStatuses := make(map[string]int)
+	processPencacah(first.Data.Content, agg, unknownStatuses)
 
 	for pg := 1; pg < totalPages; pg++ {
 		time.Sleep(300 * time.Millisecond)
@@ -329,14 +336,21 @@ func doFasihSync() (int, error) {
 			log.Printf("[FASIH] halaman %d error: %v (lanjut)", pg, err)
 			continue
 		}
-		processPencacah(page.Data.Content, agg)
+		processPencacah(page.Data.Content, agg, unknownStatuses)
 	}
 
 	log.Printf("[FASIH] %d SLS unik ditemukan", len(agg))
+	if len(unknownStatuses) > 0 {
+		// Status yang belum masuk submitStatuses/switch-case di atas — kalau FASIH
+		// nambah status baru (kejadian: "EDITED BY Admin Kabupaten" & "COMPLETED BY
+		// Admin Kabupaten" sempat tidak dihitung selama beberapa waktu), ini bakal
+		// langsung ketahuan dari log tanpa perlu investigasi manual lagi.
+		log.Printf("[FASIH] PERINGATAN: %d status belum dikenali (tidak masuk hitungan submit/approved): %v", len(unknownStatuses), unknownStatuses)
+	}
 	return upsertProgress(agg)
 }
 
-func processPencacah(content []fasihPencacah, agg map[string]*slsAgg) {
+func processPencacah(content []fasihPencacah, agg map[string]*slsAgg, unknownStatuses map[string]int) {
 	for _, p := range content {
 		for _, rs := range p.RegionSummary {
 			kode := rs.RegionCode
@@ -357,9 +371,12 @@ func processPencacah(content []fasihPencacah, agg map[string]*slsAgg) {
 				if sb.Status == "DRAFT" {
 					a.draft += cnt
 				}
+				knownBucket := true
 				switch sb.Status {
 				case "OPEN":
 					a.open += cnt
+				case "DRAFT":
+					// sudah dihitung di a.draft di atas
 				case "SUBMITTED BY Pencacah", "SUBMITTED RESPONDENT":
 					a.submitted += cnt
 				case "APPROVED BY Pengawas":
@@ -380,6 +397,15 @@ func processPencacah(content []fasihPencacah, agg map[string]*slsAgg) {
 					a.approvedPusat += cnt
 				case "REJECTED BY Admin Pusat":
 					a.rejectedPusat += cnt
+				default:
+					knownBucket = false
+				}
+				// Status yang tidak masuk switch-case DI ATAS *maupun* tidak ada di
+				// submitStatuses sama sekali berarti benar-benar belum dikenali sistem
+				// ini (bukan cuma "EDITED"/"COMPLETED" yang sudah masuk submitStatuses
+				// tapi memang tidak perlu bucket approved/rejected tersendiri).
+				if !knownBucket && !submitStatuses[sb.Status] {
+					unknownStatuses[sb.Status] += cnt
 				}
 			}
 		}
