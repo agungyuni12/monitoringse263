@@ -456,7 +456,25 @@ func upsertProgress(agg map[string]*slsAgg) (int, error) {
 		}
 		n++
 	}
+	applyNonSLSApprovedOverride()
 	return n, nil
+}
+
+// applyNonSLSApprovedOverride: SLS "Non SLS" (area kosong seperti gunung/sawah/
+// ladang tanpa usaha/keluarga nyata) selalu dianggap punya minimal 1 assignment
+// approved oleh pengawas, terlepas dari status approval asli di FASIH — supaya
+// tidak nyangkut "belum diperiksa" di rekap progres. Dijalankan tiap kali sync
+// FASIH selesai, jadi override ini tidak hilang walau data di-sync ulang.
+func applyNonSLSApprovedOverride() {
+	_, err := db.DB.Exec(`
+		UPDATE progress p
+		JOIN sls s ON s.id = p.sls_id
+		SET p.fasih_approved_pengawas = LEAST(GREATEST(p.fasih_approved_pengawas, 1), p.fasih_total)
+		WHERE (s.nama_sls LIKE 'NON SLS%' OR s.nama_sls LIKE 'WILAYAH NON SLS%')
+		  AND p.fasih_total > 0`)
+	if err != nil {
+		log.Printf("[FASIH] applyNonSLSApprovedOverride: %v", err)
+	}
 }
 
 func min(a, b int) int {
