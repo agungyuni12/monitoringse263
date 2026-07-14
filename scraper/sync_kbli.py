@@ -6,9 +6,10 @@ Dua dataset, satu login/jadwal (digabung supaya cukup sekali login & sekali
 jadwal sync per hari, bukan dua container/proses terpisah):
   1. KBLI       : jumlah usaha per kategori KBLI (A, B, C, ...) per SLS.
   2. Coverage   : status cakupan usaha mandiri (BKU) & usaha dalam keluarga
-                  (ditemukan/baru/tutup/ganda/tidak ditemukan), prelist usaha
-                  & keluarga, keluarga ditemukan/baru, dan keluarga yang
-                  punya usaha.
+                  (ditemukan/baru/tutup/ganda/tidak ditemukan), plus breakdown
+                  lengkap status keluarga (prelist/ditemukan/meninggal/tidak
+                  eligible/tidak dapat ditemui/tidak ditemukan/baru/menolak
+                  didata/bersedia didata/keluarga khusus).
 
 Endpoint: GET /api/agregat/fasih?level=sub_sls&indikator=<kode1,kode2,...>&kabupaten=<kode>
   Response: JSON array, setiap item berisi:
@@ -68,17 +69,19 @@ KBLI_INDIKATOR = os.getenv(
 
 # Dikurasi dari daftar awal (47 kode) — cuma yang benar-benar dipakai utk
 # "coverage usaha & keluarga": status cakupan usaha mandiri (BKU) & usaha
-# dalam keluarga (ditemukan/baru/tutup/ganda/tidak ditemukan), prelist usaha
-# & keluarga, keluarga ditemukan/baru, dan keluarga yang punya usaha. Dibuang:
-# progres % (CAWI/CAPI/geotagging), nonrespon per skala, blasting, SLS admin
-# stat (assign/sync/total), target non-prelist, matched pendataan, dan
-# breakdown jaringan usaha (tunggal/kantor pusat/cabang/dst) — di luar
-# cakupan "ditemukan/baru/prelist" yang diminta.
+# dalam keluarga (ditemukan/baru/tutup/ganda/tidak ditemukan), dan breakdown
+# lengkap status keluarga (level keluarga, bukan anggota keluarga — kode
+# 24-30/112 sengaja tidak diikutkan krn satuannya beda, per orang bukan per
+# keluarga). Dibuang: progres % (CAWI/CAPI/geotagging), nonrespon per skala,
+# blasting, SLS admin stat (assign/sync/total), target non-prelist, matched
+# pendataan, dan breakdown jaringan usaha (tunggal/kantor pusat/cabang/dst).
 COVERAGE_INDIKATOR = os.getenv(
     "COVERAGE_INDIKATOR",
-    "2,10247,10264,10265,10266,10268,"  # Usaha (BKU/mandiri): prelist, tidak ditemukan, ditemukan, ditutup, ganda, baru
-    "10691,10693,10694,10695,10696,"    # Usaha dalam Keluarga: ditemukan, tutup, ganda, tidak ditemukan, baru
-    "14,15,20,10271",                   # Keluarga: prelist, ditemukan, baru, yang memiliki usaha
+    "2,10247,10264,10265,10266,10268,"     # Usaha (BKU/mandiri): prelist, tidak ditemukan, ditemukan, ditutup, ganda, baru
+    "10691,10693,10694,10695,10696,"       # Usaha dalam Keluarga: ditemukan, tutup, ganda, tidak ditemukan, baru
+    "14,15,16,17,18,19,20,21,22,59",       # Keluarga: prelist, ditemukan, meninggal, tidak eligible,
+                                            # tidak dapat ditemui s/d akhir pendataan, tidak ditemukan,
+                                            # baru, menolak didata, bersedia didata, keluarga khusus
 )
 
 DB_HOST = os.getenv("DB_HOST", "127.0.0.1")

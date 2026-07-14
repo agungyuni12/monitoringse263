@@ -47,9 +47,21 @@ var wideAgregatSortCols = map[string]string{
 // queryAgregatIndikatorList mengambil daftar indikator yang sudah ada datanya
 // di tabel agregat tertentu, diurutkan numerik berdasarkan kode_indikator.
 // table adalah nama tabel yang di-hardcode oleh caller (bukan input pengguna),
-// jadi aman diselipkan langsung ke query.
-func queryAgregatIndikatorList(table string) []KBLIIndikator {
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT DISTINCT kode_indikator, nama_indikator FROM %s`, table))
+// jadi aman diselipkan langsung ke query. kodeFilter opsional: kalau diisi,
+// cuma indikator dgn kode di daftar itu yang diambil (dipakai utk memecah
+// coverage_usaha_keluarga jadi sub-tabel Usaha BKU / Usaha Keluarga).
+func queryAgregatIndikatorList(table string, kodeFilter []string) []KBLIIndikator {
+	query := fmt.Sprintf(`SELECT DISTINCT kode_indikator, nama_indikator FROM %s`, table)
+	var args []interface{}
+	if len(kodeFilter) > 0 {
+		placeholders := make([]string, len(kodeFilter))
+		for i, k := range kodeFilter {
+			placeholders[i] = "?"
+			args = append(args, k)
+		}
+		query += ` WHERE kode_indikator IN (` + strings.Join(placeholders, ",") + `)`
+	}
+	rows, err := db.DB.Query(query, args...)
 	if err != nil {
 		return nil
 	}
@@ -70,10 +82,11 @@ func queryAgregatIndikatorList(table string) []KBLIIndikator {
 
 // adminWideAgregatTable adalah handler generik: tabel lebar per SLS, 1 kolom
 // per indikator, dari sebuah tabel agregat "kode_indikator -> total_value".
-// Dipakai oleh AdminKBLITable & AdminKeberadaanRekapTable — sengaja generik
-// supaya kalau nanti ada dataset agregat baru dari dashboard-se2026 (skema
-// sama persis), tinggal tambah satu wrapper tipis tanpa duplikasi query.
-func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath string) error {
+// Dipakai oleh AdminKBLITable & sub-tabel Rekap Keberadaan (Usaha BKU / Usaha
+// Keluarga) — sengaja generik supaya kalau nanti ada dataset agregat baru
+// dari dashboard-se2026 (skema sama persis), tinggal tambah satu wrapper
+// tipis tanpa duplikasi query. kodeFilter opsional (lihat queryAgregatIndikatorList).
+func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath string, kodeFilter []string) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
 		page = 1
@@ -104,7 +117,7 @@ func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath st
 	pageInfo.Dir = sortDir
 	pageInfo.FilterExtra = extra
 
-	indikatorList := queryAgregatIndikatorList(table)
+	indikatorList := queryAgregatIndikatorList(table, kodeFilter)
 
 	rows, err := db.DB.Query(`
 		SELECT s.id, s.kode_sls, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
@@ -143,10 +156,19 @@ func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath st
 			placeholders[i] = "?"
 			args[i] = id
 		}
-		valRows, err := db.DB.Query(fmt.Sprintf(`
+		valQuery := fmt.Sprintf(`
 			SELECT sls_id, kode_indikator, COALESCE(total_value,0)
 			FROM %s
-			WHERE sls_id IN (%s)`, table, strings.Join(placeholders, ",")), args...)
+			WHERE sls_id IN (%s)`, table, strings.Join(placeholders, ","))
+		if len(kodeFilter) > 0 {
+			kPlaceholders := make([]string, len(kodeFilter))
+			for i, k := range kodeFilter {
+				kPlaceholders[i] = "?"
+				args = append(args, k)
+			}
+			valQuery += ` AND kode_indikator IN (` + strings.Join(kPlaceholders, ",") + `)`
+		}
+		valRows, err := db.DB.Query(valQuery, args...)
 		if err == nil {
 			defer valRows.Close()
 			for valRows.Next() {
@@ -170,13 +192,36 @@ func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath st
 // AdminKBLITable — GET /admin/table/kbli
 // Tabel lebar: 1 baris per SLS, 1 kolom per kategori KBLI (jumlah usaha).
 func AdminKBLITable(c echo.Context) error {
-	return adminWideAgregatTable(c, "kbli_usaha", "admin_kbli_table.html", "admin-kbli-wrap", "/admin/table/kbli")
+	return adminWideAgregatTable(c, "kbli_usaha", "admin_kbli_table.html", "admin-kbli-wrap", "/admin/table/kbli", nil)
 }
 
-// AdminKeberadaanRekapTable — GET /admin/table/keberadaan-rekap
-// Tabel lebar: 1 baris per SLS, 1 kolom per status keberadaan usaha & keluarga
-// (Ditemukan/Baru/Tutup/Ganda/Tidak Ditemukan, utk usaha BKU & usaha dalam
-// keluarga, plus keluarga) — sumbernya coverage_usaha_keluarga (sync coverage).
-func AdminKeberadaanRekapTable(c echo.Context) error {
-	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_coverage_table.html", "admin-keberadaan-coverage-wrap", "/admin/table/keberadaan-rekap")
+// Kode indikator coverage_usaha_keluarga per kategori (lihat juga kode
+// individual di admin.go yang dipakai utk hitung % coverage, dan
+// COVERAGE_INDIKATOR di scraper/sync_kbli.py yang menariknya dari Dashboard
+// SE2026). Rekap Keberadaan dipecah jadi 3 tab terpisah (bukan 1 tabel
+// raksasa semua kategori sekaligus): Usaha BKU, Usaha Keluarga, dan Keluarga
+// — ketiganya tetap tampilkan breakdown lengkap per status, cuma dipisah
+// tabelnya per kategori.
+var kodeCovBKUAll = []string{"2", "10247", "10264", "10265", "10266", "10268"}
+var kodeCovUsahaKeluargaAll = []string{"90001", "10691", "10693", "10694", "10695", "10696"}
+
+// Keluarga: prelist, ditemukan, meninggal, tidak eligible, tidak dapat
+// ditemui s/d akhir pendataan, tidak ditemukan, baru, menolak didata,
+// bersedia didata, keluarga khusus. Sengaja tidak termasuk kode 24-30/112
+// (Anggota Keluarga — satuannya per orang, bukan per keluarga).
+var kodeCovKeluargaAll = []string{"14", "15", "16", "17", "18", "19", "20", "21", "22", "59"}
+
+// AdminKeberadaanBKUTable — GET /admin/table/keberadaan-bku
+func AdminKeberadaanBKUTable(c echo.Context) error {
+	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_bku_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-bku", kodeCovBKUAll)
+}
+
+// AdminKeberadaanUsahaKeluargaTable — GET /admin/table/keberadaan-usaha-keluarga
+func AdminKeberadaanUsahaKeluargaTable(c echo.Context) error {
+	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_usahakeluarga_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-usaha-keluarga", kodeCovUsahaKeluargaAll)
+}
+
+// AdminKeberadaanKeluargaTable — GET /admin/table/keberadaan-keluarga
+func AdminKeberadaanKeluargaTable(c echo.Context) error {
+	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_keluarga_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-keluarga", kodeCovKeluargaAll)
 }

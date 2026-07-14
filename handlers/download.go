@@ -733,14 +733,15 @@ func roundPct(v float64) float64 {
 	return math.Round(v*100) / 100
 }
 
-// downloadWideAgregat — dipakai bareng oleh DownloadKBLI & DownloadKeberadaanRekap:
-// tabel lebar per SLS, 1 kolom per indikator, dari sebuah tabel agregat generik
-// (skema sama seperti adminWideAgregatTable di kbli.go).
-func downloadWideAgregat(c echo.Context, table, filenamePrefix string) error {
+// downloadWideAgregat — dipakai bareng oleh DownloadKBLI & sub-download Rekap
+// Keberadaan (Usaha BKU / Usaha Keluarga): tabel lebar per SLS, 1 kolom per
+// indikator, dari sebuah tabel agregat generik (skema sama seperti
+// adminWideAgregatTable di kbli.go). kodeFilter opsional, lihat kbli.go.
+func downloadWideAgregat(c echo.Context, table, filenamePrefix string, kodeFilter []string) error {
 	q := c.QueryParam("q")
 	like := "%" + q + "%"
 
-	indikatorList := queryAgregatIndikatorList(table)
+	indikatorList := queryAgregatIndikatorList(table, kodeFilter)
 
 	rows, err := db.DB.Query(`
 		SELECT s.id, s.kode_sls, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
@@ -776,10 +777,19 @@ func downloadWideAgregat(c echo.Context, table, filenamePrefix string) error {
 			placeholders[i] = "?"
 			args[i] = id
 		}
-		valRows, err := db.DB.Query(fmt.Sprintf(`
+		valQuery := fmt.Sprintf(`
 			SELECT sls_id, kode_indikator, COALESCE(total_value,0)
 			FROM %s
-			WHERE sls_id IN (%s)`, table, strings.Join(placeholders, ",")), args...)
+			WHERE sls_id IN (%s)`, table, strings.Join(placeholders, ","))
+		if len(kodeFilter) > 0 {
+			kPlaceholders := make([]string, len(kodeFilter))
+			for i, k := range kodeFilter {
+				kPlaceholders[i] = "?"
+				args = append(args, k)
+			}
+			valQuery += ` AND kode_indikator IN (` + strings.Join(kPlaceholders, ",") + `)`
+		}
+		valRows, err := db.DB.Query(valQuery, args...)
 		if err == nil {
 			defer valRows.Close()
 			for valRows.Next() {
@@ -819,10 +829,20 @@ func downloadWideAgregat(c echo.Context, table, filenamePrefix string) error {
 
 // DownloadKBLI — GET /admin/download/kbli
 func DownloadKBLI(c echo.Context) error {
-	return downloadWideAgregat(c, "kbli_usaha", "monitoring_kbli")
+	return downloadWideAgregat(c, "kbli_usaha", "monitoring_kbli", nil)
 }
 
-// DownloadKeberadaanRekap — GET /admin/download/keberadaan-rekap
-func DownloadKeberadaanRekap(c echo.Context) error {
-	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_rekap_keberadaan")
+// DownloadKeberadaanBKU — GET /admin/download/keberadaan-bku
+func DownloadKeberadaanBKU(c echo.Context) error {
+	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_bku", kodeCovBKUAll)
+}
+
+// DownloadKeberadaanUsahaKeluarga — GET /admin/download/keberadaan-usaha-keluarga
+func DownloadKeberadaanUsahaKeluarga(c echo.Context) error {
+	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_usaha_keluarga", kodeCovUsahaKeluargaAll)
+}
+
+// DownloadKeberadaanKeluarga — GET /admin/download/keberadaan-keluarga
+func DownloadKeberadaanKeluarga(c echo.Context) error {
+	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_keluarga", kodeCovKeluargaAll)
 }

@@ -678,15 +678,23 @@
           </div>
         </div>
 
-        <!-- TAB: Rekap Keberadaan (coverage usaha & keluarga) -->
+        <!-- TAB: Rekap Keberadaan (coverage usaha & keluarga), dipecah 3 sub-tab
+             biar tabelnya tidak jadi 1 tabel raksasa gabungan semua kategori -->
         <div id="panel-keberadaanRekap" class="tab-panel">
-          <div id="keberadaan-rekap-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center">
-            <input type="text" name="q"
-              hx-get="/admin/table/keberadaan-rekap" hx-target="#admin-keberadaan-coverage-wrap" hx-swap="innerHTML"
-              hx-trigger="input changed delay:400ms" hx-include="#keberadaan-rekap-filter-bar"
+          <div id="keberadaan-rekap-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center"
+            data-tbl-path="/admin/table/keberadaan-bku" data-dl-path="/admin/download/keberadaan-bku">
+            <div class="flex gap-1.5">
+              <button type="button" onclick="switchKeberadaanRekapSub(this,'/admin/table/keberadaan-bku','/admin/download/keberadaan-bku')"
+                class="keberadaan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-se text-white transition-colors">Usaha BKU</button>
+              <button type="button" onclick="switchKeberadaanRekapSub(this,'/admin/table/keberadaan-usaha-keluarga','/admin/download/keberadaan-usaha-keluarga')"
+                class="keberadaan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Usaha Keluarga</button>
+              <button type="button" onclick="switchKeberadaanRekapSub(this,'/admin/table/keberadaan-keluarga','/admin/download/keberadaan-keluarga')"
+                class="keberadaan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Keluarga</button>
+            </div>
+            <input type="text" id="keberadaan-rekap-q" oninput="onKeberadaanRekapSearch(this.value)"
               placeholder="Cari nama SLS, Desa, Kecamatan..."
               class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
-            <a id="keberadaan-rekap-dl-btn" href="/admin/download/keberadaan-rekap"
+            <a id="keberadaan-rekap-dl-btn" href="/admin/download/keberadaan-bku"
               class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
@@ -694,8 +702,8 @@
               Download Excel
             </a>
           </div>
-          <div id="admin-keberadaan-coverage-wrap"
-            hx-get="/admin/table/keberadaan-rekap" hx-trigger="load" hx-swap="innerHTML">
+          <div id="admin-keberadaan-rekap-wrap"
+            hx-get="/admin/table/keberadaan-bku" hx-trigger="load" hx-swap="innerHTML">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data keberadaan...</div>
           </div>
         </div>
@@ -940,13 +948,15 @@
         });
       }
 
-      // Tab-tab baru (Anomali, Rekap Progres, KBLI, Rekap Keberadaan): update href
-      // tombol download otomatis mengikuti filter yang lagi aktif di filter-bar-nya.
+      // Tab-tab baru (Anomali, Rekap Progres, KBLI): update href tombol download
+      // otomatis mengikuti filter yang lagi aktif di filter-bar-nya. Rekap
+      // Keberadaan tidak ikut di sini krn path download-nya beda-beda tergantung
+      // sub-tab yang aktif (Usaha BKU/Usaha Keluarga/Keluarga) — lihat
+      // switchKeberadaanRekapSub & onKeberadaanRekapSearch.
       [
         {bar: 'anomali-filter-bar', btn: 'anomali-dl-btn', path: '/admin/download/anomali'},
         {bar: 'progres-rekap-filter-bar', btn: 'progresrekap-dl-btn', path: '/admin/download/progres-rekap', extra: '#global-metode-select'},
         {bar: 'kbli-filter-bar', btn: 'kbli-dl-btn', path: '/admin/download/kbli'},
-        {bar: 'keberadaan-rekap-filter-bar', btn: 'keberadaan-rekap-dl-btn', path: '/admin/download/keberadaan-rekap'},
       ].forEach(function(cfg) {
         var bar = document.getElementById(cfg.bar);
         if (!bar) return;
@@ -976,6 +986,38 @@
         if (extra && extra.value) params.push(extra.name + '=' + encodeURIComponent(extra.value));
       }
       btn.href = path + (params.length ? '?' + params.join('&') : '');
+    }
+
+    // ===== REKAP KEBERADAAN (3 sub-tab: Usaha BKU / Usaha Keluarga / Keluarga) =====
+    // Beda dari sub-tab lain: masing2 sub-tab punya route table & download
+    // terpisah (bukan cuma query param `level` di route yang sama), jadi filter
+    // bar-nya nyimpen path aktif di data-tbl-path/data-dl-path lalu dipakai
+    // manual lewat htmx.ajax(), bukan hx-get statis.
+    function switchKeberadaanRekapSub(btn, tblPath, dlPath) {
+      var bar = document.getElementById('keberadaan-rekap-filter-bar');
+      bar.querySelectorAll('.keberadaan-subtab-btn').forEach(function(b) {
+        b.classList.remove('bg-se', 'text-white');
+        b.classList.add('text-gray-600', 'dark:text-gray-400');
+      });
+      btn.classList.add('bg-se', 'text-white');
+      btn.classList.remove('text-gray-600', 'dark:text-gray-400');
+      bar.dataset.tblPath = tblPath;
+      bar.dataset.dlPath = dlPath;
+      var q = document.getElementById('keberadaan-rekap-q').value;
+      var qs = q ? ('?q=' + encodeURIComponent(q)) : '';
+      htmx.ajax('GET', tblPath + qs, { target: '#admin-keberadaan-rekap-wrap', swap: 'innerHTML' });
+      document.getElementById('keberadaan-rekap-dl-btn').href = dlPath + qs;
+    }
+
+    var _keberadaanRekapDebounce = null;
+    function onKeberadaanRekapSearch(q) {
+      clearTimeout(_keberadaanRekapDebounce);
+      _keberadaanRekapDebounce = setTimeout(function() {
+        var bar = document.getElementById('keberadaan-rekap-filter-bar');
+        var qs = q ? ('?q=' + encodeURIComponent(q)) : '';
+        htmx.ajax('GET', bar.dataset.tblPath + qs, { target: '#admin-keberadaan-rekap-wrap', swap: 'innerHTML' });
+        document.getElementById('keberadaan-rekap-dl-btn').href = bar.dataset.dlPath + qs;
+      }, 400);
     }
 
     // ===== TREN PROGRES =====

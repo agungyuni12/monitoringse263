@@ -135,7 +135,9 @@ func main() {
 	adminGrp.GET("/table/keberadaan", handlers.AdminKeberadaanTable)
 	adminGrp.GET("/table/progres-rekap", handlers.AdminProgresRekapTable)
 	adminGrp.GET("/table/kbli", handlers.AdminKBLITable)
-	adminGrp.GET("/table/keberadaan-rekap", handlers.AdminKeberadaanRekapTable)
+	adminGrp.GET("/table/keberadaan-bku", handlers.AdminKeberadaanBKUTable)
+	adminGrp.GET("/table/keberadaan-usaha-keluarga", handlers.AdminKeberadaanUsahaKeluargaTable)
+	adminGrp.GET("/table/keberadaan-keluarga", handlers.AdminKeberadaanKeluargaTable)
 	adminGrp.GET("/table/trend/ppl", handlers.AdminTableTrendPPL)
 	adminGrp.GET("/table/trend/pml", handlers.AdminTableTrendPML)
 	adminGrp.GET("/geo/stats", handlers.AdminGeoStats)
@@ -148,7 +150,9 @@ func main() {
 	adminGrp.GET("/download/anomali", handlers.DownloadAnomali)
 	adminGrp.GET("/download/progres-rekap", handlers.DownloadProgresRekap)
 	adminGrp.GET("/download/kbli", handlers.DownloadKBLI)
-	adminGrp.GET("/download/keberadaan-rekap", handlers.DownloadKeberadaanRekap)
+	adminGrp.GET("/download/keberadaan-bku", handlers.DownloadKeberadaanBKU)
+	adminGrp.GET("/download/keberadaan-usaha-keluarga", handlers.DownloadKeberadaanUsahaKeluarga)
+	adminGrp.GET("/download/keberadaan-keluarga", handlers.DownloadKeberadaanKeluarga)
 	adminGrp.POST("/sync/fasih", handlers.AdminSyncFasih)
 
 	// Organik routes
