@@ -22,6 +22,7 @@
         {{template "sortable_th" dict "Label" "Draft" "Col" "draft" "PageInfo" .SLSPage "Class" "px-4 py-3 font-medium" "Center" true}}
         {{template "sortable_th" dict "Label" "Approved" "Col" "approved" "PageInfo" .SLSPage "Class" "px-4 py-3 font-medium" "Center" true}}
         {{template "sortable_th" dict "Label" "Rejected" "Col" "rejected" "PageInfo" .SLSPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        <th class="px-4 py-3 font-medium text-center">Revoke</th>
         {{template "sortable_th" dict "Label" "Progres" "Col" "progres" "PageInfo" .SLSPage "Class" "px-4 py-3 font-medium" "Center" true}}
       </tr>
     </thead>
@@ -50,6 +51,9 @@
         <td class="px-4 py-3 text-center">
           <span class="{{if gt .JumlahError 0}}text-red-600 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} text-xs">{{.JumlahError}}</span>
         </td>
+        <td class="px-4 py-3 text-center">
+          <span class="{{if gt .JumlahRevoked 0}}text-yellow-600 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} text-xs">{{.JumlahRevoked}}</span>
+        </td>
         <td class="px-4 py-3 text-center min-w-[90px]">
           <div class="flex items-center gap-1.5">
             <div class="flex-1 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
@@ -60,7 +64,7 @@
         </td>
       </tr>
       {{else}}
-      <tr><td colspan="11" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">Tidak ada data yang cocok.</td></tr>
+      <tr><td colspan="12" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">Tidak ada data yang cocok.</td></tr>
       {{end}}
     </tbody>
   </table>

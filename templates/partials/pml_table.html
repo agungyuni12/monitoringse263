@@ -11,6 +11,7 @@
         {{template "sortable_th" dict "Label" "Draft" "Col" "draft" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
         {{template "sortable_th" dict "Label" "Approved" "Col" "approved" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
         {{template "sortable_th" dict "Label" "Rejected" "Col" "rejected" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
+        <th class="px-4 py-3 font-medium text-center">Revoke</th>
         <th class="px-4 py-3 font-medium text-center">Aksi</th>
       </tr>
     </thead>
@@ -18,7 +19,7 @@
       {{range .List}}
       {{template "pml_row.html" .}}
       {{else}}
-      <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Belum ada data SLS.</td></tr>
+      <tr><td colspan="9" class="px-4 py-8 text-center text-gray-400">Belum ada data SLS.</td></tr>
       {{end}}
     </tbody>
   </table>
@@ -47,6 +48,7 @@
       <span>Draft: <strong class="text-se">{{.JumlahDraft}}</strong></span>
       <span>Approved: <strong class="text-green-600">{{.JumlahDiperiksa}}</strong></span>
       <span>Rejected: <strong class="text-red-600">{{.JumlahError}}</strong></span>
+      <span>Revoke: <strong class="text-yellow-600">{{.JumlahRevoked}}</strong></span>
     </div>
   </div>
   {{else}}

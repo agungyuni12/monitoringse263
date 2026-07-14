@@ -152,6 +152,7 @@ type PPLRow struct {
 	// Breakdown per level
 	ApprovedPengawas  int
 	RejectedPengawas  int
+	RevokedPengawas   int
 	ApprovedKabupaten int
 	RejectedKabupaten int
 	ApprovedProvinsi  int
@@ -205,6 +206,7 @@ type SLSAdminRow struct {
 	JumlahDraft     int
 	JumlahDiperiksa int
 	JumlahError     int
+	JumlahRevoked   int
 	JumlahObservasi int
 	FasihTotal      int
 	PctSubmit       float64
@@ -297,6 +299,7 @@ type DesaRow struct {
 	JumlahDraft     int
 	JumlahDiperiksa int
 	JumlahError     int
+	JumlahRevoked   int
 	FasihTotal      int
 	PctSubmit       float64
 }
@@ -311,6 +314,7 @@ type KecRow struct {
 	JumlahDraft     int
 	JumlahDiperiksa int
 	JumlahError     int
+	JumlahRevoked   int
 	FasihTotal      int
 	PctSubmit       float64
 }
@@ -667,6 +671,7 @@ func queryAdminPPL(page int, q string, pmlID int, sort, dir, metode string) ([]P
 		       COALESCE(SUM(p.jumlah_draft),0),
 		       COALESCE(SUM(p.fasih_approved_pengawas),0),
 		       COALESCE(SUM(p.fasih_rejected_pengawas),0),
+		       COALESCE(SUM(p.fasih_revoked_pengawas),0),
 		       COALESCE(SUM(p.fasih_approved_kabupaten),0),
 		       COALESCE(SUM(p.fasih_rejected_kabupaten),0),
 		       COALESCE(SUM(p.fasih_approved_provinsi),0),
@@ -700,7 +705,7 @@ func queryAdminPPL(page int, q string, pmlID int, sort, dir, metode string) ([]P
 		var editedAdmin, completedAdmin int
 		rows.Scan(&r.ID, &r.Name, &r.PMLName, &r.JmlSLS,
 			&r.Submit, &r.JumlahSubmit, &r.Draft,
-			&r.ApprovedPengawas, &r.RejectedPengawas,
+			&r.ApprovedPengawas, &r.RejectedPengawas, &r.RevokedPengawas,
 			&r.ApprovedKabupaten, &r.RejectedKabupaten,
 			&r.ApprovedProvinsi, &r.RejectedProvinsi,
 			&r.ApprovedPusat, &r.RejectedPusat,
@@ -814,6 +819,7 @@ func queryAdminSLS(page int, q, sort, dir, metode string) ([]SLSAdminRow, models
 		       COALESCE(p.jumlah_draft,0),
 		       `+approvedColSQLRow+`,
 		       COALESCE(p.fasih_rejected_pengawas,0),
+		       COALESCE(p.fasih_revoked_pengawas,0),
 		       COALESCE((SELECT SUM(vh.jumlah_observasi) FROM verifikasi_harian vh WHERE vh.sls_id=s.id),0),
 		       COALESCE(p.fasih_total,0),
 		       COALESCE((SELECT vh2.status_kendala FROM verifikasi_harian vh2 WHERE vh2.sls_id=s.id ORDER BY vh2.tanggal DESC LIMIT 1),'open'),
@@ -843,7 +849,7 @@ func queryAdminSLS(page int, q, sort, dir, metode string) ([]SLSAdminRow, models
 		rows.Scan(&r.ID, &r.KodeSLS, &r.NamaSLS, &r.NamaPPL, &r.NamaPML,
 			&r.NamaKec, &r.NamaDesa, &r.Target, &r.TargetPrelist,
 			&r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft,
-			&r.JumlahDiperiksa, &r.JumlahError, &r.JumlahObservasi,
+			&r.JumlahDiperiksa, &r.JumlahError, &r.JumlahRevoked, &r.JumlahObservasi,
 			&r.FasihTotal, &r.StatusKendala, &r.Kendala)
 		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.TargetPrelist)
 		list = append(list, r)
@@ -893,6 +899,7 @@ func queryAdminSLSByDesa(page int, q, sort, dir, metode string) ([]DesaRow, mode
 		       COALESCE(SUM(p.jumlah_draft),0),
 		       `+approvedColSQLAgg+`,
 		       COALESCE(SUM(p.fasih_rejected_pengawas),0),
+		       COALESCE(SUM(p.fasih_revoked_pengawas),0),
 		       COALESCE(SUM(p.fasih_total),0)
 		FROM sls s
 		LEFT JOIN progress p ON p.sls_id = s.id
@@ -913,7 +920,7 @@ func queryAdminSLSByDesa(page int, q, sort, dir, metode string) ([]DesaRow, mode
 	for rows.Next() {
 		var r DesaRow
 		rows.Scan(&r.NamaDesa, &r.NamaKec, &r.JmlSLS, &r.Target, &r.TargetPrelist,
-			&r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError, &r.FasihTotal)
+			&r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError, &r.JumlahRevoked, &r.FasihTotal)
 		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.TargetPrelist)
 		list = append(list, r)
 	}
@@ -959,6 +966,7 @@ func queryAdminSLSByKec(page int, q, sort, dir, metode string) ([]KecRow, models
 		       COALESCE(SUM(p.jumlah_draft),0),
 		       `+approvedColSQLAgg+`,
 		       COALESCE(SUM(p.fasih_rejected_pengawas),0),
+		       COALESCE(SUM(p.fasih_revoked_pengawas),0),
 		       COALESCE(SUM(p.fasih_total),0)
 		FROM sls s
 		LEFT JOIN progress p ON p.sls_id = s.id
@@ -979,7 +987,7 @@ func queryAdminSLSByKec(page int, q, sort, dir, metode string) ([]KecRow, models
 	for rows.Next() {
 		var r KecRow
 		rows.Scan(&r.NamaKec, &r.JmlSLS, &r.Target, &r.TargetPrelist,
-			&r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError, &r.FasihTotal)
+			&r.FasihSubmit, &r.JumlahSubmit, &r.JumlahDraft, &r.JumlahDiperiksa, &r.JumlahError, &r.JumlahRevoked, &r.FasihTotal)
 		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.TargetPrelist)
 		list = append(list, r)
 	}

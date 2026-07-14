@@ -37,6 +37,7 @@ type SLSProgress struct {
 	// dari verifikasi_harian (PML) — SUM
 	JumlahDiperiksa int
 	JumlahError     int
+	JumlahRevoked   int
 	JumlahObservasi int
 	// status dari verifikasi terakhir
 	StatusKendala   string

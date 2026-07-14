@@ -18,6 +18,7 @@
           {{template "sortable_th" dict "Label" "Draft" "Col" "draft" "PageInfo" $.PageInfo "Center" true}}
           {{template "sortable_th" dict "Label" "Approved" "Col" "approved" "PageInfo" $.PageInfo "Center" true}}
           {{template "sortable_th" dict "Label" "Rejected" "Col" "rejected" "PageInfo" $.PageInfo "Center" true}}
+          <th class="px-3 py-2.5 font-medium text-center">Revoke</th>
           {{template "sortable_th" dict "Label" "% Progres" "Col" "progres" "PageInfo" $.PageInfo "Center" true}}
           {{template "sortable_th" dict "Label" "% Terverifikasi" "Col" "verifikasi" "PageInfo" $.PageInfo "Center" true}}
           {{template "sortable_th" dict "Label" "% Coverage Usaha BKU" "Col" "cov_usaha_bku" "PageInfo" $.PageInfo "Center" true}}
@@ -54,6 +55,9 @@
           </td>
           <td class="px-3 py-2 text-center">
             <span class="{{if gt $r.Error 0}}text-red-600 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} text-xs">{{$r.Error}}</span>
+          </td>
+          <td class="px-3 py-2 text-center">
+            <span class="{{if gt $r.RevokedPengawas 0}}text-yellow-600 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} text-xs">{{$r.RevokedPengawas}}</span>
           </td>
           <td class="px-3 py-2 min-w-[110px]">
             <div class="flex items-center gap-1.5">
@@ -97,7 +101,7 @@
           </td>
         </tr>
         {{else}}
-        <tr><td colspan="13" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
+        <tr><td colspan="14" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
           <div class="flex flex-col items-center gap-2">
             <svg class="w-8 h-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>

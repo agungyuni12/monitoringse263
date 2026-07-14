@@ -10,6 +10,7 @@
         {{template "sortable_th" dict "Label" "Draft" "Col" "draft" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
         {{template "sortable_th" dict "Label" "Approved" "Col" "approved" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
         {{template "sortable_th" dict "Label" "Rejected" "Col" "rejected" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        <th class="px-4 py-3 font-medium text-center">Revoke</th>
         {{template "sortable_th" dict "Label" "% Progres" "Col" "progres" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
       </tr>
     </thead>
@@ -31,6 +32,9 @@
         <td class="px-4 py-3 text-center">
           <span class="{{if gt .Error 0}}text-red-600 font-semibold{{else}}text-gray-400{{end}}">{{.Error}}</span>
         </td>
+        <td class="px-4 py-3 text-center">
+          <span class="{{if gt .RevokedPengawas 0}}text-yellow-600 font-semibold{{else}}text-gray-400{{end}}">{{.RevokedPengawas}}</span>
+        </td>
         <td class="px-4 py-3">
           <div class="flex items-center gap-2">
             <div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden min-w-16">
@@ -41,7 +45,7 @@
         </td>
       </tr>
       {{else}}
-      <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">Belum ada data PPL.</td></tr>
+      <tr><td colspan="9" class="px-4 py-8 text-center text-gray-400">Belum ada data PPL.</td></tr>
       {{end}}
     </tbody>
   </table>

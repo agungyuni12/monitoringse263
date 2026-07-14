@@ -34,6 +34,7 @@ const verifCols = `
 	COALESCE(p.jumlah_draft,0),
 	` + approvedColSQLRow + `,
 	COALESCE(p.fasih_rejected_pengawas,0),
+	COALESCE(p.fasih_revoked_pengawas,0),
 	COALESCE((SELECT SUM(vh2.jumlah_observasi) FROM verifikasi_harian vh2 WHERE vh2.sls_id=s.id),0),
 	COALESCE((SELECT vh2.kendala FROM verifikasi_harian vh2 WHERE vh2.sls_id=s.id ORDER BY vh2.tanggal DESC LIMIT 1),''),
 	COALESCE((SELECT vh2.solusi_sementara FROM verifikasi_harian vh2 WHERE vh2.sls_id=s.id ORDER BY vh2.tanggal DESC LIMIT 1),''),
@@ -73,7 +74,7 @@ func pmlQueryList(userID, page int, sort, dir string) ([]models.SLSProgress, str
 			&sp.KodeKec, &sp.NamaKec, &sp.KodeDesa, &sp.NamaDesa,
 			&sp.NamaPPL,
 			&sp.JumlahSubmit, &sp.JumlahDraft,
-			&sp.JumlahDiperiksa, &sp.JumlahError, &sp.JumlahObservasi,
+			&sp.JumlahDiperiksa, &sp.JumlahError, &sp.JumlahRevoked, &sp.JumlahObservasi,
 			&sp.Kendala, &sp.SolusiSementara,
 			&sp.StatusKendala, &sp.TindakLanjutPML,
 		)
@@ -132,6 +133,7 @@ func PMLProgresPPL(c echo.Context) error {
 		       COALESCE(SUM(p.jumlah_draft),0),
 		       COALESCE(SUM(p.fasih_approved_pengawas),0),
 		       COALESCE(SUM(p.fasih_rejected_pengawas),0),
+		       COALESCE(SUM(p.fasih_revoked_pengawas),0),
 		       COALESCE(SUM(p.fasih_approved_kabupaten),0),
 		       COALESCE(SUM(p.fasih_rejected_kabupaten),0),
 		       COALESCE(SUM(p.fasih_approved_provinsi),0),
@@ -157,7 +159,7 @@ func PMLProgresPPL(c echo.Context) error {
 			var editedAdmin, completedAdmin int
 			rows.Scan(&r.ID, &r.Name, &r.JmlSLS,
 				&r.Submit, &r.JumlahSubmit, &r.Draft,
-				&r.ApprovedPengawas, &r.RejectedPengawas,
+				&r.ApprovedPengawas, &r.RejectedPengawas, &r.RevokedPengawas,
 				&r.ApprovedKabupaten, &r.RejectedKabupaten,
 				&r.ApprovedProvinsi, &r.RejectedProvinsi,
 				&r.ApprovedPusat, &r.RejectedPusat,
@@ -306,7 +308,7 @@ func PMLVerifModal(c echo.Context) error {
 			&sp.KodeKec, &sp.NamaKec, &sp.KodeDesa, &sp.NamaDesa,
 			&sp.NamaPPL,
 			&sp.JumlahSubmit, &sp.JumlahDraft,
-			&sp.JumlahDiperiksa, &sp.JumlahError, &sp.JumlahObservasi,
+			&sp.JumlahDiperiksa, &sp.JumlahError, &sp.JumlahRevoked, &sp.JumlahObservasi,
 			&sp.Kendala, &sp.SolusiSementara,
 			&sp.StatusKendala, &sp.TindakLanjutPML,
 		)
@@ -403,7 +405,7 @@ func PMLSaveVerif(c echo.Context) error {
 			&sp.KodeKec, &sp.NamaKec, &sp.KodeDesa, &sp.NamaDesa,
 			&sp.NamaPPL,
 			&sp.JumlahSubmit, &sp.JumlahDraft,
-			&sp.JumlahDiperiksa, &sp.JumlahError, &sp.JumlahObservasi,
+			&sp.JumlahDiperiksa, &sp.JumlahError, &sp.JumlahRevoked, &sp.JumlahObservasi,
 			&sp.Kendala, &sp.SolusiSementara,
 			&sp.StatusKendala, &sp.TindakLanjutPML,
 		)
