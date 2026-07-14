@@ -475,10 +475,15 @@ func upsertProgress(agg map[string]*slsAgg) (int, error) {
 // selalu diberi nomor segmen sls >= 1000 (mis. "1001", "2003", dst) — ini
 // konvensi baku BPS, jadi jauh lebih andal dipakai sebagai penanda.
 func applyNonSLSApprovedOverride() {
+	// jumlah_submit ikut dipaksa minimal sama dengan fasih_approved_pengawas
+	// (tidak masuk akal ada assignment approved tapi belum submit) — soalnya
+	// % Progres & % Terverifikasi dihitung dari jumlah_submit, bukan dari
+	// fasih_approved_pengawas.
 	_, err := db.DB.Exec(`
 		UPDATE progress p
 		JOIN sls s ON s.id = p.sls_id
-		SET p.fasih_approved_pengawas = LEAST(GREATEST(p.fasih_approved_pengawas, 1), p.fasih_total)
+		SET p.fasih_approved_pengawas = LEAST(GREATEST(p.fasih_approved_pengawas, 1), p.fasih_total),
+		    p.jumlah_submit           = LEAST(GREATEST(p.jumlah_submit, LEAST(GREATEST(p.fasih_approved_pengawas, 1), p.fasih_total)), p.fasih_total)
 		WHERE CAST(SUBSTRING(s.kode_sls, 11, 4) AS UNSIGNED) >= 1000
 		  AND p.fasih_total > 0`)
 	if err != nil {
