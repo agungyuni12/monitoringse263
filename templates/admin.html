@@ -81,6 +81,8 @@
           <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 21s-7-6.5-7-11a7 7 0 1114 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5" stroke-width="1.5"/></svg>
           <span class="sidebar-label">Keberadaan</span>
         </button>
+
+        <p class="sidebar-label px-3 pt-4 pb-1 text-[10px] font-bold uppercase tracking-wider text-gray-300 dark:text-gray-600">Rekap</p>
         <button onclick="switchTab('progresRekap')" id="tab-progresRekap" title="Rekap Progres"
           class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
           <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 20V10m6 10V4m6 16v-7"/></svg>
@@ -96,6 +98,8 @@
           <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           <span class="sidebar-label">Rekap Keberadaan</span>
         </button>
+
+        <p class="sidebar-label px-3 pt-4 pb-1 text-[10px] font-bold uppercase tracking-wider text-gray-300 dark:text-gray-600">Analisis</p>
         <button onclick="switchTab('peta')" id="tab-peta" title="Peta Sebaran"
           class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
           <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 4.5L4 6.5v13l5-2 6 2 5-2v-13l-5 2-6-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 4.5v13m6-11v13"/></svg>
@@ -132,23 +136,29 @@
     <div class="flex-1 min-w-0 flex flex-col">
       <!-- Topbar -->
       <header class="sticky top-0 z-20 bg-white/85 dark:bg-gray-900/85 backdrop-blur border-b border-gray-200 dark:border-gray-800">
-        <div class="px-4 lg:px-6 py-3 flex items-center justify-between gap-3">
+        <div class="px-4 lg:px-6 py-3.5 flex items-center justify-between gap-3">
           <div class="flex items-center gap-3 min-w-0">
             <button onclick="toggleSidebar()" class="lg:hidden text-gray-500 dark:text-gray-400 hover:text-se p-1 -ml-1 rounded-lg transition-all active:scale-90">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 12h16M4 18h16"/>
               </svg>
             </button>
+            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-se to-se-dark text-white flex items-center justify-center text-[13px] font-bold shrink-0">
+              {{if .Name}}{{slice .Name 0 1}}{{else}}?{{end}}
+            </div>
             <div class="min-w-0">
               <p class="text-[11px] text-gray-400 dark:text-gray-500 truncate leading-tight">Selamat datang,</p>
               <p class="font-bold text-[14px] text-gray-800 dark:text-gray-100 truncate leading-tight tracking-tight">{{.Name}}</p>
             </div>
           </div>
-          {{template "theme_toggle_button" .}}
+          <div class="flex items-center gap-1">
+            <span class="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1"></span>
+            {{template "theme_toggle_button" .}}
+          </div>
         </div>
       </header>
 
-      <main class="flex-1 px-4 lg:px-6 py-6 space-y-6 max-w-[1600px] w-full">
+      <main class="flex-1 px-4 lg:px-6 py-8 space-y-8 max-w-[1600px] w-full">
 
         <!-- ===== RINGKASAN KAB. DOMPU ===== -->
         <section>

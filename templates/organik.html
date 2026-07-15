@@ -11,40 +11,9 @@
 <body class="bg-se-bg dark:bg-gray-950 min-h-screen transition-colors">
   {{template "theme_progress_bar" .}}
 
-  <!-- Header -->
-  <header class="relative overflow-hidden shadow-md" style="background:linear-gradient(135deg,#F37021,#d45f10);">
-    <div class="absolute inset-0 opacity-[.07]" style="background-image:radial-gradient(circle at 85% 20%, white 0, transparent 45%);"></div>
-    <div class="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between relative">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-white/15 ring-1 ring-white/25 p-1.5 shrink-0">
-          <img src="/static/logo-sigempar.png" alt="SIGEMPAR" class="w-full h-full object-contain"/>
-        </div>
-        <div>
-          <h1 class="text-white font-extrabold text-base leading-tight tracking-tight">SIGEMPAR – Organik</h1>
-          <p class="text-orange-100/90 text-xs mt-0.5">SE 2026 &middot; {{.Name}}</p>
-        </div>
-      </div>
-      <div class="flex items-center gap-4">
-        <a href="/kendala" class="text-orange-100 hover:text-white text-sm flex items-center gap-1.5 transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-          </svg>
-          Daftar Kendala
-        </a>
-        <a href="/logout" class="text-orange-100 hover:text-white text-sm flex items-center gap-1.5 transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-          </svg>
-          Keluar
-        </a>
-        {{template "theme_toggle_button_on_brand" .}}
-      </div>
-    </div>
-  </header>
+  {{template "app_header" dict "MaxW" "3xl" "Title" "Organik" "Subtitle" (print "SE 2026 · " .Name) "ShowKendala" true "ShowLogout" true}}
 
-  <main class="max-w-3xl mx-auto px-4 py-6 space-y-6">
+  <main class="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
 
     <!-- Alert -->
     {{if .OK}}

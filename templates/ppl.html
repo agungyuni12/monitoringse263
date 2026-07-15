@@ -25,40 +25,9 @@
     </div>
   </div>
 
-  <!-- Header -->
-  <header class="relative overflow-hidden shadow-md" style="background:linear-gradient(135deg,#F37021,#d45f10);">
-    <div class="absolute inset-0 opacity-[.07]" style="background-image:radial-gradient(circle at 85% 20%, white 0, transparent 45%);"></div>
-    <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between relative">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-white/15 ring-1 ring-white/25 p-1.5 shrink-0">
-          <img src="/static/logo-sigempar.png" alt="SIGEMPAR" class="w-full h-full object-contain"/>
-        </div>
-        <div>
-          <h1 class="text-white font-extrabold text-base leading-tight tracking-tight">SIGEMPAR – Input Progres PPL</h1>
-          <p class="text-orange-100/90 text-xs mt-0.5">SE 2026 &middot; Petugas: {{.Name}}</p>
-        </div>
-      </div>
-      <div class="flex items-center gap-4">
-        <a href="/kendala" class="text-orange-100 hover:text-white text-sm flex items-center gap-1.5 transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-          </svg>
-          Daftar Kendala
-        </a>
-        <a href="/logout" class="text-orange-100 hover:text-white text-sm flex items-center gap-1.5 transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-          </svg>
-          Keluar
-        </a>
-        {{template "theme_toggle_button_on_brand" .}}
-      </div>
-    </div>
-  </header>
+  {{template "app_header" dict "MaxW" "5xl" "Title" "Input Progres PPL" "Subtitle" (print "SE 2026 · Petugas: " .Name) "ShowKendala" true "ShowLogout" true}}
 
-  <main class="max-w-5xl mx-auto px-4 py-6">
+  <main class="max-w-5xl mx-auto px-4 sm:px-6 py-8">
 
     <!-- Summary Cards -->
     <div class="grid grid-cols-3 gap-3.5 mb-6">
@@ -94,7 +63,7 @@
     </div>
 
     <!-- Progress bar -->
-    <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm px-5 py-4 mb-6">
+    <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm px-5 py-4 mb-8">
       <div class="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
         <span class="font-medium">Progres Submit</span>
         <span class="font-semibold text-green-600 dark:text-green-400">{{.TotalSubmit}} / {{.TotalTarget}}</span>
@@ -105,22 +74,22 @@
     </div>
 
     <!-- Tabs -->
-    <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm overflow-hidden">
-      <div class="flex border-b border-gray-100 dark:border-gray-800">
-        <button onclick="switchTab('ringkasan')" id="tab-ringkasan"
-          class="tab-btn active px-6 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
-          Ringkasan
-        </button>
-        <button onclick="switchTab('anomali')" id="tab-anomali"
-          class="tab-btn px-6 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
-          Anomali
-        </button>
-        <button onclick="switchTab('keberadaan')" id="tab-keberadaan"
-          class="tab-btn px-6 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
-          Keberadaan
-        </button>
-      </div>
+    <div class="pill-tabs mb-4">
+      <button onclick="switchTab('ringkasan')" id="tab-ringkasan"
+        class="tab-btn active px-4 py-2 rounded-xl text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
+        Ringkasan
+      </button>
+      <button onclick="switchTab('anomali')" id="tab-anomali"
+        class="tab-btn px-4 py-2 rounded-xl text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
+        Anomali
+      </button>
+      <button onclick="switchTab('keberadaan')" id="tab-keberadaan"
+        class="tab-btn px-4 py-2 rounded-xl text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
+        Keberadaan
+      </button>
+    </div>
 
+    <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm overflow-hidden">
       <!-- TAB: Ringkasan (SLS list) -->
       <div id="panel-ringkasan" class="tab-panel active">
         <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
