@@ -328,11 +328,43 @@ BATCH_SIZE_VERIFY  = 20   # assignment per Promise.all batch (browser-side, jauh
 
 _last_verify_at = None  # diisi run_once(); reset ke None kalau proses restart (verifikasi akan jalan lagi di siklus pertama)
 
+# Hasil verifikasi ground-truth per kode_sls, dipakai ulang di siklus 2-jam yang
+# TIDAK menjalankan verifikasi — supaya koreksinya tidak tertimpa balik oleh
+# aggregate() yang tiap siklus selalu baca ulang data mentah (mungkin masih basi)
+# dari FASIH. Cache dianggap masih berlaku selama fasih_total SLS itu belum
+# berubah (set assignment-nya sama, cuma status yang tadinya lag); kalau
+# fasih_total berubah berarti ada perubahan nyata → cache dibuang, SLS itu
+# otomatis jadi kandidat verifikasi lagi di siklus verifikasi berikutnya.
+_verified_cache = {}  # kode_sls -> dict hasil agregat SLS yang sudah diverifikasi
+
 
 def _should_verify_now():
     if _last_verify_at is None:
         return True
     return (_now_wita() - _last_verify_at) >= timedelta(hours=VERIFY_INTERVAL_HOURS)
+
+
+def apply_verified_cache(sls_agg):
+    """Timpa balik SLS di sls_agg dengan hasil verifikasi sebelumnya yang masih
+    berlaku (fasih_total belum berubah). Dipanggil TIAP siklus, verifikasi atau
+    bukan, supaya koreksi ground-truth tidak hilang di siklus yang skip STEP 2b."""
+    applied = 0
+    stale_keys = []
+    for kode, cached in _verified_cache.items():
+        fresh = sls_agg.get(kode)
+        if fresh is None:
+            continue
+        if fresh["fasih_total"] != cached["fasih_total"]:
+            stale_keys.append(kode)  # assignment di SLS ini berubah, cache tidak berlaku lagi
+            continue
+        if fresh != cached:
+            sls_agg[kode] = dict(cached)
+            applied += 1
+    for kode in stale_keys:
+        del _verified_cache[kode]
+    if applied or stale_keys:
+        print(f"[VERIFY-CACHE] {applied} SLS pakai hasil verifikasi sebelumnya, {len(stale_keys)} cache dibuang (assignment berubah)", flush=True)
+    return sls_agg
 
 
 def _is_candidate_for_verify(a):
@@ -529,6 +561,7 @@ def verify_stale_sls(sls_agg, browser):
                 corrected += 1
                 print(f"    [VERIFY] {kode}: draft {old_draft}->{new_a['jumlah_draft']}  open {old_open}->{new_a['fasih_open']}", flush=True)
             sls_agg[kode] = new_a
+            _verified_cache[kode] = dict(new_a)  # simpan biar dipakai ulang di siklus 2-jam yg skip verifikasi
 
         try:
             ctx.close()
@@ -717,6 +750,7 @@ def run_once():
 
             print("\n[STEP 2] Aggregate per SLS...")
             sls_agg = aggregate(all_content)
+            sls_agg = apply_verified_cache(sls_agg)
 
             global _last_verify_at
             if _should_verify_now():
