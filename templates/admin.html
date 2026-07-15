@@ -4,85 +4,12 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Admin – SIGEMPAR SE2026</title>
-  <script>
-    // Terapkan tema & status sidebar sebelum render supaya tidak ada flash.
-    (function() {
-      var saved = localStorage.getItem('sigempar-theme');
-      var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (dark) document.documentElement.classList.add('dark');
-      if (localStorage.getItem('sigempar-sidebar') === 'collapsed') {
-        document.documentElement.classList.add('sidebar-collapsed');
-      }
-    })();
-  </script>
-  <link rel="icon" href="/static/logo-sigempar.png" type="image/png"/>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  {{template "theme_init_script" .}}
+  {{template "theme_assets" .}}
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Plus Jakarta Sans', 'ui-sans-serif', 'system-ui', 'sans-serif']
-          },
-          colors: {
-            se: { DEFAULT:'#F37021', dark:'#d45f10', light:'#f59548', bg:'#FFF4ED' }
-          }
-        }
-      }
-    }
-  </script>
+  {{template "theme_style" .}}
   <style>
-    html { font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif; }
-    .htmx-indicator { display:none; }
-    .htmx-request .htmx-indicator { display:inline-block; }
-    .badge-open        { background:#FEF3C7; color:#92400E; }
-    .badge-in_progress { background:#DBEAFE; color:#1E40AF; }
-    .badge-resolved    { background:#D1FAE5; color:#065F46; }
-    .badge-escalated   { background:#FEE2E2; color:#991B1B; }
-    .dark .badge-open        { background:rgba(217,119,6,.18); color:#FBBF24; }
-    .dark .badge-in_progress { background:rgba(37,99,235,.18); color:#93C5FD; }
-    .dark .badge-resolved    { background:rgba(5,150,105,.18); color:#6EE7B7; }
-    .dark .badge-escalated   { background:rgba(220,38,38,.18); color:#FCA5A5; }
-    .tab-panel         { display:none; }
-    .tab-panel.active  { display:block; animation: fadeInUp .22s ease-out; }
-    .tab-btn.active {
-      background: rgba(243,112,33,.1);
-      color:#F37021;
-      font-weight:600;
-      border-left-color:#F37021;
-      box-shadow: inset 0 0 0 1px rgba(243,112,33,.08);
-    }
-    .dark .tab-btn.active { background: rgba(243,112,33,.16); }
-    .tab-btn:hover svg { transform: scale(1.08); }
-    .tab-btn svg { transition: transform .15s ease-out; }
-    .sidebar-nav-btn { border-radius: .625rem; }
-    ::-webkit-scrollbar { width:10px; height:10px; }
-    ::-webkit-scrollbar-track { background:transparent; }
-    ::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:9999px; }
-    .dark ::-webkit-scrollbar-thumb { background:#3f3f46; }
-
-    /* Fade-in halus tiap kali konten diganti via HTMX (tabel, ringkasan, dst) */
-    @keyframes fadeInUp {
-      from { opacity:0; transform:translateY(6px); }
-      to   { opacity:1; transform:translateY(0); }
-    }
-    .htmx-swap-fade { animation: fadeInUp .28s ease-out; }
-
-    /* Loading bar tipis di paling atas selama request HTMX berjalan */
-    #htmx-progress {
-      position:fixed; top:0; left:0; height:2.5px; width:0%;
-      background:linear-gradient(90deg,#F37021,#f59548);
-      z-index:60; opacity:0; transition:width .35s ease-out, opacity .2s ease-out;
-      box-shadow: 0 0 8px rgba(243,112,33,.6);
-    }
-
     /* Sidebar collapse (desktop only — mobile tetap pakai drawer overlay) */
     @media (min-width: 1024px) {
       .sidebar-collapsed #sidebar { width:5rem; }
@@ -93,68 +20,11 @@
       .sidebar-collapsed .sidebar-brand-row { justify-content:center; }
     }
     #sidebar-collapse-icon { transition: transform .2s ease-out; }
-
-    /* ================================================================
-       SISTEM DESAIN BERSAMA — berlaku otomatis ke SEMUA partial (tabel,
-       badge, tombol, kartu) yang di-load lewat HTMX, karena Tailwind CDN
-       scan seluruh DOM dan selector di bawah generik/berdasar struktur
-       yang sudah konsisten dipakai di semua partial. Cukup diubah di
-       satu tempat ini untuk polesan menyeluruh.
-       ================================================================ */
-
-    /* Angka tabular supaya kolom angka rapi sejajar di semua tabel & stat card */
-    table td, .tabular-nums, main section p.text-3xl, main section span.font-bold {
-      font-variant-numeric: tabular-nums;
-    }
-
-    /* Header tabel: tracking lebih rapi + border bawah lebih tegas */
-    table thead tr {
-      letter-spacing: .03em;
-      font-weight: 600;
-    }
-    table thead th { font-weight: 600; }
-
-    /* Baris tabel: transisi hover lebih halus + highlight kiri tipis saat hover */
-    table tbody tr { transition: background-color .12s ease-out; }
-    table tbody tr:hover { box-shadow: inset 3px 0 0 0 rgba(243,112,33,.35); }
-    .dark table tbody tr:hover { box-shadow: inset 3px 0 0 0 rgba(243,112,33,.5); }
-
-    /* Kartu putih (stat card, panel tab, dsb): shadow ditinting warna brand,
-       bukan hitam datar — dan sedikit lift halus saat hover kalau interaktif */
-    .bg-white.rounded-xl, .bg-white.rounded-2xl,
-    .dark\:bg-gray-900.rounded-xl, .dark\:bg-gray-900.rounded-2xl {
-      box-shadow: 0 1px 2px rgba(120,60,10,.04), 0 8px 20px -8px rgba(120,60,10,.10);
-    }
-    .dark .bg-white.rounded-xl, .dark .bg-white.rounded-2xl,
-    .dark .dark\:bg-gray-900.rounded-xl, .dark .dark\:bg-gray-900.rounded-2xl {
-      box-shadow: none;
-    }
-
-    /* Tombol & elemen interaktif: tekanan fisik saat diklik */
-    button:active, a.active\:scale-95:active, .btn-press:active { transform: scale(.97); }
-    button, a { transition-property: color, background-color, border-color, box-shadow, transform, opacity; }
-
-    /* Fokus keyboard yang jelas & konsisten di semua input/tombol/link */
-    input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {
-      outline: 2px solid rgba(243,112,33,.55);
-      outline-offset: 1px;
-    }
-
-    /* Skeleton loading generik utk area yang lagi "Memuat..." */
-    .skel { position: relative; overflow: hidden; background: #f1f1ef; border-radius: .5rem; }
-    .dark .skel { background: #27272a; }
-    .skel::after {
-      content: ''; position: absolute; inset: 0; transform: translateX(-100%);
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
-      animation: skelShimmer 1.3s infinite;
-    }
-    .dark .skel::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent); }
-    @keyframes skelShimmer { 100% { transform: translateX(100%); } }
   </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen transition-colors">
 
-  <div id="htmx-progress"></div>
+  {{template "theme_progress_bar" .}}
 
   <div id="sidebar-backdrop" onclick="toggleSidebar()"
     class="fixed inset-0 bg-black/40 z-30 hidden lg:hidden"></div>
@@ -274,16 +144,7 @@
               <p class="font-bold text-[14px] text-gray-800 dark:text-gray-100 truncate leading-tight tracking-tight">{{.Name}}</p>
             </div>
           </div>
-          <button onclick="toggleDarkMode()" id="dark-toggle-btn"
-            title="Ganti tema terang/gelap"
-            class="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all active:scale-90">
-            <svg id="icon-sun" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.36 6.36l-1.41-1.41M7.05 7.05L5.64 5.64m12.72 0l-1.41 1.41M7.05 16.95l-1.41 1.41M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
-            </svg>
-            <svg id="icon-moon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
-            </svg>
-          </button>
+          {{template "theme_toggle_button" .}}
         </div>
       </header>
 
@@ -807,11 +668,8 @@
     </div>
   </div>
 
+  {{template "theme_runtime_script" .}}
   <script>
-    function toggleDarkMode() {
-      var isDark = document.documentElement.classList.toggle('dark');
-      localStorage.setItem('sigempar-theme', isDark ? 'dark' : 'light');
-    }
     function toggleSidebar() {
       document.getElementById('sidebar').classList.toggle('-translate-x-full');
       document.getElementById('sidebar-backdrop').classList.toggle('hidden');
@@ -821,33 +679,6 @@
       localStorage.setItem('sigempar-sidebar', collapsed ? 'collapsed' : 'expanded');
     }
 
-    // ===== Loading bar tipis + fade-in tiap kali HTMX menukar konten =====
-    (function() {
-      var bar = document.getElementById('htmx-progress');
-      var hideTimer = null;
-      document.addEventListener('htmx:beforeRequest', function() {
-        clearTimeout(hideTimer);
-        bar.style.transition = 'none';
-        bar.style.opacity = '1';
-        bar.style.width = '0%';
-        // paksa reflow supaya transition width berikutnya kepakai
-        void bar.offsetWidth;
-        bar.style.transition = 'width .4s ease-out, opacity .2s ease-out';
-        bar.style.width = '75%';
-      });
-      document.addEventListener('htmx:afterRequest', function() {
-        bar.style.width = '100%';
-        hideTimer = setTimeout(function() {
-          bar.style.opacity = '0';
-        }, 150);
-      });
-      document.addEventListener('htmx:afterSwap', function(e) {
-        var el = e.detail.target;
-        el.classList.remove('htmx-swap-fade');
-        void el.offsetWidth;
-        el.classList.add('htmx-swap-fade');
-      });
-    })();
     function switchTab(name) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));

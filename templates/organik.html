@@ -4,30 +4,12 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Organik – SIGEMPAR SE2026</title>
-  <link rel="icon" href="/static/logo-sigempar.png" type="image/png"/>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-  <script>
-    tailwind.config = {
-      theme: { extend: {
-        fontFamily: { sans: ['Plus Jakarta Sans', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
-        colors: { se: { DEFAULT:'#F37021', dark:'#d45f10', light:'#f59548', bg:'#FFF4ED' } } } }
-    }
-  </script>
-  <style>
-    html { font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif; }
-    .htmx-indicator { display:none; }
-    .htmx-request .htmx-indicator { display:inline-block; }
-    table td { font-variant-numeric: tabular-nums; }
-    .bg-white.rounded-xl, .bg-white.rounded-2xl { box-shadow: 0 1px 2px rgba(120,60,10,.04), 0 8px 20px -8px rgba(120,60,10,.10); }
-    button:active, a:active { transform: scale(.98); }
-    button, a { transition-property: color, background-color, border-color, box-shadow, transform, opacity; transition-duration: .15s; }
-  </style>
+  {{template "theme_init_script" .}}
+  {{template "theme_assets" .}}
+  {{template "theme_style" .}}
 </head>
-<body class="bg-se-bg min-h-screen">
+<body class="bg-se-bg dark:bg-gray-950 min-h-screen transition-colors">
+  {{template "theme_progress_bar" .}}
 
   <!-- Header -->
   <header class="relative overflow-hidden shadow-md" style="background:linear-gradient(135deg,#F37021,#d45f10);">
@@ -57,6 +39,7 @@
           </svg>
           Keluar
         </a>
+        {{template "theme_toggle_button_on_brand" .}}
       </div>
     </div>
   </header>
@@ -65,28 +48,28 @@
 
     <!-- Alert -->
     {{if .OK}}
-    <div class="bg-green-50 border border-green-300 text-green-800 rounded-xl px-4 py-3 text-sm font-medium">
+    <div class="bg-green-50 dark:bg-green-950/40 border border-green-300 dark:border-green-800 text-green-800 dark:text-green-300 rounded-xl px-4 py-3 text-sm font-medium">
       ✓ Laporan berhasil disimpan.
     </div>
     {{end}}
     {{if .Err}}
-    <div class="bg-red-50 border border-red-300 text-red-800 rounded-xl px-4 py-3 text-sm font-medium">
+    <div class="bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-300 rounded-xl px-4 py-3 text-sm font-medium">
       Gagal menyimpan laporan. Pastikan semua field terisi dengan benar.
     </div>
     {{end}}
 
     <!-- Form Input -->
-    <section class="bg-white rounded-2xl shadow-sm p-6 space-y-5">
+    <section class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm p-6 space-y-5">
       <div class="flex items-center gap-2 mb-1">
         <div class="w-1.5 h-6 bg-se rounded-full"></div>
-        <h2 class="font-bold text-gray-800 text-lg">Input Pengawasan Harian</h2>
+        <h2 class="font-bold text-gray-800 dark:text-gray-100 text-lg">Input Pengawasan Harian</h2>
       </div>
 
       <form method="POST" action="/organik/laporan" class="space-y-4" autocomplete="off">
 
         <!-- Cari SLS -->
         <div class="relative">
-          <label class="block text-sm font-medium text-gray-700 mb-1">Cari SLS <span class="text-red-500">*</span></label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cari SLS <span class="text-red-500">*</span></label>
           <input type="hidden" id="sls_id" name="sls_id"/>
           <input type="text" id="sls-search"
             hx-get="/organik/sls/search"
@@ -96,7 +79,7 @@
             name="q"
             placeholder="Ketik nama SLS, desa, kecamatan, atau nama PPL..."
             autocomplete="off"
-            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
           <span id="sls-spin" class="htmx-indicator absolute right-3 top-9">
             <svg class="w-4 h-4 animate-spin text-se" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -104,17 +87,17 @@
             </svg>
           </span>
           <!-- Dropdown hasil pencarian -->
-          <div id="sls-results" class="absolute z-20 left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 max-h-64 overflow-y-auto"></div>
+          <div id="sls-results" class="absolute z-20 left-0 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg mt-1 max-h-64 overflow-y-auto"></div>
         </div>
 
         <!-- Info SLS terpilih -->
-        <div id="sls-info" class="hidden bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 text-sm space-y-1">
-          <div class="font-semibold text-gray-800" id="sls-nama-display"></div>
-          <div class="text-gray-600">
+        <div id="sls-info" class="hidden bg-orange-50 dark:bg-se/10 border border-orange-200 dark:border-se/30 rounded-xl px-4 py-3 text-sm space-y-1">
+          <div class="font-semibold text-gray-800 dark:text-gray-100" id="sls-nama-display"></div>
+          <div class="text-gray-600 dark:text-gray-400">
             <span class="font-medium">Desa:</span> <span id="sls-desa-display"></span> &bull;
             <span class="font-medium">Kec:</span> <span id="sls-kec-display"></span>
           </div>
-          <div class="text-gray-600">
+          <div class="text-gray-600 dark:text-gray-400">
             <span class="font-medium">PPL:</span> <span id="sls-ppl-display"></span> &bull;
             <span class="font-medium">PML:</span> <span id="sls-pml-display"></span>
           </div>
@@ -123,29 +106,29 @@
         <!-- Tanggal & Jumlah -->
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal <span class="text-red-500">*</span></label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tanggal <span class="text-red-500">*</span></label>
             <input type="date" name="tanggal" value="{{.Today}}" required
-              class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+              class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Jumlah Diawasi <span class="text-red-500">*</span></label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Jumlah Diawasi <span class="text-red-500">*</span></label>
             <input type="number" name="jumlah_diawasi" min="0" value="0" required
-              class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+              class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
           </div>
         </div>
 
         <!-- Kendala -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Kendala <span class="text-red-500">*</span></label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kendala <span class="text-red-500">*</span></label>
           <textarea name="kendala" rows="3" required placeholder="Tuliskan kendala yang ditemui..."
-            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-se resize-none"></textarea>
+            class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-se resize-none"></textarea>
         </div>
 
         <!-- Solusi -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Solusi / Tindak Lanjut <span class="text-gray-400 text-xs">(opsional)</span></label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Solusi / Tindak Lanjut <span class="text-gray-400 dark:text-gray-500 text-xs">(opsional)</span></label>
           <textarea name="solusi" rows="2" placeholder="Tuliskan solusi atau tindak lanjut jika ada..."
-            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-se resize-none"></textarea>
+            class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-se resize-none"></textarea>
         </div>
 
         <button type="submit" id="submit-btn"
@@ -157,17 +140,17 @@
     </section>
 
     <!-- Riwayat -->
-    <section class="bg-white rounded-2xl shadow-sm overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-100">
+    <section class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
         <div class="flex items-center gap-2">
           <div class="w-1.5 h-5 bg-se rounded-full"></div>
-          <h2 class="font-bold text-gray-800">Riwayat Pengawasan</h2>
+          <h2 class="font-bold text-gray-800 dark:text-gray-100">Riwayat Pengawasan</h2>
         </div>
       </div>
       {{if .Laporan}}
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
-          <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+          <thead class="bg-gray-50 dark:bg-gray-800/60 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
             <tr>
               <th class="px-4 py-3 text-left">Tanggal</th>
               <th class="px-4 py-3 text-left">SLS / Lokasi</th>
@@ -177,20 +160,20 @@
               <th class="px-4 py-3 text-left">Kendala</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-50">
+          <tbody class="divide-y divide-gray-50 dark:divide-gray-800">
             {{range .Laporan}}
-            <tr class="hover:bg-orange-50 transition-colors">
-              <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-700">{{.Tanggal}}</td>
+            <tr class="hover:bg-orange-50 dark:hover:bg-gray-800/60 transition-colors">
+              <td class="px-4 py-3 whitespace-nowrap font-medium text-gray-700 dark:text-gray-300">{{.Tanggal}}</td>
               <td class="px-4 py-3">
-                <div class="font-medium text-gray-800">{{.NamaSLS}}</div>
-                <div class="text-xs text-gray-500">{{.NamaDesa}}, Kec. {{.NamaKec}}</div>
+                <div class="font-medium text-gray-800 dark:text-gray-100">{{.NamaSLS}}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{.NamaDesa}}, Kec. {{.NamaKec}}</div>
               </td>
-              <td class="px-4 py-3 text-gray-700">{{.NamaPPL}}</td>
-              <td class="px-4 py-3 text-gray-700">{{.NamaPML}}</td>
+              <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{.NamaPPL}}</td>
+              <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{.NamaPML}}</td>
               <td class="px-4 py-3 text-center font-semibold text-se">{{.JumlahDiawasi}}</td>
               <td class="px-4 py-3">
-                <div class="text-gray-700 max-w-xs truncate" title="{{.Kendala}}">{{.Kendala}}</div>
-                {{if .Solusi}}<div class="text-xs text-green-700 mt-0.5 max-w-xs truncate" title="{{.Solusi}}">→ {{.Solusi}}</div>{{end}}
+                <div class="text-gray-700 dark:text-gray-300 max-w-xs truncate" title="{{.Kendala}}">{{.Kendala}}</div>
+                {{if .Solusi}}<div class="text-xs text-green-700 dark:text-green-400 mt-0.5 max-w-xs truncate" title="{{.Solusi}}">→ {{.Solusi}}</div>{{end}}
               </td>
             </tr>
             {{end}}
@@ -198,7 +181,7 @@
         </table>
       </div>
       {{else}}
-      <div class="px-6 py-10 text-center text-gray-400 text-sm">Belum ada laporan pengawasan.</div>
+      <div class="px-6 py-10 text-center text-gray-400 dark:text-gray-500 text-sm">Belum ada laporan pengawasan.</div>
       {{end}}
     </section>
 
@@ -225,5 +208,6 @@
       }
     });
   </script>
+  {{template "theme_runtime_script" .}}
 </body>
 </html>

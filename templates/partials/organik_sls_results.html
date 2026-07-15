@@ -2,14 +2,14 @@
 {{if .Results}}
 {{range .Results}}
 <div onclick="selectSLS({{.ID}}, '{{.NamaSLS}}', '{{.NamaKec}}', '{{.NamaDesa}}', '{{.NamaPPL}}', '{{.NamaPML}}')"
-  class="px-4 py-3 cursor-pointer hover:bg-orange-50 border-b border-gray-100 last:border-0 transition-colors">
-  <div class="font-medium text-gray-800 text-sm">{{.NamaSLS}}</div>
-  <div class="text-xs text-gray-500 mt-0.5">
+  class="px-4 py-3 cursor-pointer hover:bg-orange-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-0 transition-colors">
+  <div class="font-medium text-gray-800 dark:text-gray-100 text-sm">{{.NamaSLS}}</div>
+  <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
     Desa {{.NamaDesa}}, Kec. {{.NamaKec}} &bull; PPL: {{.NamaPPL}} &bull; PML: {{.NamaPML}}
   </div>
 </div>
 {{end}}
 {{else}}
-<div class="px-4 py-3 text-sm text-gray-400">Tidak ada SLS yang sesuai.</div>
+<div class="px-4 py-3 text-sm text-gray-400 dark:text-gray-500">Tidak ada SLS yang sesuai.</div>
 {{end}}
 {{end}}

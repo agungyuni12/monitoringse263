@@ -2,11 +2,11 @@
 <div class="p-6">
   <div class="flex items-center justify-between mb-4">
     <div>
-      <h3 class="text-base font-semibold text-gray-800">Detail Progres FASIH</h3>
+      <h3 class="text-base font-semibold text-gray-800 dark:text-gray-100">Detail Progres FASIH</h3>
       <p class="text-sm font-medium text-se">{{.SP.NamaSLS}}</p>
-      <p class="text-xs text-gray-400">{{.SP.NamaDesa}} – Kec. {{.SP.NamaKec}}</p>
+      <p class="text-xs text-gray-400 dark:text-gray-500">{{.SP.NamaDesa}} – Kec. {{.SP.NamaKec}}</p>
     </div>
-    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg transition-colors">
+    <button onclick="closeModal()" class="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-lg transition-colors">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
       </svg>
@@ -14,104 +14,104 @@
   </div>
 
   <!-- Ringkasan -->
-  <div class="bg-orange-50 rounded-xl px-4 py-3 mb-4 grid grid-cols-3 gap-3 text-center text-sm">
+  <div class="bg-orange-50 dark:bg-gray-800/60 rounded-xl px-4 py-3 mb-4 grid grid-cols-3 gap-3 text-center text-sm">
     <div>
-      <p class="text-xs text-gray-500 mb-0.5">Target</p>
-      <p class="font-bold text-gray-700">{{.SP.Target}}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Target</p>
+      <p class="font-bold text-gray-700 dark:text-gray-200">{{.SP.Target}}</p>
     </div>
     <div>
-      <p class="text-xs text-gray-500 mb-0.5">Submit</p>
-      <p class="font-bold text-green-600">{{.SP.JumlahSubmit}}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Submit</p>
+      <p class="font-bold text-green-600 dark:text-green-400">{{.SP.JumlahSubmit}}</p>
     </div>
     <div>
-      <p class="text-xs text-gray-500 mb-0.5">Draft</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Draft</p>
       <p class="font-bold text-se">{{.SP.JumlahDraft}}</p>
     </div>
   </div>
 
   <!-- Detail status FASIH -->
-  <div class="border border-gray-100 rounded-xl overflow-hidden mb-4">
-    <div class="bg-gray-50 px-4 py-2 border-b border-gray-100">
-      <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Rincian Status dari FASIH</p>
+  <div class="border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden mb-4">
+    <div class="bg-gray-50 dark:bg-gray-800/60 px-4 py-2 border-b border-gray-100 dark:border-gray-800">
+      <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Rincian Status dari FASIH</p>
     </div>
-    <div class="divide-y divide-gray-100">
+    <div class="divide-y divide-gray-100 dark:divide-gray-800">
       <div class="flex justify-between px-4 py-2.5 text-sm">
-        <span class="text-gray-600">OPEN</span>
-        <span class="font-semibold text-gray-500">{{.FasihOpen}}</span>
+        <span class="text-gray-600 dark:text-gray-400">OPEN</span>
+        <span class="font-semibold text-gray-500 dark:text-gray-400">{{.FasihOpen}}</span>
       </div>
       <div class="flex justify-between px-4 py-2.5 text-sm">
-        <span class="text-gray-600">DRAFT</span>
+        <span class="text-gray-600 dark:text-gray-400">DRAFT</span>
         <span class="font-semibold text-se">{{.SP.JumlahDraft}}</span>
       </div>
       <div class="flex justify-between px-4 py-2.5 text-sm">
-        <span class="text-gray-600">Submitted by Pencacah</span>
-        <span class="font-semibold text-blue-600">{{.FasihSubmit}}</span>
+        <span class="text-gray-600 dark:text-gray-400">Submitted by Pencacah</span>
+        <span class="font-semibold text-blue-600 dark:text-blue-400">{{.FasihSubmit}}</span>
       </div>
       <!-- Breakdown Pengawas -->
       <div class="flex justify-between px-4 py-2.5 text-sm">
-        <span class="text-gray-600">Approved by Pengawas</span>
-        <span class="font-semibold text-green-600">{{.ApprovedPengawas}}</span>
+        <span class="text-gray-600 dark:text-gray-400">Approved by Pengawas</span>
+        <span class="font-semibold text-green-600 dark:text-green-400">{{.ApprovedPengawas}}</span>
       </div>
       {{if gt .RejectedPengawas 0}}
       <div class="flex justify-between px-4 py-2.5 text-sm">
-        <span class="text-gray-600">Rejected by Pengawas</span>
-        <span class="font-semibold text-red-500">{{.RejectedPengawas}}</span>
+        <span class="text-gray-600 dark:text-gray-400">Rejected by Pengawas</span>
+        <span class="font-semibold text-red-500 dark:text-red-400">{{.RejectedPengawas}}</span>
       </div>
       {{end}}
       {{if gt .RevokedPengawas 0}}
       <div class="flex justify-between px-4 py-2.5 text-sm">
-        <span class="text-gray-600">Revoked by Pengawas</span>
-        <span class="font-semibold text-yellow-600">{{.RevokedPengawas}}</span>
+        <span class="text-gray-600 dark:text-gray-400">Revoked by Pengawas</span>
+        <span class="font-semibold text-yellow-600 dark:text-yellow-400">{{.RevokedPengawas}}</span>
       </div>
       {{end}}
       <!-- Breakdown Kabupaten -->
       {{if gt .ApprovedKabupaten 0}}
       <div class="flex justify-between px-4 py-2.5 text-sm">
-        <span class="text-gray-600">Approved by Kabupaten</span>
-        <span class="font-semibold text-blue-600">{{.ApprovedKabupaten}}</span>
+        <span class="text-gray-600 dark:text-gray-400">Approved by Kabupaten</span>
+        <span class="font-semibold text-blue-600 dark:text-blue-400">{{.ApprovedKabupaten}}</span>
       </div>
       {{end}}
       {{if gt .RejectedKabupaten 0}}
       <div class="flex justify-between px-4 py-2.5 text-sm">
-        <span class="text-gray-600">Rejected by Kabupaten</span>
-        <span class="font-semibold text-red-500">{{.RejectedKabupaten}}</span>
+        <span class="text-gray-600 dark:text-gray-400">Rejected by Kabupaten</span>
+        <span class="font-semibold text-red-500 dark:text-red-400">{{.RejectedKabupaten}}</span>
       </div>
       {{end}}
       <!-- Breakdown Provinsi -->
       {{if gt .ApprovedProvinsi 0}}
       <div class="flex justify-between px-4 py-2.5 text-sm">
-        <span class="text-gray-600">Approved by Provinsi</span>
-        <span class="font-semibold text-purple-600">{{.ApprovedProvinsi}}</span>
+        <span class="text-gray-600 dark:text-gray-400">Approved by Provinsi</span>
+        <span class="font-semibold text-purple-600 dark:text-purple-400">{{.ApprovedProvinsi}}</span>
       </div>
       {{end}}
       {{if gt .RejectedProvinsi 0}}
       <div class="flex justify-between px-4 py-2.5 text-sm">
-        <span class="text-gray-600">Rejected by Provinsi</span>
-        <span class="font-semibold text-red-500">{{.RejectedProvinsi}}</span>
+        <span class="text-gray-600 dark:text-gray-400">Rejected by Provinsi</span>
+        <span class="font-semibold text-red-500 dark:text-red-400">{{.RejectedProvinsi}}</span>
       </div>
       {{end}}
       <!-- Breakdown Pusat -->
       {{if gt .ApprovedPusat 0}}
       <div class="flex justify-between px-4 py-2.5 text-sm">
-        <span class="text-gray-600">Approved by Pusat</span>
-        <span class="font-semibold text-gray-800">{{.ApprovedPusat}}</span>
+        <span class="text-gray-600 dark:text-gray-400">Approved by Pusat</span>
+        <span class="font-semibold text-gray-800 dark:text-gray-200">{{.ApprovedPusat}}</span>
       </div>
       {{end}}
       {{if gt .RejectedPusat 0}}
       <div class="flex justify-between px-4 py-2.5 text-sm">
-        <span class="text-gray-600">Rejected by Pusat</span>
-        <span class="font-semibold text-red-500">{{.RejectedPusat}}</span>
+        <span class="text-gray-600 dark:text-gray-400">Rejected by Pusat</span>
+        <span class="font-semibold text-red-500 dark:text-red-400">{{.RejectedPusat}}</span>
       </div>
       {{end}}
-      <div class="flex justify-between px-4 py-2.5 text-sm bg-gray-50">
-        <span class="font-medium text-gray-700">Total</span>
-        <span class="font-bold text-gray-700">{{.FasihTotal}}</span>
+      <div class="flex justify-between px-4 py-2.5 text-sm bg-gray-50 dark:bg-gray-800/60">
+        <span class="font-medium text-gray-700 dark:text-gray-300">Total</span>
+        <span class="font-bold text-gray-700 dark:text-gray-300">{{.FasihTotal}}</span>
       </div>
     </div>
   </div>
 
   <!-- Info sync -->
-  <div class="flex items-center gap-2 text-xs text-gray-400">
+  <div class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
         d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>

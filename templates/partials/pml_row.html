@@ -1,26 +1,26 @@
 {{define "pml_row.html"}}
-<tr id="row-pml-{{.SLS.ID}}" class="hover:bg-orange-50/30 transition-colors
-  {{if and (gt .JumlahSubmit 0) (eq .JumlahSubmit .JumlahDiperiksa)}}bg-green-50{{end}}">
+<tr id="row-pml-{{.SLS.ID}}" class="hover:bg-orange-50/30 dark:hover:bg-gray-800/60 transition-colors
+  {{if and (gt .JumlahSubmit 0) (eq .JumlahSubmit .JumlahDiperiksa)}}bg-green-50 dark:bg-green-900/10{{end}}">
   <td class="px-4 py-3">
-    <p class="font-medium text-gray-800 text-xs">{{.NamaSLS}}</p>
-    <p class="text-xs text-gray-400 font-mono">{{.KodeSLS}}</p>
+    <p class="font-medium text-gray-800 dark:text-gray-100 text-xs">{{.NamaSLS}}</p>
+    <p class="text-xs text-gray-400 dark:text-gray-500 font-mono">{{.KodeSLS}}</p>
   </td>
-  <td class="px-4 py-3 text-xs text-gray-600">{{.NamaPPL}}</td>
-  <td class="px-4 py-3 text-center text-xs text-gray-700">{{.Target}}</td>
+  <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">{{.NamaPPL}}</td>
+  <td class="px-4 py-3 text-center text-xs text-gray-700 dark:text-gray-300">{{.Target}}</td>
   <td class="px-4 py-3 text-center">
-    <span class="{{if gt .JumlahSubmit 0}}text-green-600 font-semibold{{else}}text-gray-400{{end}} text-xs">{{.JumlahSubmit}}</span>
-  </td>
-  <td class="px-4 py-3 text-center">
-    <span class="{{if gt .JumlahDraft 0}}text-se font-semibold{{else}}text-gray-400{{end}} text-xs">{{.JumlahDraft}}</span>
+    <span class="{{if gt .JumlahSubmit 0}}text-green-600 dark:text-green-400 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} text-xs">{{.JumlahSubmit}}</span>
   </td>
   <td class="px-4 py-3 text-center">
-    <span class="{{if gt .JumlahDiperiksa 0}}text-green-600 font-bold{{else}}text-gray-400{{end}} text-xs">{{.JumlahDiperiksa}}</span>
+    <span class="{{if gt .JumlahDraft 0}}text-se font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} text-xs">{{.JumlahDraft}}</span>
   </td>
   <td class="px-4 py-3 text-center">
-    <span class="{{if gt .JumlahError 0}}text-red-600 font-semibold{{else}}text-gray-400{{end}} text-xs">{{.JumlahError}}</span>
+    <span class="{{if gt .JumlahDiperiksa 0}}text-green-600 dark:text-green-400 font-bold{{else}}text-gray-400 dark:text-gray-500{{end}} text-xs">{{.JumlahDiperiksa}}</span>
   </td>
   <td class="px-4 py-3 text-center">
-    <span class="{{if gt .JumlahRevoked 0}}text-yellow-600 font-semibold{{else}}text-gray-400{{end}} text-xs">{{.JumlahRevoked}}</span>
+    <span class="{{if gt .JumlahError 0}}text-red-600 dark:text-red-400 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} text-xs">{{.JumlahError}}</span>
+  </td>
+  <td class="px-4 py-3 text-center">
+    <span class="{{if gt .JumlahRevoked 0}}text-yellow-600 dark:text-yellow-400 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} text-xs">{{.JumlahRevoked}}</span>
   </td>
   <td class="px-4 py-3 text-center">
     <button

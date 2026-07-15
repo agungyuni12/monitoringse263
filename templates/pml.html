@@ -4,45 +4,16 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dasbor Verifikasi PML – SIGEMPAR SE2026</title>
-  <link rel="icon" href="/static/logo-sigempar.png" type="image/png"/>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Plus Jakarta Sans', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
-          colors: {
-            se: { DEFAULT:'#F37021', dark:'#d45f10', light:'#f59548', bg:'#FFF4ED' }
-          }
-        }
-      }
-    }
-  </script>
+  {{template "theme_init_script" .}}
+  {{template "theme_assets" .}}
+  {{template "theme_style" .}}
   <style>
-    html { font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif; }
-    .htmx-indicator { display:none; }
-    .htmx-request .htmx-indicator { display:inline-block; }
     #toast { transition: opacity 0.4s ease, transform 0.4s ease; }
     #toast.hide { opacity:0; transform:translateY(-1rem); pointer-events:none; }
-    .badge-open        { background:#FEF3C7; color:#92400E; }
-    .badge-in_progress { background:#DBEAFE; color:#1E40AF; }
-    .badge-resolved    { background:#D1FAE5; color:#065F46; }
-    .badge-escalated   { background:#FEE2E2; color:#991B1B; }
-    .tab-btn.active    { border-bottom: 2px solid #F37021; color:#F37021; font-weight:600; }
-    .tab-panel         { display:none; }
-    .tab-panel.active  { display:block; }
-    table td { font-variant-numeric: tabular-nums; }
-    table tbody tr { transition: background-color .12s ease-out; }
-    .bg-white.rounded-xl, .bg-white.rounded-2xl { box-shadow: 0 1px 2px rgba(120,60,10,.04), 0 8px 20px -8px rgba(120,60,10,.10); }
-    button:active, a:active { transform: scale(.98); }
-    button, a { transition-property: color, background-color, border-color, box-shadow, transform, opacity; transition-duration: .15s; }
   </style>
 </head>
-<body class="bg-se-bg min-h-screen">
+<body class="bg-se-bg dark:bg-gray-950 min-h-screen transition-colors">
+  {{template "theme_progress_bar" .}}
 
   <!-- Toast -->
   <div id="toast" class="hide fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium flex items-center gap-2 max-w-xs"></div>
@@ -50,7 +21,7 @@
   <!-- Modal -->
   <div id="modal-overlay" class="hidden fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4"
        onclick="closeModal()">
-    <div id="modal-content" class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+    <div id="modal-content" class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
     </div>
   </div>
 
@@ -82,6 +53,7 @@
           </svg>
           Keluar
         </a>
+        {{template "theme_toggle_button_on_brand" .}}
       </div>
     </div>
   </header>
@@ -90,86 +62,86 @@
 
     <!-- Summary Cards -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-6">
-      <div class="bg-white rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
+      <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
         <div class="flex items-center justify-between mb-2">
-          <p class="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">Total Submit PPL</p>
-          <div class="w-7 h-7 rounded-full bg-green-50 flex items-center justify-center shrink-0">
-            <svg class="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Total Submit PPL</p>
+          <div class="w-7 h-7 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center shrink-0">
+            <svg class="w-3.5 h-3.5 text-green-500 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
           </div>
         </div>
-        <p class="text-[26px] leading-none font-extrabold tracking-tight text-green-600">{{.TotSubmit}}</p>
+        <p class="text-[26px] leading-none font-extrabold tracking-tight text-green-600 dark:text-green-400">{{.TotSubmit}}</p>
       </div>
-      <div class="bg-white rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
+      <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
         <div class="flex items-center justify-between mb-2">
-          <p class="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">Diperiksa PML</p>
-          <div class="w-7 h-7 rounded-full bg-se-bg flex items-center justify-center shrink-0">
+          <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Diperiksa PML</p>
+          <div class="w-7 h-7 rounded-full bg-se-bg dark:bg-gray-800 flex items-center justify-center shrink-0">
             <svg class="w-3.5 h-3.5 text-se" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           </div>
         </div>
         <p class="text-[26px] leading-none font-extrabold tracking-tight text-se">{{.TotDiperiksa}}</p>
       </div>
-      <div class="bg-white rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
+      <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
         <div class="flex items-center justify-between mb-2">
-          <p class="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">Dikembalikan (Error)</p>
-          <div class="w-7 h-7 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-            <svg class="w-3.5 h-3.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Dikembalikan (Error)</p>
+          <div class="w-7 h-7 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center shrink-0">
+            <svg class="w-3.5 h-3.5 text-red-500 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </div>
         </div>
-        <p class="text-[26px] leading-none font-extrabold tracking-tight text-red-600">{{.TotError}}</p>
+        <p class="text-[26px] leading-none font-extrabold tracking-tight text-red-600 dark:text-red-400">{{.TotError}}</p>
       </div>
-      <div class="bg-white rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
+      <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
         <div class="flex items-center justify-between mb-2">
-          <p class="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">Observasi Lapangan</p>
-          <div class="w-7 h-7 rounded-full bg-purple-50 flex items-center justify-center shrink-0">
-            <svg class="w-3.5 h-3.5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21s-7-6.5-7-11a7 7 0 1114 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5" stroke-width="2"/></svg>
+          <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Observasi Lapangan</p>
+          <div class="w-7 h-7 rounded-full bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center shrink-0">
+            <svg class="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21s-7-6.5-7-11a7 7 0 1114 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5" stroke-width="2"/></svg>
           </div>
         </div>
-        <p class="text-[26px] leading-none font-extrabold tracking-tight text-purple-600">{{.TotObs}}</p>
+        <p class="text-[26px] leading-none font-extrabold tracking-tight text-purple-600 dark:text-purple-400">{{.TotObs}}</p>
       </div>
     </div>
 
     <!-- Progress bar -->
-    <div class="bg-white rounded-xl shadow-sm p-4 mb-6">
-      <div class="flex justify-between text-sm text-gray-600 mb-2">
+    <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm p-4 mb-6">
+      <div class="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
         <span class="font-medium">Progres Verifikasi</span>
         <span>{{.TotDiperiksa}} / {{.TotSubmit}} dokumen</span>
       </div>
-      <div class="h-3 bg-gray-100 rounded-full overflow-hidden">
+      <div class="h-3 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
         {{if gt .TotSubmit 0}}
         <div class="h-full bg-se rounded-full transition-all" style="width:{{pctraw .TotDiperiksa .TotSubmit}}%"></div>
         {{else}}
-        <div class="h-full bg-gray-200 rounded-full w-0"></div>
+        <div class="h-full bg-gray-200 dark:bg-gray-700 rounded-full w-0"></div>
         {{end}}
       </div>
     </div>
 
     <!-- Tabs -->
-    <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-      <div class="flex border-b border-gray-100">
+    <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm overflow-hidden">
+      <div class="flex border-b border-gray-100 dark:border-gray-800">
         <button onclick="switchTab('ringkasan')" id="tab-ringkasan"
-          class="tab-btn active px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
+          class="tab-btn active px-6 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
           Ringkasan
         </button>
         <button onclick="switchTab('anomali')" id="tab-anomali"
-          class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
+          class="tab-btn px-6 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
           Anomali
         </button>
         <button onclick="switchTab('keberadaan')" id="tab-keberadaan"
-          class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
+          class="tab-btn px-6 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
           Keberadaan
         </button>
         <button onclick="switchTab('progres-ppl')" id="tab-progres-ppl"
-          class="tab-btn px-6 py-3 text-sm text-gray-600 whitespace-nowrap hover:text-se transition-colors">
+          class="tab-btn px-6 py-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
           Progres PPL
         </button>
       </div>
 
       <!-- TAB: Ringkasan (SLS list) -->
       <div id="panel-ringkasan" class="tab-panel active">
-        <div class="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
           <div class="w-2 h-5 bg-se rounded-full"></div>
-          <h2 class="font-semibold text-gray-800">Monitoring PPL</h2>
-          <span class="text-xs text-gray-400 ml-auto">{{.Page.TotalRow}} SLS</span>
+          <h2 class="font-semibold text-gray-800 dark:text-gray-100">Monitoring PPL</h2>
+          <span class="text-xs text-gray-400 dark:text-gray-500 ml-auto">{{.Page.TotalRow}} SLS</span>
         </div>
         <div id="pml-table-wrap">
           {{template "pml_table.html" .}}
@@ -178,17 +150,17 @@
 
       <!-- TAB: Anomali -->
       <div id="panel-anomali" class="tab-panel">
-        <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center" id="pml-anomali-filter-bar">
+        <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="pml-anomali-filter-bar">
           <input type="text" name="q"
             hx-get="/pml/anomali" hx-target="#pml-anomali-result" hx-swap="innerHTML"
             hx-trigger="input changed delay:400ms" hx-include="#pml-anomali-filter-bar"
             placeholder="Cari nama, keterangan..."
-            class="w-full md:w-64 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"/>
           {{if .PPLList}}
           <select name="ppl_id"
             hx-get="/pml/anomali" hx-target="#pml-anomali-result" hx-swap="innerHTML"
             hx-trigger="change" hx-include="#pml-anomali-filter-bar"
-            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+            class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100">
             <option value="">Semua PPL</option>
             {{range .PPLList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
           </select>
@@ -197,7 +169,7 @@
           <select name="jenis"
             hx-get="/pml/anomali" hx-target="#pml-anomali-result" hx-swap="innerHTML"
             hx-trigger="change" hx-include="#pml-anomali-filter-bar"
-            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+            class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100">
             <option value="">Semua Jenis</option>
             {{range .JenisList}}<option value="{{.}}">{{.}}</option>{{end}}
           </select>
@@ -205,7 +177,7 @@
           <select name="status"
             hx-get="/pml/anomali" hx-target="#pml-anomali-result" hx-swap="innerHTML"
             hx-trigger="change" hx-include="#pml-anomali-filter-bar"
-            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+            class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100">
             <option value="">Semua Status SIGEMPAR</option>
             <option value="belum">⏳ Belum Ditindaklanjuti (SIGEMPAR)</option>
             <option value="sudah">✅ Sudah Ditindaklanjuti (SIGEMPAR)</option>
@@ -213,7 +185,7 @@
           <select name="fasih"
             hx-get="/pml/anomali" hx-target="#pml-anomali-result" hx-swap="innerHTML"
             hx-trigger="change" hx-include="#pml-anomali-filter-bar"
-            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+            class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100">
             <option value="">Semua Status FASIH</option>
             <option value="belum">⏳ Belum Ditindaklanjuti (FASIH)</option>
             <option value="sudah">✅ Sudah Ditindaklanjuti (FASIH)</option>
@@ -221,22 +193,22 @@
         </div>
         <div id="pml-anomali-result"
           hx-get="/pml/anomali" hx-trigger="load" hx-swap="innerHTML">
-          <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data anomali...</div>
+          <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat data anomali...</div>
         </div>
       </div>
 
       <!-- TAB: Keberadaan -->
       <div id="panel-keberadaan" class="tab-panel">
-        <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center" id="pml-keberadaan-filter">
+        <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="pml-keberadaan-filter">
           <input type="text" name="q"
             hx-get="/pml/keberadaan" hx-target="#pml-keberadaan-result" hx-swap="innerHTML"
             hx-trigger="input changed delay:400ms" hx-include="#pml-keberadaan-filter"
             placeholder="Cari nama usaha..."
-            class="w-full md:w-56 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            class="w-full md:w-56 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"/>
           <select name="label"
             hx-get="/pml/keberadaan" hx-target="#pml-keberadaan-result" hx-swap="innerHTML"
             hx-trigger="change" hx-include="#pml-keberadaan-filter"
-            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+            class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100">
             <option value="">Semua Status</option>
             <option value="Ditemukan">✅ Ditemukan</option>
             <option value="Tidak Ditemukan">❌ Tidak Ditemukan</option>
@@ -249,7 +221,7 @@
           <select name="ppl_id"
             hx-get="/pml/keberadaan" hx-target="#pml-keberadaan-result" hx-swap="innerHTML"
             hx-trigger="change" hx-include="#pml-keberadaan-filter"
-            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white">
+            class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100">
             <option value="">Semua PPL</option>
             {{range .PPLList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
           </select>
@@ -257,22 +229,22 @@
         </div>
         <div id="pml-keberadaan-result"
           hx-get="/pml/keberadaan" hx-trigger="load" hx-swap="innerHTML">
-          <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data keberadaan...</div>
+          <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat data keberadaan...</div>
         </div>
       </div>
 
       <!-- TAB: Progres PPL -->
       <div id="panel-progres-ppl" class="tab-panel">
-        <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-2 items-center" id="pml-progres-ppl-filter">
+        <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="pml-progres-ppl-filter">
           <input type="text" name="q"
             hx-get="/pml/progres-ppl" hx-target="#pml-progres-ppl-result" hx-swap="innerHTML"
             hx-trigger="input changed delay:400ms" hx-include="#pml-progres-ppl-filter"
             placeholder="Cari nama PPL..."
-            class="w-full md:w-56 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            class="w-full md:w-56 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"/>
         </div>
         <div id="pml-progres-ppl-result"
           hx-get="/pml/progres-ppl" hx-trigger="load" hx-swap="innerHTML">
-          <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat progres PPL...</div>
+          <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat progres PPL...</div>
         </div>
       </div>
     </div>
@@ -306,5 +278,6 @@
 
     document.addEventListener('closeModal', closeModal);
   </script>
+  {{template "theme_runtime_script" .}}
 </body>
 </html>
