@@ -17,7 +17,7 @@ Env vars:
 
 import os, json, requests, math, time, sys
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import defaultdict
 import pymysql
 from playwright.sync_api import sync_playwright
@@ -73,7 +73,8 @@ def _make_browser(pw):
 
 
 def login(ctx):
-    """Login lewat browser, return xsrf token. ctx tetap hidup untuk API calls."""
+    """Login lewat browser, return (page, xsrf). ctx tetap hidup untuk API calls;
+    page dikembalikan juga supaya caller bisa pakai page.evaluate (fetch batch)."""
     page = ctx.new_page()
     _stealth.apply_stealth_sync(page)
 
@@ -109,7 +110,7 @@ def login(ctx):
     if not xsrf:
         raise RuntimeError("Login gagal – tidak ada XSRF token")
     print("[LOGIN] Berhasil.", flush=True)
-    return xsrf
+    return active, xsrf
 
 
 def fetch_page(ctx, xsrf, page_num, retries=3):
@@ -315,8 +316,23 @@ def aggregate(all_content):
 # yang punya assignment OPEN/DRAFT TAPI juga sudah ada progres lain di SLS
 # yang sama (submit/approved/dst). SLS yang 100% OPEN dianggap memang belum
 # disentuh sama sekali dan dilewati (bukan indikasi bug).
-VERIFY_DELAY      = 0.15   # jeda antar panggilan assignment-history (detik)
-MAX_VERIFY_CALLS  = 6000   # batas jumlah panggilan per siklus sync, biar tidak membebani FASIH
+MAX_VERIFY_CALLS      = 6000  # batas jumlah panggilan per siklus sync, biar tidak membebani FASIH
+VERIFY_INTERVAL_HOURS = 6     # verifikasi ground-truth cukup tiap 6 jam, bukan tiap siklus sync (2 jam) — proses ini lambat
+
+# Pola chunk + login ulang + fetch batch ini disalin dari sync_keberadaan.py
+# (sudah terbukti aman dari rate-limit FASIH — dulu dua proses sync_keberadaan
+# jalan bersamaan sempat kena HTTP 429 sebelum pola retry-with-backoff ini ada).
+CHUNK_SIZE_VERIFY  = 5    # SLS per chunk sebelum context baru + login ulang
+CHUNK_DELAY_VERIFY = 5    # detik istirahat antar chunk
+BATCH_SIZE_VERIFY  = 20   # assignment per Promise.all batch (browser-side, jauh lebih cepat dari sequential)
+
+_last_verify_at = None  # diisi run_once(); reset ke None kalau proses restart (verifikasi akan jalan lagi di siklus pertama)
+
+
+def _should_verify_now():
+    if _last_verify_at is None:
+        return True
+    return (_now_wita() - _last_verify_at) >= timedelta(hours=VERIFY_INTERVAL_HOURS)
 
 
 def _is_candidate_for_verify(a):
@@ -359,7 +375,7 @@ def list_sls_assignments(ctx, xsrf, kode_sls, retries=2):
         try:
             r = ctx.request.post(
                 f"{BASE_URL}/analytic/api/v2/assignment/datatable-all-user-survey-periode",
-                data=json.dumps(payload), headers=hdrs, timeout=60000,
+                data=json.dumps(payload), headers=hdrs, timeout=25000,
             )
             if r.status != 200:
                 return None
@@ -369,42 +385,76 @@ def list_sls_assignments(ctx, xsrf, kode_sls, retries=2):
             # persis biar tidak ketuker sama kode_sls lain yang mirip
             return [rec for rec in records if str(rec.get("codeIdentity", "")).startswith(kode_sls)]
         except Exception as e:
+            print(f"    [VERIFY] list SLS {kode_sls} lambat/gagal (percobaan {attempt}/{retries}): {e}", flush=True)
             if attempt < retries:
                 time.sleep(2 * attempt)
     return None
 
 
-def get_true_status(ctx, xsrf, assignment_id, retries=2):
-    """Ambil status TERKINI satu assignment dari assignment-history
-    (bukan dari index analytic yang bisa basi). Return None kalau gagal."""
-    hdrs = {"Accept": "application/json, */*", "X-XSRF-TOKEN": xsrf, "Referer": f"{BASE_URL}/survey-collection/collect/{SURVEY_ID}"}
-    url = f"{BASE_URL}/assignment-general/api/assignment-history/get-by-assignment-id?assignmentId={assignment_id}"
-    for attempt in range(1, retries + 1):
-        try:
-            r = ctx.request.get(url, headers=hdrs, timeout=30000)
-            if r.status != 200:
-                return None
-            d = r.json()
-            events = d.get("data") or []
-            if not events:
-                return None
-            latest = max(events, key=lambda e: e.get("date_created") or "")
-            alias = latest.get("status_alias") or ""
-            if alias.startswith("ASSIGNED TO"):
-                return "OPEN"
-            return alias
-        except Exception:
-            if attempt < retries:
-                time.sleep(1.5 * attempt)
-    return None
+def _verify_fetch_batch(page, urls):
+    """Fetch banyak assignment-history sekaligus via Promise.all (fetch di sisi
+    browser, bukan ctx.request Python) — retry otomatis kalau kena HTTP 429
+    dengan hormat header Retry-After, backoff eksponensial kalau tidak ada
+    header itu. Pola identik dgn _page_fetch_batch di sync_keberadaan.py yang
+    sudah terbukti aman dari rate limit FASIH."""
+    urls_js = json.dumps(urls)
+    try:
+        return page.evaluate(f"""async () => {{
+            const urls = {urls_js};
+            async function fetchWithRetry(u, maxRetries=4, baseDelay=2000) {{
+                for (let attempt = 0; attempt <= maxRetries; attempt++) {{
+                    try {{
+                        const r = await fetch(u, {{credentials:'include'}});
+                        if (r.ok) return await r.json();
+                        if (r.status === 429 && attempt < maxRetries) {{
+                            const retryAfter = parseFloat(r.headers.get('Retry-After'));
+                            const delay = retryAfter > 0 ? retryAfter * 1000 : baseDelay * Math.pow(2, attempt);
+                            await new Promise(res => setTimeout(res, delay));
+                            continue;
+                        }}
+                        return {{__fetch_error: 'HTTP ' + r.status}};
+                    }} catch (e) {{
+                        if (attempt < maxRetries) {{
+                            await new Promise(res => setTimeout(res, baseDelay));
+                            continue;
+                        }}
+                        return {{__fetch_error: String(e)}};
+                    }}
+                }}
+            }}
+            return await Promise.all(urls.map(u => fetchWithRetry(u)));
+        }}""")
+    except Exception as e:
+        return [{"__fetch_error": f"batch exception: {e}"}] * len(urls)
 
 
-def verify_stale_sls(sls_agg, ctx, xsrf):
+def _true_status_from_history(raw):
+    """Ekstrak status_alias terkini dari response assignment-history. None kalau
+    gagal/kosong (caller fallback ke status lama, bukan anggap 0)."""
+    if not isinstance(raw, dict) or "__fetch_error" in raw:
+        return None
+    events = raw.get("data") or []
+    if not events:
+        return None
+    latest = max(events, key=lambda e: e.get("date_created") or "")
+    alias = latest.get("status_alias") or ""
+    if alias.startswith("ASSIGNED TO"):
+        return "OPEN"
+    return alias
+
+
+def verify_stale_sls(sls_agg, browser):
     """Untuk SLS yang statusnya mencurigakan (OPEN/DRAFT bercampur dgn progres
-    lain), cek ulang status per-assignment ke sumber ground truth dan timpa
-    baris agregatnya kalau ternyata beda."""
+    lain di SLS yang sama), cek ulang status per-assignment ke sumber ground
+    truth dan timpa baris agregatnya kalau ternyata beda.
+
+    Diproses per-chunk (CHUNK_SIZE_VERIFY SLS, context+login baru tiap chunk,
+    jeda antar chunk) dan pakai fetch batch (Promise.all + retry-on-429) di
+    sisi browser — pola yang sama dipakai sync_keberadaan.py, sudah terbukti
+    aman dari rate limit FASIH."""
     candidates = [k for k, a in sls_agg.items() if _is_candidate_for_verify(a)]
-    print(f"[VERIFY] {len(candidates)} SLS kandidat perlu verifikasi ground-truth...", flush=True)
+    total = len(candidates)
+    print(f"[VERIFY] {total} SLS kandidat perlu verifikasi ground-truth...", flush=True)
     if not candidates:
         return sls_agg
 
@@ -412,47 +462,84 @@ def verify_stale_sls(sls_agg, ctx, xsrf):
     corrected = 0
     list_failed = 0
     budget_hit = False
+    total_chunks = math.ceil(total / CHUNK_SIZE_VERIFY)
 
-    for kode in candidates:
+    for chunk_start in range(0, total, CHUNK_SIZE_VERIFY):
         if budget_hit:
             break
-        records = list_sls_assignments(ctx, xsrf, kode)
-        if records is None:
-            list_failed += 1
-            continue  # gagal ambil, biarkan data lama (fail-safe, jangan dianggap 0)
+        chunk = candidates[chunk_start:chunk_start + CHUNK_SIZE_VERIFY]
+        chunk_no = chunk_start // CHUNK_SIZE_VERIFY + 1
+        print(f"  [VERIFY] chunk {chunk_no}/{total_chunks} ({len(chunk)} SLS, {calls} panggilan sejauh ini) — login ulang...", flush=True)
 
-        suspect = [r for r in records if r.get("assignmentStatusAlias") in ("OPEN", "DRAFT")]
-        trusted = [r for r in records if r.get("assignmentStatusAlias") not in ("OPEN", "DRAFT")]
-        if not suspect:
+        ctx = browser.new_context(
+            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 720},
+        )
+        try:
+            page, xsrf = login(ctx)
+        except Exception as e:
+            print(f"  [VERIFY] login chunk {chunk_no} gagal: {e}, skip chunk ini", flush=True)
+            try:
+                ctx.close()
+            except Exception:
+                pass
+            time.sleep(CHUNK_DELAY_VERIFY)
             continue
 
-        new_a = _new_sls_agg()
-        for r in trusted:
-            apply_status(new_a, r.get("assignmentStatusAlias", ""), 1)
+        for kode in chunk:
+            records = list_sls_assignments(ctx, xsrf, kode)
+            if records is None:
+                list_failed += 1
+                continue  # gagal ambil, biarkan data lama (fail-safe, jangan dianggap 0)
 
-        for r in suspect:
-            if calls >= MAX_VERIFY_CALLS:
+            suspect = [r for r in records if r.get("assignmentStatusAlias") in ("OPEN", "DRAFT")]
+            trusted = [r for r in records if r.get("assignmentStatusAlias") not in ("OPEN", "DRAFT")]
+            if not suspect:
+                continue
+
+            remaining_budget = MAX_VERIFY_CALLS - calls
+            if remaining_budget <= 0:
                 budget_hit = True
                 break
-            aid = r.get("id")
-            calls += 1
-            true_status = get_true_status(ctx, xsrf, aid)
-            time.sleep(VERIFY_DELAY)
-            if true_status is None:
-                true_status = r.get("assignmentStatusAlias", "")  # gagal verif -> fallback ke status lama
-            apply_status(new_a, true_status, 1)
+            to_check = suspect[:remaining_budget]
+
+            new_a = _new_sls_agg()
+            for r in trusted:
+                apply_status(new_a, r.get("assignmentStatusAlias", ""), 1)
+
+            for bstart in range(0, len(to_check), BATCH_SIZE_VERIFY):
+                batch = to_check[bstart:bstart + BATCH_SIZE_VERIFY]
+                urls = [f"{BASE_URL}/assignment-general/api/assignment-history/get-by-assignment-id?assignmentId={r.get('id')}"
+                        for r in batch]
+                raws = _verify_fetch_batch(page, urls)
+                calls += len(batch)
+                for r, raw in zip(batch, raws):
+                    true_status = _true_status_from_history(raw)
+                    if true_status is None:
+                        true_status = r.get("assignmentStatusAlias", "")  # gagal verif -> fallback ke status lama
+                    apply_status(new_a, true_status, 1)
+
+            if len(to_check) < len(suspect):
+                # sisa suspect di SLS ini belum sempat dicek (budget habis di tengah) —
+                # jangan timpa data lama dgn hasil separuh, lebih baik dicoba utuh nanti.
+                continue
+
+            old_draft, old_open = sls_agg[kode]["jumlah_draft"], sls_agg[kode]["fasih_open"]
+            if new_a["jumlah_draft"] != old_draft or new_a["fasih_open"] != old_open:
+                corrected += 1
+                print(f"    [VERIFY] {kode}: draft {old_draft}->{new_a['jumlah_draft']}  open {old_open}->{new_a['fasih_open']}", flush=True)
+            sls_agg[kode] = new_a
+
+        try:
+            ctx.close()
+        except Exception:
+            pass
 
         if budget_hit:
-            # SLS ini belum selesai diverifikasi penuh (kehabisan budget di tengah) —
-            # jangan timpa, biar dicoba lagi utuh di siklus sync berikutnya.
-            print(f"  [VERIFY] budget habis, SLS {kode} dilewati siklus ini (dicoba lagi nanti)", flush=True)
+            print(f"  [VERIFY] budget {MAX_VERIFY_CALLS} panggilan habis, sisa {total - chunk_start - len(chunk)} SLS dilanjut siklus berikutnya", flush=True)
             break
-
-        old_draft, old_open = sls_agg[kode]["jumlah_draft"], sls_agg[kode]["fasih_open"]
-        if new_a["jumlah_draft"] != old_draft or new_a["fasih_open"] != old_open:
-            corrected += 1
-            print(f"  [VERIFY] {kode}: draft {old_draft}->{new_a['jumlah_draft']}  open {old_open}->{new_a['fasih_open']}", flush=True)
-        sls_agg[kode] = new_a
+        if chunk_start + CHUNK_SIZE_VERIFY < total:
+            time.sleep(CHUNK_DELAY_VERIFY)
 
     print(f"[VERIFY] selesai. {calls} panggilan assignment-history, {corrected} SLS terkoreksi, {list_failed} SLS gagal diambil listnya.", flush=True)
     return sls_agg
@@ -624,18 +711,24 @@ def run_once():
     with sync_playwright() as pw:
         browser, ctx = _make_browser(pw)
         try:
-            xsrf = login(ctx)
+            _, xsrf = login(ctx)
             print("\n[STEP 1] Scrape FASIH...")
             all_content = scrape_all(ctx, xsrf)
 
             print("\n[STEP 2] Aggregate per SLS...")
             sls_agg = aggregate(all_content)
 
-            print("\n[STEP 2b] Verifikasi ground-truth SLS mencurigakan (OPEN/DRAFT basi)...")
-            try:
-                sls_agg = verify_stale_sls(sls_agg, ctx, xsrf)
-            except Exception as e:
-                print(f"[VERIFY] gagal, lanjut pakai data sebelum verifikasi: {e}", flush=True)
+            global _last_verify_at
+            if _should_verify_now():
+                print(f"\n[STEP 2b] Verifikasi ground-truth SLS mencurigakan (OPEN/DRAFT basi)...")
+                try:
+                    sls_agg = verify_stale_sls(sls_agg, browser)
+                    _last_verify_at = _now_wita()
+                except Exception as e:
+                    print(f"[VERIFY] gagal, lanjut pakai data sebelum verifikasi: {e}", flush=True)
+            else:
+                nxt = _last_verify_at + timedelta(hours=VERIFY_INTERVAL_HOURS)
+                print(f"\n[STEP 2b] Lewati verifikasi ground-truth (terakhir {_last_verify_at:%H:%M} WITA, jadwal berikutnya {nxt:%H:%M} WITA)", flush=True)
         finally:
             browser.close()
 
