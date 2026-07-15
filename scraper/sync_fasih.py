@@ -182,9 +182,8 @@ def scrape_all(ctx, xsrf):
     return all_content
 
 
-def aggregate(all_content):
-    """Aggregate status per kode_sls (16-digit regionCode)."""
-    sls_agg = defaultdict(lambda: {
+def _new_sls_agg():
+    return {
         "jumlah_submit":           0,
         "jumlah_draft":            0,
         "fasih_open":              0,
@@ -201,8 +200,85 @@ def aggregate(all_content):
         "fasih_edited_admin":      0,  # "EDITED BY Admin ..." — digabung semua level (Kab/Prov/Pusat)
         "fasih_completed_admin":  0,  # "COMPLETED BY Admin ..." — digabung semua level
         "fasih_total":             0,
-    })
+    }
 
+
+def apply_status(a, status, cnt, unknown_statuses=None):
+    """Tambahkan `cnt` assignment berstatus `status` ke bucket agregat SLS `a`.
+    Dipakai baik oleh aggregate() (dari statusBreakdown per pencacah) maupun
+    verify_stale_sls() (dari status per-assignment hasil verifikasi ground truth)
+    supaya logika klasifikasinya konsisten di kedua jalur."""
+    a["fasih_total"] += cnt
+    if status in SUBMIT_STATUSES:
+        a["jumlah_submit"] += cnt
+    if status == "DRAFT":
+        a["jumlah_draft"] += cnt
+    su = status.upper()
+    known_bucket = True
+    if status == "OPEN":
+        a["fasih_open"] += cnt
+    elif status == "DRAFT":
+        pass  # sudah dihitung di jumlah_draft di atas
+    elif "SUBMITTED" in su:
+        a["fasih_submitted"] += cnt
+    elif "PENGAWAS" in su:
+        if "APPROVED" in su:
+            a["fasih_approved_pengawas"] += cnt
+        elif "REJECTED" in su:
+            a["fasih_rejected_pengawas"] += cnt
+        elif "REVOKED" in su:
+            a["fasih_revoked_pengawas"] += cnt
+        else:
+            known_bucket = False
+    elif "KABUPATEN" in su:
+        if "APPROVED" in su:
+            a["fasih_approved_kabupaten"] += cnt
+        elif "REJECTED" in su:
+            a["fasih_rejected_kabupaten"] += cnt
+        elif "EDITED" in su:
+            a["fasih_edited_admin"] += cnt
+        elif "COMPLETED" in su:
+            a["fasih_completed_admin"] += cnt
+        else:
+            known_bucket = False
+    elif "PROVINSI" in su:
+        if "APPROVED" in su:
+            a["fasih_approved_provinsi"] += cnt
+        elif "REJECTED" in su:
+            a["fasih_rejected_provinsi"] += cnt
+        elif "EDITED" in su:
+            a["fasih_edited_admin"] += cnt
+        elif "COMPLETED" in su:
+            a["fasih_completed_admin"] += cnt
+        else:
+            known_bucket = False
+    elif "PUSAT" in su:
+        if "APPROVED" in su:
+            a["fasih_approved_pusat"] += cnt
+        elif "REJECTED" in su:
+            a["fasih_rejected_pusat"] += cnt
+        elif "EDITED" in su:
+            a["fasih_edited_admin"] += cnt
+        elif "COMPLETED" in su:
+            a["fasih_completed_admin"] += cnt
+        else:
+            known_bucket = False
+    else:
+        known_bucket = False
+    # Status yang tidak masuk bucket manapun DAN tidak ada di
+    # SUBMIT_STATUSES berarti benar-benar belum dikenali sistem ini
+    # (bukan sekadar "EDITED"/"COMPLETED" yang sudah masuk
+    # SUBMIT_STATUSES tapi memang tidak perlu bucket approved/
+    # rejected tersendiri) — kejadian nyata: "EDITED BY Admin
+    # Kabupaten" & "COMPLETED BY Admin Kabupaten" sempat tidak
+    # dihitung selama beberapa waktu sebelum status ini diketahui.
+    if not known_bucket and status not in SUBMIT_STATUSES and unknown_statuses is not None:
+        unknown_statuses[status] += cnt
+
+
+def aggregate(all_content):
+    """Aggregate status per kode_sls (16-digit regionCode)."""
+    sls_agg = defaultdict(_new_sls_agg)
     unknown_statuses = defaultdict(int)
 
     for pencacah in all_content:
@@ -214,76 +290,171 @@ def aggregate(all_content):
             for sb in rs.get("statusBreakdown", []):
                 status = sb.get("status", "")
                 cnt    = int(sb.get("count", 0))
-                a["fasih_total"] += cnt
-                if status in SUBMIT_STATUSES:
-                    a["jumlah_submit"] += cnt
-                if status == "DRAFT":
-                    a["jumlah_draft"] += cnt
-                su = status.upper()
-                known_bucket = True
-                if status == "OPEN":
-                    a["fasih_open"] += cnt
-                elif status == "DRAFT":
-                    pass  # sudah dihitung di jumlah_draft di atas
-                elif "SUBMITTED" in su:
-                    a["fasih_submitted"] += cnt
-                elif "PENGAWAS" in su:
-                    if "APPROVED" in su:
-                        a["fasih_approved_pengawas"] += cnt
-                    elif "REJECTED" in su:
-                        a["fasih_rejected_pengawas"] += cnt
-                    elif "REVOKED" in su:
-                        a["fasih_revoked_pengawas"] += cnt
-                    else:
-                        known_bucket = False
-                elif "KABUPATEN" in su:
-                    if "APPROVED" in su:
-                        a["fasih_approved_kabupaten"] += cnt
-                    elif "REJECTED" in su:
-                        a["fasih_rejected_kabupaten"] += cnt
-                    elif "EDITED" in su:
-                        a["fasih_edited_admin"] += cnt
-                    elif "COMPLETED" in su:
-                        a["fasih_completed_admin"] += cnt
-                    else:
-                        known_bucket = False
-                elif "PROVINSI" in su:
-                    if "APPROVED" in su:
-                        a["fasih_approved_provinsi"] += cnt
-                    elif "REJECTED" in su:
-                        a["fasih_rejected_provinsi"] += cnt
-                    elif "EDITED" in su:
-                        a["fasih_edited_admin"] += cnt
-                    elif "COMPLETED" in su:
-                        a["fasih_completed_admin"] += cnt
-                    else:
-                        known_bucket = False
-                elif "PUSAT" in su:
-                    if "APPROVED" in su:
-                        a["fasih_approved_pusat"] += cnt
-                    elif "REJECTED" in su:
-                        a["fasih_rejected_pusat"] += cnt
-                    elif "EDITED" in su:
-                        a["fasih_edited_admin"] += cnt
-                    elif "COMPLETED" in su:
-                        a["fasih_completed_admin"] += cnt
-                    else:
-                        known_bucket = False
-                else:
-                    known_bucket = False
-                # Status yang tidak masuk bucket manapun DAN tidak ada di
-                # SUBMIT_STATUSES berarti benar-benar belum dikenali sistem ini
-                # (bukan sekadar "EDITED"/"COMPLETED" yang sudah masuk
-                # SUBMIT_STATUSES tapi memang tidak perlu bucket approved/
-                # rejected tersendiri) — kejadian nyata: "EDITED BY Admin
-                # Kabupaten" & "COMPLETED BY Admin Kabupaten" sempat tidak
-                # dihitung selama beberapa waktu sebelum status ini diketahui.
-                if not known_bucket and status not in SUBMIT_STATUSES:
-                    unknown_statuses[status] += cnt
+                apply_status(a, status, cnt, unknown_statuses)
 
     print(f"[AGGREGATE] SLS unik: {len(sls_agg)}", flush=True)
     if unknown_statuses:
         print(f"[AGGREGATE] PERINGATAN: status belum dikenali (tidak masuk hitungan submit/approved): {dict(unknown_statuses)}", flush=True)
+    return sls_agg
+
+
+# === VERIFIKASI GROUND TRUTH (mengatasi status OPEN/DRAFT basi) ===
+#
+# report-progress-by-responsibility (dipakai scrape_all/aggregate di atas)
+# ternyata dibaca dari index pencarian internal FASIH (service "analytic")
+# yang kadang telat sinkron dari database asli — sebuah assignment yang di
+# FASIH sendiri sudah "SUBMITTED BY Pencacah" berjam-jam lalu bisa saja
+# masih kebaca OPEN/DRAFT dari index ini (dikonfirmasi manual by memandingkan
+# panel "Assignment Detail" FASIH vs list Data yang difilter DRAFT — bug ada
+# di index internal FASIH, bukan cuma di sync ini).
+#
+# Sumber yang benar-benar akurat adalah endpoint riwayat per-assignment
+# (assignment-general/api/assignment-history), tapi itu butuh assignmentId
+# satu-satu — tidak praktis dipanggil untuk semua ~136rb assignment tiap
+# siklus sync. Jadi verifikasi ini dibatasi hanya untuk SLS yang "mencurigakan":
+# yang punya assignment OPEN/DRAFT TAPI juga sudah ada progres lain di SLS
+# yang sama (submit/approved/dst). SLS yang 100% OPEN dianggap memang belum
+# disentuh sama sekali dan dilewati (bukan indikasi bug).
+VERIFY_DELAY      = 0.15   # jeda antar panggilan assignment-history (detik)
+MAX_VERIFY_CALLS  = 6000   # batas jumlah panggilan per siklus sync, biar tidak membebani FASIH
+
+
+def _is_candidate_for_verify(a):
+    non_open_draft = a["fasih_total"] - a["fasih_open"] - a["jumlah_draft"]
+    return a["jumlah_draft"] > 0 or (a["fasih_open"] > 0 and non_open_draft > 0)
+
+
+def list_sls_assignments(ctx, xsrf, kode_sls, retries=2):
+    """Ambil semua assignment record (mentah, per-record) untuk satu kode_sls
+    lewat analytic/api/v2/assignment/datatable-all-user-survey-periode.
+    Return None kalau gagal total (caller harus skip, bukan anggap 0)."""
+    payload = {
+        "draw": 1,
+        "columns": [{"data": c, "name": "", "searchable": True,
+                     "orderable": c not in ("id", "codeIdentity"),
+                     "search": {"value": "", "regex": False}}
+                    for c in ["id", "codeIdentity", "data1", "data2", "data3", "data4",
+                              "data5", "data6", "data7", "data8", "data9"]],
+        "order": [{"column": 0, "dir": "asc"}],
+        "start": 0, "length": 1000,
+        "search": {"value": kode_sls, "regex": False},
+        "assignmentExtraParam": {
+            "region1Id": None, "region2Id": DOMPU_REGION2_ID, "region3Id": None, "region4Id": None,
+            "region5Id": None, "region6Id": None, "region7Id": None, "region8Id": None,
+            "region9Id": None, "region10Id": None,
+            "surveyPeriodId": PERIOD_ID, "assignmentErrorStatusType": -1,
+            "assignmentStatusAlias": None,
+            "data1": None, "data2": None, "data3": None, "data4": None, "data5": None,
+            "data6": None, "data7": None, "data8": None, "data9": None, "data10": None,
+            "userIdResponsibility": None, "currentUserId": None, "regionId": None,
+            "filterTargetType": "TARGET_ONLY",
+        },
+    }
+    hdrs = {
+        "Accept": "application/json, */*", "Content-Type": "application/json",
+        "X-XSRF-TOKEN": xsrf,
+        "Referer": f"{BASE_URL}/survey-collection/collect/{SURVEY_ID}", "Origin": BASE_URL,
+    }
+    for attempt in range(1, retries + 1):
+        try:
+            r = ctx.request.post(
+                f"{BASE_URL}/analytic/api/v2/assignment/datatable-all-user-survey-periode",
+                data=json.dumps(payload), headers=hdrs, timeout=60000,
+            )
+            if r.status != 200:
+                return None
+            d = r.json()
+            records = d.get("searchData", []) or []
+            # search.value adalah text search di codeIdentity, jaga-jaga saring
+            # persis biar tidak ketuker sama kode_sls lain yang mirip
+            return [rec for rec in records if str(rec.get("codeIdentity", "")).startswith(kode_sls)]
+        except Exception as e:
+            if attempt < retries:
+                time.sleep(2 * attempt)
+    return None
+
+
+def get_true_status(ctx, xsrf, assignment_id, retries=2):
+    """Ambil status TERKINI satu assignment dari assignment-history
+    (bukan dari index analytic yang bisa basi). Return None kalau gagal."""
+    hdrs = {"Accept": "application/json, */*", "X-XSRF-TOKEN": xsrf, "Referer": f"{BASE_URL}/survey-collection/collect/{SURVEY_ID}"}
+    url = f"{BASE_URL}/assignment-general/api/assignment-history/get-by-assignment-id?assignmentId={assignment_id}"
+    for attempt in range(1, retries + 1):
+        try:
+            r = ctx.request.get(url, headers=hdrs, timeout=30000)
+            if r.status != 200:
+                return None
+            d = r.json()
+            events = d.get("data") or []
+            if not events:
+                return None
+            latest = max(events, key=lambda e: e.get("date_created") or "")
+            alias = latest.get("status_alias") or ""
+            if alias.startswith("ASSIGNED TO"):
+                return "OPEN"
+            return alias
+        except Exception:
+            if attempt < retries:
+                time.sleep(1.5 * attempt)
+    return None
+
+
+def verify_stale_sls(sls_agg, ctx, xsrf):
+    """Untuk SLS yang statusnya mencurigakan (OPEN/DRAFT bercampur dgn progres
+    lain), cek ulang status per-assignment ke sumber ground truth dan timpa
+    baris agregatnya kalau ternyata beda."""
+    candidates = [k for k, a in sls_agg.items() if _is_candidate_for_verify(a)]
+    print(f"[VERIFY] {len(candidates)} SLS kandidat perlu verifikasi ground-truth...", flush=True)
+    if not candidates:
+        return sls_agg
+
+    calls = 0
+    corrected = 0
+    list_failed = 0
+    budget_hit = False
+
+    for kode in candidates:
+        if budget_hit:
+            break
+        records = list_sls_assignments(ctx, xsrf, kode)
+        if records is None:
+            list_failed += 1
+            continue  # gagal ambil, biarkan data lama (fail-safe, jangan dianggap 0)
+
+        suspect = [r for r in records if r.get("assignmentStatusAlias") in ("OPEN", "DRAFT")]
+        trusted = [r for r in records if r.get("assignmentStatusAlias") not in ("OPEN", "DRAFT")]
+        if not suspect:
+            continue
+
+        new_a = _new_sls_agg()
+        for r in trusted:
+            apply_status(new_a, r.get("assignmentStatusAlias", ""), 1)
+
+        for r in suspect:
+            if calls >= MAX_VERIFY_CALLS:
+                budget_hit = True
+                break
+            aid = r.get("id")
+            calls += 1
+            true_status = get_true_status(ctx, xsrf, aid)
+            time.sleep(VERIFY_DELAY)
+            if true_status is None:
+                true_status = r.get("assignmentStatusAlias", "")  # gagal verif -> fallback ke status lama
+            apply_status(new_a, true_status, 1)
+
+        if budget_hit:
+            # SLS ini belum selesai diverifikasi penuh (kehabisan budget di tengah) —
+            # jangan timpa, biar dicoba lagi utuh di siklus sync berikutnya.
+            print(f"  [VERIFY] budget habis, SLS {kode} dilewati siklus ini (dicoba lagi nanti)", flush=True)
+            break
+
+        old_draft, old_open = sls_agg[kode]["jumlah_draft"], sls_agg[kode]["fasih_open"]
+        if new_a["jumlah_draft"] != old_draft or new_a["fasih_open"] != old_open:
+            corrected += 1
+            print(f"  [VERIFY] {kode}: draft {old_draft}->{new_a['jumlah_draft']}  open {old_open}->{new_a['fasih_open']}", flush=True)
+        sls_agg[kode] = new_a
+
+    print(f"[VERIFY] selesai. {calls} panggilan assignment-history, {corrected} SLS terkoreksi, {list_failed} SLS gagal diambil listnya.", flush=True)
     return sls_agg
 
 
@@ -456,11 +627,18 @@ def run_once():
             xsrf = login(ctx)
             print("\n[STEP 1] Scrape FASIH...")
             all_content = scrape_all(ctx, xsrf)
+
+            print("\n[STEP 2] Aggregate per SLS...")
+            sls_agg = aggregate(all_content)
+
+            print("\n[STEP 2b] Verifikasi ground-truth SLS mencurigakan (OPEN/DRAFT basi)...")
+            try:
+                sls_agg = verify_stale_sls(sls_agg, ctx, xsrf)
+            except Exception as e:
+                print(f"[VERIFY] gagal, lanjut pakai data sebelum verifikasi: {e}", flush=True)
         finally:
             browser.close()
 
-    print("\n[STEP 2] Aggregate per SLS...")
-    sls_agg = aggregate(all_content)
     sls_agg = apply_non_sls_override(sls_agg)
     summary(sls_agg)
 
