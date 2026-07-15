@@ -167,7 +167,9 @@ type PPLRow struct {
 	PctSubmit     float64 // "Persentase Muatan": submit/total (metode-aware), data-level
 	// "Persentase SLS": dari semua SLS milik PPL ini, berapa persen yang % Progres
 	// per-SLS-nya sudah >=95% (metode-aware juga) — metrik selesai di level SLS,
-	// bukan level data/muatan.
+	// bukan level data/muatan. Hanya SLS prioritas yang dihitung "selesai" di
+	// sini — SLS non-prioritas yang sudah >=95% TIDAK menambah persentase ini
+	// (lihat fillPctSLSSelesai).
 	PctSLSSelesai float64
 }
 
@@ -732,9 +734,12 @@ func queryAdminPPL(page int, q string, pmlID int, sort, dir, metode string) ([]P
 const slsSelesaiThreshold = 0.95
 
 // fillPctSLSSelesai mengisi PctSLSSelesai tiap PPLRow: dari semua SLS milik PPL
-// itu, berapa persen yang % Progres per-SLS-nya (metode yang sama dgn dropdown
-// global) sudah >= 95%. Query terpisah (bukan bagian agregat utama) karena
-// butuh evaluasi per-baris SLS, bukan SUM lintas SLS.
+// itu (prioritas + non-prioritas, jadi pembagi tetap sama seperti dulu),
+// berapa persen yang SLS PRIORITAS dan % Progres per-SLS-nya (metode yang sama
+// dgn dropdown global) sudah >= 95%. SLS non-prioritas yang sudah >=95% tidak
+// dihitung "selesai" di sini — cuma SLS prioritas yang boleh menambah
+// persentase ini. Query terpisah (bukan bagian agregat utama) karena butuh
+// evaluasi per-baris SLS, bukan SUM lintas SLS.
 func fillPctSLSSelesai(ppls []PPLRow, metode string) {
 	if len(ppls) == 0 {
 		return
@@ -751,7 +756,7 @@ func fillPctSLSSelesai(ppls []PPLRow, metode string) {
 	pctExpr := progresSortExprGeneric(metode, "COALESCE(p.jumlah_submit,0)", "COALESCE(p.fasih_total,0)", "s.target_prelist_resmi")
 	rows, err := db.DB.Query(`
 		SELECT s.ppl_id, COUNT(*),
-		       SUM(CASE WHEN `+pctExpr+` >= `+strconv.FormatFloat(slsSelesaiThreshold, 'f', -1, 64)+` THEN 1 ELSE 0 END)
+		       SUM(CASE WHEN s.prioritas = 1 AND `+pctExpr+` >= `+strconv.FormatFloat(slsSelesaiThreshold, 'f', -1, 64)+` THEN 1 ELSE 0 END)
 		FROM sls s
 		LEFT JOIN progress p ON p.sls_id = s.id
 		WHERE s.ppl_id IN (`+strings.Join(placeholders, ",")+`)

@@ -175,8 +175,9 @@ func DownloadPPL(c echo.Context) error {
 	}
 
 	// Persentase SLS (sama seperti kolom "Persentase SLS" di tabel Per PPL):
-	// dari semua SLS milik PPL ini, berapa persen yang % Progres per-SLS-nya
-	// sudah >= 95%.
+	// dari semua SLS milik PPL ini, berapa persen yang SLS PRIORITAS dan
+	// % Progres per-SLS-nya sudah >= 95% (SLS non-prioritas yang >=95% tidak
+	// dihitung).
 	ppls := make([]PPLRow, len(data))
 	for i, r := range data {
 		ppls[i] = PPLRow{ID: r.id}
