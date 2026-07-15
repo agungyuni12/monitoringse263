@@ -367,6 +367,74 @@ def apply_verified_cache(sls_agg):
     return sls_agg
 
 
+# _last_verify_at & _verified_cache disimpan ke DB (bukan cuma di memori) supaya
+# selamat dari redeploy — proses ini masih sering di-restart selama tahap
+# testing/iterasi, dan tanpa persist ini tiap redeploy akan memicu full
+# verifikasi ulang (bukan salah, cuma boros & lambat kalau redeploy-nya sering).
+def _connect_state_db():
+    return pymysql.connect(
+        host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASS,
+        database=DB_NAME, charset="utf8mb4", ssl={"ssl": False},
+    )
+
+
+def _ensure_sync_state_table(conn):
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sync_state (
+                job        VARCHAR(50) PRIMARY KEY,
+                state_json LONGTEXT NOT NULL,
+                updated_at DATETIME NOT NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+    conn.commit()
+
+
+def save_verify_state():
+    try:
+        conn = _connect_state_db()
+        _ensure_sync_state_table(conn)
+        payload = json.dumps({
+            "last_verify_at": _last_verify_at.strftime("%Y-%m-%d %H:%M:%S") if _last_verify_at else None,
+            "cache": _verified_cache,
+        })
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO sync_state (job, state_json, updated_at)
+                VALUES ('fasih_verify', %s, NOW())
+                ON DUPLICATE KEY UPDATE state_json = VALUES(state_json), updated_at = NOW()
+            """, (payload,))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[VERIFY-STATE] gagal simpan state ke DB: {e}", flush=True)
+
+
+def load_verify_state():
+    """Dipanggil sekali di awal proses (sebelum loop while True) — muat balik
+    _last_verify_at & _verified_cache dari DB kalau ada, supaya redeploy tidak
+    selalu memicu full verifikasi ulang dari nol."""
+    global _last_verify_at, _verified_cache
+    try:
+        conn = _connect_state_db()
+        _ensure_sync_state_table(conn)
+        with conn.cursor() as cur:
+            cur.execute("SELECT state_json FROM sync_state WHERE job = 'fasih_verify'")
+            row = cur.fetchone()
+        conn.close()
+        if not row:
+            print("[VERIFY-STATE] belum ada state tersimpan di DB, mulai dari awal", flush=True)
+            return
+        data = json.loads(row[0])
+        lva = data.get("last_verify_at")
+        if lva:
+            _last_verify_at = datetime.strptime(lva, "%Y-%m-%d %H:%M:%S").replace(tzinfo=_wita_tz)
+        _verified_cache = data.get("cache") or {}
+        print(f"[VERIFY-STATE] dimuat dari DB: last_verify_at={_last_verify_at}, {len(_verified_cache)} SLS di cache", flush=True)
+    except Exception as e:
+        print(f"[VERIFY-STATE] gagal muat state dari DB ({e}), mulai dari awal", flush=True)
+
+
 def _is_candidate_for_verify(a):
     non_open_draft = a["fasih_total"] - a["fasih_open"] - a["jumlah_draft"]
     return a["jumlah_draft"] > 0 or (a["fasih_open"] > 0 and non_open_draft > 0)
@@ -503,18 +571,26 @@ def verify_stale_sls(sls_agg, browser):
         chunk_no = chunk_start // CHUNK_SIZE_VERIFY + 1
         print(f"  [VERIFY] chunk {chunk_no}/{total_chunks} ({len(chunk)} SLS, {calls} panggilan sejauh ini) — login ulang...", flush=True)
 
-        ctx = browser.new_context(
-            user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-            viewport={"width": 1280, "height": 720},
-        )
-        try:
-            page, xsrf = login(ctx)
-        except Exception as e:
-            print(f"  [VERIFY] login chunk {chunk_no} gagal: {e}, skip chunk ini", flush=True)
+        page = xsrf = None
+        for login_attempt in range(1, 3):  # 2x percobaan — kegagalan biasanya cuma hiccup jaringan sesaat
+            ctx = browser.new_context(
+                user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+                viewport={"width": 1280, "height": 720},
+            )
             try:
-                ctx.close()
-            except Exception:
-                pass
+                page, xsrf = login(ctx)
+                break
+            except Exception as e:
+                print(f"  [VERIFY] login chunk {chunk_no} gagal (percobaan {login_attempt}/2): {e}", flush=True)
+                try:
+                    ctx.close()
+                except Exception:
+                    pass
+                if login_attempt < 2:
+                    time.sleep(CHUNK_DELAY_VERIFY)
+
+        if page is None:
+            print(f"  [VERIFY] chunk {chunk_no} dilewati (login gagal 2x), {len(chunk)} SLS dicoba lagi siklus verifikasi berikutnya", flush=True)
             time.sleep(CHUNK_DELAY_VERIFY)
             continue
 
@@ -771,9 +847,11 @@ def run_once():
 
     print("[STEP 3] Upload ke database...")
     n = upload(sls_agg)
+    save_verify_state()
     print(f"\nSelesai! {n} SLS diupdate.")
 
 if __name__ == "__main__":
+    load_verify_state()
     while True:
         try:
             run_once()
