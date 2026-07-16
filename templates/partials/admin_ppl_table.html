@@ -1,4 +1,6 @@
 {{define "admin_ppl_table.html"}}
+{{$totalIsPrelist := or (eq .Metode "2") (eq .Metode "3")}}
+{{$totalLabel := "Total"}}{{if $totalIsPrelist}}{{$totalLabel = "Prelist"}}{{end}}
 <div class="overflow-x-auto">
   <table class="w-full text-sm">
     <thead>
@@ -6,7 +8,7 @@
         {{template "sortable_th" dict "Label" "Nama PPL" "Col" "nama" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium"}}
         {{template "sortable_th" dict "Label" "Supervisor (PML)" "Col" "pml" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium"}}
         {{template "sortable_th" dict "Label" "Jml SLS" "Col" "jml_sls" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
-        {{template "sortable_th" dict "Label" "Total" "Col" "total" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" $totalLabel "Col" "total" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
         {{template "sortable_th" dict "Label" "Submit" "Col" "submit" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
         {{template "sortable_th" dict "Label" "Draft" "Col" "draft" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
         {{template "sortable_th" dict "Label" "Approved" "Col" "approved" "PageInfo" .PPLPage "Class" "px-4 py-3 font-medium" "Center" true}}
@@ -22,7 +24,7 @@
         <td class="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">{{.Name}}</td>
         <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">{{.PMLName}}</td>
         <td class="px-4 py-3 text-center text-gray-700 dark:text-gray-300">{{.JmlSLS}}</td>
-        <td class="px-4 py-3 text-center text-gray-700 dark:text-gray-300">{{.FasihTotal}}</td>
+        <td class="px-4 py-3 text-center text-gray-700 dark:text-gray-300">{{if $totalIsPrelist}}{{.TargetPrelist}}{{else}}{{.FasihTotal}}{{end}}</td>
         <td class="px-4 py-3 text-center">
           <span class="{{if gt .Submit 0}}text-green-600 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}}">{{.Submit}}</span>
         </td>
@@ -41,9 +43,9 @@
         <td class="px-4 py-3">
           <div class="flex items-center gap-2">
             <div class="flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden min-w-16">
-              <div class="h-full bg-green-500 rounded-full" style="width:{{.PctSubmit}}%"></div>
+              <div class="h-full {{if gt .PctSubmit 100.0}}bg-purple-500{{else}}bg-green-500{{end}} rounded-full" style="width:{{if gt .PctSubmit 100.0}}100{{else}}{{.PctSubmit}}{{end}}%"></div>
             </div>
-            <span class="text-xs text-gray-500 dark:text-gray-400 w-8 text-right">{{pctf .PctSubmit}}%</span>
+            <span class="text-xs {{if gt .PctSubmit 100.0}}text-purple-600 font-semibold{{else}}text-gray-500 dark:text-gray-400{{end}} w-8 text-right">{{pctf .PctSubmit}}%</span>
           </div>
         </td>
         <td class="px-4 py-3">

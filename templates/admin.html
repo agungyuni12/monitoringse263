@@ -213,7 +213,7 @@
                 <h2 class="font-extrabold text-gray-800 dark:text-gray-100 text-[19px] tracking-tight">Ringkasan Kabupaten Dompu SE 2026</h2>
               </div>
               <select id="global-metode-select" name="metode"
-                title="Metode perhitungan % Progres — berlaku untuk Ringkasan, Per PML, Per PPL, dan Progres Semua SLS"
+                title="Metode perhitungan % Progres — berlaku untuk Ringkasan, Per PML, Per PPL, Progres Semua SLS, dan Peta Sebaran"
                 hx-get="/admin/summary"
                 hx-target="#admin-summary-wrap"
                 hx-swap="innerHTML"
@@ -845,6 +845,9 @@
           if (slsBar) updateSLSDownload();
           if (pplBar) updatePPLDownload();
           if (pmlBar) updatePMLDownload();
+          // Peta Sebaran pakai pembagi (Total/Prelist) yang sama dengan
+          // dropdown metode global ini, jadi perlu di-reload juga.
+          if (petaMap) loadLevel(currentLevel);
         });
       }
 
@@ -1042,19 +1045,29 @@
       return {fillColor: getColor(s.pct), weight: weight, opacity: 1, color: '#777', fillOpacity: 0.8};
     }
 
+    // Pembagi % mengikuti dropdown metode global: metode "1" (Total/Total)
+    // pakai fasih_total, metode "2"/"3" (yang melibatkan Prelist) pakai
+    // target_prelist — konsisten dengan tabel Ringkasan/Per PML/Per PPL/SLS.
+    function totalFieldFor(s) {
+      return (currentMetode() === '2' || currentMetode() === '3') ? (s.target_prelist||0) : (s.fasih_total||0);
+    }
+    function totalLabelFor() {
+      return (currentMetode() === '2' || currentMetode() === '3') ? 'Prelist' : 'Total';
+    }
+
     function popupFor(feature, latlng) {
       var p = feature.properties;
-      var s = statsData[statKeyOf(p)] || {submit: 0, draft: 0, target: 0, fasih_total: 0, pct: 0};
+      var s = statsData[statKeyOf(p)] || {submit: 0, draft: 0, target: 0, fasih_total: 0, target_prelist: 0, pct: 0};
       var title, sub;
       if (currentLevel === 'kec')       { title = 'Kec. ' + p.nmkec;  sub = ''; }
       else if (currentLevel === 'desa') { title = 'Desa ' + p.nmdesa; sub = 'Kec. ' + p.nmkec; }
       else                              { title = p.nmsls; sub = 'Desa ' + p.nmdesa + ' &bull; Kec. ' + p.nmkec; }
-      var total = (s.fasih_total||0);
+      var total = totalFieldFor(s);
       var content = '<div style="font-size:13px;min-width:180px">' +
         '<div style="font-weight:700;margin-bottom:4px">' + title + '</div>' +
         (sub ? '<div style="color:#666;margin-bottom:4px">' + sub + '</div>' : '') +
         '<div>Submit: <b>' + (s.submit||0) + '</b> &nbsp; Draft: <b>' + (s.draft||0) + '</b></div>' +
-        '<div>Submit / Total: <b>' + (s.submit||0) + '</b> / ' + total + '</div>' +
+        '<div>Submit / ' + totalLabelFor() + ': <b>' + (s.submit||0) + '</b> / ' + total + '</div>' +
         '<div>Persentase: <b style="color:#F37021">' + (s.pct||0) + '%</b></div>' +
         '</div>';
       L.popup({maxWidth: 260}).setLatLng(latlng).setContent(content).openOn(petaMap);
@@ -1066,21 +1079,24 @@
       var vals = Object.values(statsData);
       var totSubmit  = vals.reduce(function(a, s) { return a + (s.submit||0); }, 0);
       var totDraft   = vals.reduce(function(a, s) { return a + (s.draft||0);  }, 0);
-      var totTotal   = vals.reduce(function(a, s) { return a + (s.fasih_total||0); }, 0);
+      var totTotal   = vals.reduce(function(a, s) { return a + totalFieldFor(s); }, 0);
       var pct = totTotal > 0 ? Math.round(totSubmit * 100 / totTotal) : 0;
       var label = currentLevel === 'kec'  ? numFeatures + ' kecamatan'
                 : currentLevel === 'desa' ? numFeatures + ' desa'
                 : numFeatures + ' SLS';
       el.innerHTML = '<b>Kabupaten DOMPU</b> &mdash; ' + label +
         ' &nbsp;|&nbsp; Submit: <b>' + totSubmit + '</b> &nbsp; Draft: <b>' + totDraft + '</b>' +
-        ' &nbsp;|&nbsp; Submit / Total: <b>' + totSubmit + '</b> / ' + totTotal +
+        ' &nbsp;|&nbsp; Submit / ' + totalLabelFor() + ': <b>' + totSubmit + '</b> / ' + totTotal +
         ' (<b>' + pct + '%</b>) &nbsp;|&nbsp; <span style="color:#999">Klik wilayah untuk detail</span>';
     }
 
     function loadLevel(level) {
       currentLevel = level;
       var lvlParam = (level === 'sls') ? '' : level;
-      var statsUrl = '/admin/geo/stats' + (lvlParam ? '?level=' + lvlParam : '');
+      var statsParams = [];
+      if (lvlParam) statsParams.push('level=' + lvlParam);
+      if (currentMetode()) statsParams.push('metode=' + currentMetode());
+      var statsUrl = '/admin/geo/stats' + (statsParams.length ? '?' + statsParams.join('&') : '');
       var geoUrl   = '/admin/geo/geojson' + (lvlParam ? '?level=' + lvlParam : '');
       document.getElementById('map-info').textContent = 'Memuat data…';
       Promise.all([

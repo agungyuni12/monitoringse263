@@ -106,7 +106,7 @@ func DownloadPML(c echo.Context) error {
 			f.SetCellValue(sheet, cell(1, n), r.name)
 			f.SetCellValue(sheet, cell(2, n), r.jmlPPL)
 			f.SetCellValue(sheet, cell(3, n), r.jmlSLS)
-			f.SetCellValue(sheet, cell(4, n), r.total)
+			f.SetCellValue(sheet, cell(4, n), displayTotal(metode, r.total, r.targetPrelist))
 			f.SetCellValue(sheet, cell(5, n), r.fasihSubmit)
 			f.SetCellValue(sheet, cell(6, n), r.draft)
 			f.SetCellValue(sheet, cell(7, n), approved)
@@ -196,7 +196,7 @@ func DownloadPPL(c echo.Context) error {
 			f.SetCellValue(sheet, cell(1, n), r.ppl)
 			f.SetCellValue(sheet, cell(2, n), r.pml)
 			f.SetCellValue(sheet, cell(3, n), r.jmlSLS)
-			f.SetCellValue(sheet, cell(4, n), r.total)
+			f.SetCellValue(sheet, cell(4, n), displayTotal(metode, r.total, r.targetPrelist))
 			f.SetCellValue(sheet, cell(5, n), r.fasihSubmit)
 			f.SetCellValue(sheet, cell(6, n), r.draft)
 			approved := r.apprPengawas +
@@ -262,7 +262,7 @@ func DownloadSLS(c echo.Context) error {
 				n := i + 2
 				f.SetCellValue(sheet, cell(1, n), r.kec)
 				f.SetCellValue(sheet, cell(2, n), r.jml)
-				f.SetCellValue(sheet, cell(3, n), r.total)
+				f.SetCellValue(sheet, cell(3, n), displayTotal(metode, r.total, r.tgtPrelist))
 				f.SetCellValue(sheet, cell(4, n), r.fasihSubmit)
 				f.SetCellValue(sheet, cell(5, n), r.draft)
 				f.SetCellValue(sheet, cell(6, n), r.approved)
@@ -310,7 +310,7 @@ func DownloadSLS(c echo.Context) error {
 				f.SetCellValue(sheet, cell(1, n), r.desa)
 				f.SetCellValue(sheet, cell(2, n), r.kec)
 				f.SetCellValue(sheet, cell(3, n), r.jml)
-				f.SetCellValue(sheet, cell(4, n), r.total)
+				f.SetCellValue(sheet, cell(4, n), displayTotal(metode, r.total, r.tgtPrelist))
 				f.SetCellValue(sheet, cell(5, n), r.fasihSubmit)
 				f.SetCellValue(sheet, cell(6, n), r.draft)
 				f.SetCellValue(sheet, cell(7, n), r.approved)
@@ -365,7 +365,7 @@ func DownloadSLS(c echo.Context) error {
 				f.SetCellValue(sheet, cell(3, n), r.ppl)
 				f.SetCellValue(sheet, cell(4, n), r.pml)
 				f.SetCellValue(sheet, cell(5, n), r.desa+" / "+r.kec)
-				f.SetCellValue(sheet, cell(6, n), r.total)
+				f.SetCellValue(sheet, cell(6, n), displayTotal(metode, r.total, r.tgtPrelist))
 				f.SetCellValue(sheet, cell(7, n), r.fasihSubmit)
 				f.SetCellValue(sheet, cell(8, n), r.draft)
 				f.SetCellValue(sheet, cell(9, n), r.approved)
@@ -732,6 +732,17 @@ func DownloadProgresRekap(c echo.Context) error {
 
 func roundPct(v float64) float64 {
 	return math.Round(v*100) / 100
+}
+
+// displayTotal menentukan angka kolom "Total" yang ditulis ke Excel — ikut
+// metode yang dipilih, sama seperti kolom "Total" di tabel web (lihat
+// totalSortExprGeneric di admin.go): fasihTotal utk Total/Total, target
+// Prelist utk metode yang melibatkan Prelist.
+func displayTotal(metode string, fasihTotal, targetPrelist int) int {
+	if metode == MetodeTotalVsPrelist || metode == MetodePrelistVsPrelist {
+		return targetPrelist
+	}
+	return fasihTotal
 }
 
 // downloadWideAgregat — dipakai bareng oleh DownloadKBLI & sub-download Rekap

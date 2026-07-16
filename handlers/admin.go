@@ -16,15 +16,17 @@ import (
 )
 
 type GeoStat struct {
-	Submit     int     `json:"submit"`
-	Draft      int     `json:"draft"`
-	Target     int     `json:"target"`
-	FasihTotal int     `json:"fasih_total"`
-	Pct        float64 `json:"pct"`
+	Submit        int     `json:"submit"`
+	Draft         int     `json:"draft"`
+	Target        int     `json:"target"`
+	FasihTotal    int     `json:"fasih_total"`
+	TargetPrelist int     `json:"target_prelist"`
+	Pct           float64 `json:"pct"`
 }
 
 func AdminGeoStats(c echo.Context) error {
 	level := c.QueryParam("level") // "kec", "desa", atau "" (SLS)
+	metode := normalizeMetode(c.QueryParam("metode"))
 	var prefixLen int
 	switch level {
 	case "kec":
@@ -40,7 +42,8 @@ func AdminGeoStats(c echo.Context) error {
 		       COALESCE(SUM(p.jumlah_submit), 0),
 		       COALESCE(SUM(p.jumlah_draft), 0),
 		       COALESCE(SUM(s.target), 0),
-		       COALESCE(SUM(p.fasih_total), 0)
+		       COALESCE(SUM(p.fasih_total), 0),
+		       COALESCE(SUM(s.target_prelist_resmi), 0)
 		FROM sls s
 		LEFT JOIN progress p ON p.sls_id = s.id
 		GROUP BY SUBSTRING(s.kode_sls, 1, %d)
@@ -54,10 +57,8 @@ func AdminGeoStats(c echo.Context) error {
 	for rows.Next() {
 		var key string
 		var g GeoStat
-		rows.Scan(&key, &g.Submit, &g.Draft, &g.Target, &g.FasihTotal)
-		if g.FasihTotal > 0 {
-			g.Pct = math.Min(float64(g.Submit)*100/float64(g.FasihTotal), 100)
-		}
+		rows.Scan(&key, &g.Submit, &g.Draft, &g.Target, &g.FasihTotal, &g.TargetPrelist)
+		g.Pct = computePctProgres(metode, g.Submit, g.FasihTotal, g.TargetPrelist)
 		result[key] = g
 	}
 	return c.JSON(http.StatusOK, result)
@@ -257,6 +258,9 @@ func normalizeMetode(m string) string {
 	return m
 }
 
+// computePctProgres TIDAK di-cap ke 100 — SLS/PPL/PML yang submit-nya
+// melebihi pembaginya (mis. ada assignment tambahan) harus tetap kelihatan
+// >100%, bukan keliatan "penuh" padahal aslinya lebih.
 func computePctProgres(metode string, jumlahSubmit, fasihTotal, target int) float64 {
 	switch metode {
 	case MetodeTotalVsPrelist:
@@ -266,14 +270,25 @@ func computePctProgres(metode string, jumlahSubmit, fasihTotal, target int) floa
 	case MetodePrelistVsPrelist:
 		if target > 0 {
 			sisaBelum := math.Max(float64(fasihTotal-jumlahSubmit), 0)
-			return math.Max(math.Min((float64(target)-sisaBelum)*100/float64(target), 100), 0)
+			return math.Max((float64(target)-sisaBelum)*100/float64(target), 0)
 		}
 	default: // MetodeTotalVsTotal
 		if fasihTotal > 0 {
-			return math.Min(float64(jumlahSubmit)*100/float64(fasihTotal), 100)
+			return float64(jumlahSubmit) * 100 / float64(fasihTotal)
 		}
 	}
 	return 0
+}
+
+// totalSortExprGeneric menentukan kolom yang dipakai utk sort "Total" —
+// ikut metode yang dipilih, sama seperti kolom "Total" yang ditampilkan di
+// tabel (lihat totalColFor di template): fasihTotalExpr utk Total/Total,
+// targetExpr (target Prelist) utk metode yang melibatkan Prelist.
+func totalSortExprGeneric(metode, fasihTotalExpr, targetExpr string) string {
+	if metode == MetodeTotalVsPrelist || metode == MetodePrelistVsPrelist {
+		return targetExpr
+	}
+	return fasihTotalExpr
 }
 
 // progresSortExprGeneric membangun ekspresi SQL sort utk kolom "progres", sesuai
@@ -540,6 +555,7 @@ func queryAdminPML(page int, q, sort, dir, metode string) ([]PMLRow, models.Page
 		sortCols[k] = v
 	}
 	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(SUM(p.jumlah_submit),0)", "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target_prelist_resmi),0)")
+	sortCols["total"] = totalSortExprGeneric(metode, "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target_prelist_resmi),0)")
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "u.name")
 	offset := (page - 1) * models.PerPage
 
@@ -663,6 +679,7 @@ func queryAdminPPL(page int, q string, pmlID int, sort, dir, metode string) ([]P
 		sortCols[k] = v
 	}
 	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(SUM(p.jumlah_submit),0)", "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target_prelist_resmi),0)")
+	sortCols["total"] = totalSortExprGeneric(metode, "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target_prelist_resmi),0)")
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "pml.name, u.name")
 
 	rows, err := db.DB.Query(`
@@ -813,6 +830,7 @@ func queryAdminSLS(page int, q, sort, dir, metode string) ([]SLSAdminRow, models
 		sortCols[k] = v
 	}
 	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(p.jumlah_submit,0)", "COALESCE(p.fasih_total,0)", "s.target_prelist_resmi")
+	sortCols["total"] = totalSortExprGeneric(metode, "COALESCE(p.fasih_total,0)", "s.target_prelist_resmi")
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "s.kode_kec, s.kode_desa, s.kode_sls")
 
 	offset := (page - 1) * models.PerPage
@@ -892,6 +910,7 @@ func queryAdminSLSByDesa(page int, q, sort, dir, metode string) ([]DesaRow, mode
 		sortCols[k] = v
 	}
 	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(SUM(p.jumlah_submit),0)", "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target_prelist_resmi),0)")
+	sortCols["total"] = totalSortExprGeneric(metode, "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target_prelist_resmi),0)")
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "s.kode_kec, s.kode_desa")
 	offset := (page - 1) * models.PerPage
 	rows, err := db.DB.Query(`
@@ -959,6 +978,7 @@ func queryAdminSLSByKec(page int, q, sort, dir, metode string) ([]KecRow, models
 		sortCols[k] = v
 	}
 	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(SUM(p.jumlah_submit),0)", "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target_prelist_resmi),0)")
+	sortCols["total"] = totalSortExprGeneric(metode, "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target_prelist_resmi),0)")
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "s.kode_kec")
 	offset := (page - 1) * models.PerPage
 	rows, err := db.DB.Query(`
