@@ -247,7 +247,10 @@ func AdminKBLITable(c echo.Context) error {
 // raksasa semua kategori sekaligus): Usaha BKU, Usaha Keluarga, dan Keluarga
 // — ketiganya tetap tampilkan breakdown lengkap per status, cuma dipisah
 // tabelnya per kategori.
-var kodeCovBKUAll = []string{"2", "10247", "10264", "10265", "10266", "10268"}
+// "2" sengaja tidak dimasukkan — itu "Jumlah Prelist Awal" gabungan usaha+
+// keluarga, bukan usaha BKU saja. Kolom Prelist yang benar di sini pakai kode
+// sintetis "90002" (SUM 108+109+110 = UB+UM+UMK), lihat kodeCovUsahaPrelist.
+var kodeCovBKUAll = []string{"90002", "10247", "10264", "10265", "10266", "10268"}
 var kodeCovUsahaKeluargaAll = []string{"90001", "10691", "10693", "10694", "10695", "10696"}
 
 // Keluarga: prelist, ditemukan, meninggal, tidak eligible, tidak dapat

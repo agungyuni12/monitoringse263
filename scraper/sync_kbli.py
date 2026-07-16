@@ -75,9 +75,19 @@ KBLI_INDIKATOR = os.getenv(
 # keluarga). Dibuang: progres % (CAWI/CAPI/geotagging), nonrespon per skala,
 # blasting, SLS admin stat (assign/sync/total), target non-prelist, matched
 # pendataan, dan breakdown jaringan usaha (tunggal/kantor pusat/cabang/dst).
+#
+# CATATAN kode 2 vs 108/109/110: kode "2" ("Jumlah Prelist Awal", satuan
+# "Total Prelist") TERNYATA gabungan usaha+keluarga, BUKAN usaha BKU saja
+# (sempat salah diasumsikan sbg usaha BKU — lihat riwayat diskusi). Usaha BKU
+# prelist yang benar dipecah per skala usaha: 108=UB (Usaha Besar), 109=UM
+# (Usaha Menengah), 110=UMK (Usaha Mikro Kecil). Kode "2" tetap ditarik (dipakai
+# di tempat lain / historis), tapi utk hitungan "prelist usaha BKU" pakai kode
+# sintetis 90002 (= SUM 108+109+110, dihitung ulang tiap sync, lihat
+# sync_usaha_bku_prelist_total()) — jangan pakai kode 2 utk itu.
 COVERAGE_INDIKATOR = os.getenv(
     "COVERAGE_INDIKATOR",
-    "2,10247,10264,10265,10266,10268,"     # Usaha (BKU/mandiri): prelist, tidak ditemukan, ditemukan, ditutup, ganda, baru
+    "2,10247,10264,10265,10266,10268,"     # Prelist gabungan (2, JANGAN dipakai sbg usaha BKU), status BKU: tidak ditemukan, ditemukan, ditutup, ganda, baru
+    "108,109,110,"                         # Usaha BKU Prelist Awal per skala: UB, UM, UMK — sumber usaha BKU prelist yang BENAR
     "10691,10693,10694,10695,10696,"       # Usaha dalam Keluarga: ditemukan, tutup, ganda, tidak ditemukan, baru
     "14,15,16,17,18,19,20,21,22,59",       # Keluarga: prelist, ditemukan, meninggal, tidak eligible,
                                             # tidak dapat ditemui s/d akhir pendataan, tidak ditemukan,
@@ -296,6 +306,39 @@ def upsert_agregat(conn, sls_map, items, table_name):
     return upserted, skipped
 
 
+def sync_usaha_bku_prelist_total(conn):
+    """
+    Hitung ulang kode sintetis "90002" (Jumlah Usaha Prelist Awal (BKU)) =
+    SUM(108, 109, 110) per SLS, ke coverage_usaha_keluarga. Dijalankan tiap
+    sync (bukan sekali import statis kayak 90001) krn 108/109/110 sumbernya
+    live dari dashboard & bisa berubah. SUM() MySQL otomatis skip NULL dan
+    balikin NULL kalau ketiganya NULL, jadi semantik "null = belum ada data"
+    tetap konsisten dgn kolom lain.
+    """
+    cur = conn.cursor()
+    now = _now_wita().strftime("%Y-%m-%d %H:%M:%S")
+    SQL = """
+        INSERT INTO coverage_usaha_keluarga
+          (sls_id, kode_indikator, nama_indikator, satuan, total_value, is_agregat, synced_at)
+        SELECT sls_id, '90002', 'Jumlah Usaha Prelist Awal (BKU)', 'Usaha',
+               SUM(total_value), MAX(is_agregat), %s
+        FROM coverage_usaha_keluarga
+        WHERE kode_indikator IN ('108', '109', '110')
+        GROUP BY sls_id
+        ON DUPLICATE KEY UPDATE
+          nama_indikator = VALUES(nama_indikator),
+          satuan         = VALUES(satuan),
+          total_value    = VALUES(total_value),
+          is_agregat     = VALUES(is_agregat),
+          synced_at      = VALUES(synced_at)
+    """
+    cur.execute(SQL, (now,))
+    updated = cur.rowcount
+    conn.commit()
+    cur.close()
+    return updated
+
+
 def sync_target_prelist_resmi(conn, items):
     """
     Update sls.target_prelist_resmi dari data /api/mikro/subsls-termin-1
@@ -352,6 +395,9 @@ def run_once():
             cov_items = fetch_agregat(ctx, KODE_KAB, COVERAGE_INDIKATOR, "COVERAGE")
             cov_up, cov_skip = upsert_agregat(conn, sls_map, cov_items, "coverage_usaha_keluarga")
             print(f"[COVERAGE] Selesai: {cov_up} diupsert, {cov_skip} dilewati.", flush=True)
+
+            bku_up = sync_usaha_bku_prelist_total(conn)
+            print(f"[COVERAGE] Kode sintetis 90002 (Usaha Prelist BKU = 108+109+110) diupdate: {bku_up} SLS.", flush=True)
 
             print("\n[TARGET PRELIST] Mengambil target Termin 1 per SLS...", flush=True)
             termin1_items = fetch_subsls_termin1(ctx, KODE_KAB)

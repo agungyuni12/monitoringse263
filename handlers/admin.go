@@ -1137,8 +1137,13 @@ type ProgresRekapRow struct {
 }
 
 // Kode indikator coverage_usaha_keluarga yang dipakai utk hitung % coverage per SLS.
+// kodeCovUsahaPrelist SENGAJA bukan "2" — kode itu ("Jumlah Prelist Awal")
+// ternyata gabungan usaha+keluarga, bukan usaha BKU saja (sempat salah
+// dipakai). Usaha BKU prelist yang benar = kode sintetis 90002, dihitung dari
+// SUM(108,109,110) = UB+UM+UMK Prelist Awal per SLS (lihat
+// sync_usaha_bku_prelist_total() di scraper/sync_kbli.py).
 const (
-	kodeCovUsahaPrelist      = "2"
+	kodeCovUsahaPrelist      = "90002"
 	kodeCovUsahaDitemukan    = "10264"
 	kodeCovUsahaBaru         = "10268"
 	kodeCovUsahaKelPrelist   = "90001"
