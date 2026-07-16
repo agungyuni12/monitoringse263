@@ -1172,7 +1172,18 @@ var progresRekapSortKeys = map[string]bool{
 	"cov_usaha_bku": true, "cov_usaha_keluarga": true, "cov_keluarga": true,
 }
 
-func progresRekapLess(list []ProgresRekapRow, sortCol string) func(i, j int) bool {
+// totalValueFor mengembalikan angka kolom "Total" sesuai metode — sama
+// seperti totalSortExprGeneric (versi SQL) yang dipakai tabel-tabel lain:
+// Target Prelist utk metode Total/Prelist & Prelist/Prelist, Total FASIH
+// utk Total/Total.
+func totalValueFor(r ProgresRekapRow, metode string) int {
+	if metode == MetodeTotalVsPrelist || metode == MetodePrelistVsPrelist {
+		return r.TargetPrelist
+	}
+	return r.FasihTotal
+}
+
+func progresRekapLess(list []ProgresRekapRow, sortCol, metode string) func(i, j int) bool {
 	lokasiLess := func(i, j int) bool {
 		a, b := list[i], list[j]
 		if a.NamaKec != b.NamaKec {
@@ -1187,7 +1198,7 @@ func progresRekapLess(list []ProgresRekapRow, sortCol string) func(i, j int) boo
 	case "petugas":
 		return func(i, j int) bool { return list[i].NamaPPL < list[j].NamaPPL }
 	case "total":
-		return func(i, j int) bool { return list[i].FasihTotal < list[j].FasihTotal }
+		return func(i, j int) bool { return totalValueFor(list[i], metode) < totalValueFor(list[j], metode) }
 	case "submit":
 		return func(i, j int) bool { return list[i].FasihSubmit < list[j].FasihSubmit }
 	case "draft":
@@ -1366,7 +1377,7 @@ func AdminProgresRekapTable(c echo.Context) error {
 
 	list := queryProgresRekapRows(q, pmlID, pplID, slsID, prioritasOnly, metode)
 
-	less := progresRekapLess(list, sortCol)
+	less := progresRekapLess(list, sortCol, metode)
 	sort.SliceStable(list, func(i, j int) bool {
 		if sortDir == "desc" {
 			return less(j, i)

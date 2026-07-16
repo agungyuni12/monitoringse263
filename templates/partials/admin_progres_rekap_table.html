@@ -1,6 +1,8 @@
 {{define "admin_progres_rekap_table.html"}}
 {{template "oob_select" .PPLSelect}}
 {{template "oob_select" .SLSSelect}}
+{{$totalIsPrelist := or (eq .Metode "2") (eq .Metode "3")}}
+{{$totalLabel := "Total"}}{{if $totalIsPrelist}}{{$totalLabel = "Prelist"}}{{end}}
 <div>
   <div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
     Ditemukan <span class="font-semibold text-gray-700 dark:text-gray-300">{{.PageInfo.TotalRow}}</span> SLS
@@ -13,7 +15,7 @@
           <th class="px-3 py-2.5 font-medium text-center w-8">No</th>
           {{template "sortable_th" dict "Label" "Lokasi (Kec / Desa / SLS)" "Col" "lokasi" "PageInfo" $.PageInfo}}
           {{template "sortable_th" dict "Label" "Petugas" "Col" "petugas" "PageInfo" $.PageInfo}}
-          {{template "sortable_th" dict "Label" "Total" "Col" "total" "PageInfo" $.PageInfo "Center" true}}
+          {{template "sortable_th" dict "Label" $totalLabel "Col" "total" "PageInfo" $.PageInfo "Center" true}}
           {{template "sortable_th" dict "Label" "Submit" "Col" "submit" "PageInfo" $.PageInfo "Center" true}}
           {{template "sortable_th" dict "Label" "Draft" "Col" "draft" "PageInfo" $.PageInfo "Center" true}}
           {{template "sortable_th" dict "Label" "Approved" "Col" "approved" "PageInfo" $.PageInfo "Center" true}}
@@ -43,7 +45,7 @@
             <div class="text-gray-600 dark:text-gray-400">PPL: {{$r.NamaPPL}}</div>
             <div class="text-gray-400 dark:text-gray-500">PML: {{$r.NamaPML}}</div>
           </td>
-          <td class="px-3 py-2 text-center text-xs text-gray-700 dark:text-gray-300 font-medium">{{$r.FasihTotal}}</td>
+          <td class="px-3 py-2 text-center text-xs text-gray-700 dark:text-gray-300 font-medium">{{if $totalIsPrelist}}{{$r.TargetPrelist}}{{else}}{{$r.FasihTotal}}{{end}}</td>
           <td class="px-3 py-2 text-center">
             <span class="{{if gt $r.FasihSubmit 0}}text-green-600 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}} text-xs">{{$r.FasihSubmit}}</span>
           </td>

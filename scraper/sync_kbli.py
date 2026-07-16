@@ -189,6 +189,47 @@ def fetch_agregat(ctx, kode_kab, indikator, label, retries=3):
     return []
 
 
+def fetch_subsls_termin1(ctx, kode_wilayah, retries=3):
+    """
+    Fetch target Termin 1 per sub_sls dari /api/mikro/subsls-termin-1 — ini
+    sumber OTORITATIF utk "Prelist Awal" (sls.target_prelist_resmi), BUKAN
+    coverage_usaha_keluarga (itu ngukur cakupan usaha/keluarga, konsep
+    beda — sempat salah dipakai). Response: {"success":true,"data":[...]},
+    tiap item punya "kode_wilayah" (== sls.kode_sls persis, granularitas
+    sub_sls) dan "target".
+    """
+    url = f"{DASH_URL}/api/mikro/subsls-termin-1?kode_wilayah={kode_wilayah}"
+    for attempt in range(1, retries + 1):
+        try:
+            r = ctx.request.get(url, timeout=120_000)
+            if r.status != 200:
+                body = ""
+                try:
+                    body = r.text()[:500]
+                except Exception:
+                    pass
+                print(f"  [TERMIN1] [WARN] HTTP {r.status} — {body}", flush=True)
+                if r.status == 401 and attempt < retries:
+                    print(f"  [TERMIN1] [RETRY {attempt}/{retries}] Login ulang & warmup...", flush=True)
+                    login_dashboard(ctx)
+                    warmup_session(ctx)
+                    time.sleep(3)
+                    continue
+                return []
+            payload = r.json()
+            items = payload.get("data") if isinstance(payload, dict) else None
+            if not isinstance(items, list):
+                print(f"  [TERMIN1] [WARN] Response tidak sesuai format", flush=True)
+                return []
+            print(f"  [TERMIN1] {len(items)} baris diterima.", flush=True)
+            return items
+        except Exception as e:
+            print(f"  [TERMIN1] [RETRY {attempt}/{retries}] {e}", flush=True)
+            if attempt < retries:
+                time.sleep(5 * attempt)
+    return []
+
+
 # ── Database ─────────────────────────────────────────────────────────────────
 
 def _connect_db():
@@ -255,6 +296,36 @@ def upsert_agregat(conn, sls_map, items, table_name):
     return upserted, skipped
 
 
+def sync_target_prelist_resmi(conn, items):
+    """
+    Update sls.target_prelist_resmi dari data /api/mikro/subsls-termin-1
+    (field "target" per kode_wilayah == kode_sls) — sumber LIVE & otoritatif,
+    menggantikan snapshot statis Excel yang dipakai migration awal
+    (db/target_prelist_resmi_migration.sql). SLS yang kode_sls-nya tidak ada
+    di response TIDAK diubah (tetap nilai lama), bukan di-nol-kan.
+    """
+    seen = {}
+    for item in items:
+        kode = str(item.get("kode_wilayah") or "").strip()
+        target = item.get("target")
+        if not kode or target is None:
+            continue
+        seen[kode] = target  # dedupe kode_wilayah duplikat (nilainya sama)
+
+    cur = conn.cursor()
+    SQL = "UPDATE sls SET target_prelist_resmi = %s WHERE kode_sls = %s"
+    updated = 0
+    for kode, target in seen.items():
+        try:
+            cur.execute(SQL, (target, kode))
+            updated += cur.rowcount
+        except Exception as e:
+            print(f"    [DB ERROR] {e}", flush=True)
+    conn.commit()
+    cur.close()
+    return updated
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def run_once():
@@ -281,6 +352,11 @@ def run_once():
             cov_items = fetch_agregat(ctx, KODE_KAB, COVERAGE_INDIKATOR, "COVERAGE")
             cov_up, cov_skip = upsert_agregat(conn, sls_map, cov_items, "coverage_usaha_keluarga")
             print(f"[COVERAGE] Selesai: {cov_up} diupsert, {cov_skip} dilewati.", flush=True)
+
+            print("\n[TARGET PRELIST] Mengambil target Termin 1 per SLS...", flush=True)
+            termin1_items = fetch_subsls_termin1(ctx, KODE_KAB)
+            tp_updated = sync_target_prelist_resmi(conn, termin1_items)
+            print(f"[TARGET PRELIST] Selesai: {tp_updated} SLS ter-update.", flush=True)
 
             conn.close()
             print(f"\nSelesai semua! KBLI={kbli_up} baris, Coverage={cov_up} baris.", flush=True)

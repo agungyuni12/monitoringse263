@@ -718,7 +718,7 @@ func DownloadProgresRekap(c echo.Context) error {
 			f.SetCellValue(sheet, cell(4, n), r.NamaPPL)
 			f.SetCellValue(sheet, cell(5, n), r.NamaPML)
 			f.SetCellValue(sheet, cell(6, n), boolLabel(r.Prioritas, "Ya", ""))
-			f.SetCellValue(sheet, cell(7, n), r.FasihTotal)
+			f.SetCellValue(sheet, cell(7, n), displayTotal(metode, r.FasihTotal, r.TargetPrelist))
 			f.SetCellValue(sheet, cell(8, n), r.FasihSubmit)
 			f.SetCellValue(sheet, cell(9, n), r.JumlahDraft)
 			f.SetCellValue(sheet, cell(10, n), r.Diperiksa)
