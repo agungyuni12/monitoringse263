@@ -556,7 +556,7 @@ def verify_stale_sls(sls_agg, browser):
     total = len(candidates)
     print(f"[VERIFY] {total} SLS kandidat perlu verifikasi ground-truth...", flush=True)
     if not candidates:
-        return sls_agg
+        return sls_agg, True  # tidak ada kandidat = otomatis "selesai penuh"
 
     calls = 0
     corrected = 0
@@ -644,14 +644,24 @@ def verify_stale_sls(sls_agg, browser):
         except Exception:
             pass
 
+        # Simpan progress per-chunk (bukan cuma di akhir run_once) — supaya kalau
+        # proses ini di-redeploy/kill di TENGAH verifikasi, chunk yang sudah
+        # kelar tidak hilang & tidak perlu diulang dari SLS pertama lagi.
+        # _last_verify_at SENGAJA belum diupdate di sini (masih nilai lama) —
+        # baru diset "selesai" oleh run_once() setelah verify_stale_sls tuntas
+        # semua kandidat, supaya sisa kandidat yang belum sempat dicek tetap
+        # ditagih di percobaan berikutnya (bukan dianggap "sudah 6 jam lagi").
+        save_verify_state()
+
         if budget_hit:
-            print(f"  [VERIFY] budget {MAX_VERIFY_CALLS} panggilan habis, sisa {total - chunk_start - len(chunk)} SLS dilanjut siklus berikutnya", flush=True)
+            sisa = total - chunk_start - len(chunk)
+            print(f"  [VERIFY] budget {MAX_VERIFY_CALLS} panggilan habis, sisa {sisa} SLS dilanjut siklus BERIKUTNYA (bukan nunggu {VERIFY_INTERVAL_HOURS} jam — belum benar-benar selesai)", flush=True)
             break
         if chunk_start + CHUNK_SIZE_VERIFY < total:
             time.sleep(CHUNK_DELAY_VERIFY)
 
-    print(f"[VERIFY] selesai. {calls} panggilan assignment-history, {corrected} SLS terkoreksi, {list_failed} SLS gagal diambil listnya.", flush=True)
-    return sls_agg
+    print(f"[VERIFY] {'selesai penuh' if not budget_hit else 'BELUM tuntas (kepotong budget)'}. {calls} panggilan assignment-history, {corrected} SLS terkoreksi, {list_failed} SLS gagal diambil listnya.", flush=True)
+    return sls_agg, not budget_hit
 
 
 def apply_non_sls_override(sls_agg):
@@ -832,8 +842,15 @@ def run_once():
             if _should_verify_now():
                 print(f"\n[STEP 2b] Verifikasi ground-truth SLS mencurigakan (OPEN/DRAFT basi)...")
                 try:
-                    sls_agg = verify_stale_sls(sls_agg, browser)
-                    _last_verify_at = _now_wita()
+                    sls_agg, completed = verify_stale_sls(sls_agg, browser)
+                    if completed:
+                        _last_verify_at = _now_wita()
+                        print(f"[VERIFY] tuntas semua kandidat — jadwal verifikasi berikutnya {VERIFY_INTERVAL_HOURS} jam lagi.", flush=True)
+                    else:
+                        # Kepotong budget di tengah — JANGAN update _last_verify_at, supaya
+                        # siklus sync berikutnya (2 jam lagi, bukan 6 jam) langsung lanjut
+                        # verifikasi sisanya, bukan dianggap "sudah selesai".
+                        print(f"[VERIFY] belum tuntas, akan lanjut otomatis di siklus sync berikutnya (~2 jam lagi).", flush=True)
                 except Exception as e:
                     print(f"[VERIFY] gagal, lanjut pakai data sebelum verifikasi: {e}", flush=True)
             else:
