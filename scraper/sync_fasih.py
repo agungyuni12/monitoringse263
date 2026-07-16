@@ -316,8 +316,12 @@ def aggregate(all_content):
 # yang punya assignment OPEN/DRAFT TAPI juga sudah ada progres lain di SLS
 # yang sama (submit/approved/dst). SLS yang 100% OPEN dianggap memang belum
 # disentuh sama sekali dan dilewati (bukan indikasi bug).
-MAX_VERIFY_CALLS      = 6000  # batas jumlah panggilan per siklus sync, biar tidak membebani FASIH
-VERIFY_INTERVAL_HOURS = 6     # verifikasi ground-truth cukup tiap 6 jam, bukan tiap siklus sync (2 jam) — proses ini lambat
+MAX_VERIFY_CALLS      = 6000  # batas panggilan per siklus — dijaga konservatif (bukan dipaksa habis
+                               # sekali jalan) karena sesi ini pernah kena bot-detection FASIH waktu
+                               # request beruntun terlalu banyak. Backlog besar (mis. 710 SLS di awal)
+                               # otomatis dicicil beberapa siklus 2-jam berturut-turut, bukan nunggu 6
+                               # jam per percobaan — itu sudah dibenerin lewat flag `completed`.
+VERIFY_INTERVAL_HOURS = 8     # verifikasi ground-truth cukup tiap 8 jam, bukan tiap siklus sync (2 jam) — proses ini lambat
 
 # Pola chunk + login ulang + fetch batch ini disalin dari sync_keberadaan.py
 # (sudah terbukti aman dari rate-limit FASIH — dulu dua proses sync_keberadaan
