@@ -49,7 +49,7 @@ func DownloadPML(c echo.Context) error {
 	like := "%" + q + "%"
 
 	rows, err := db.DB.Query(`
-		SELECT u.name,
+		SELECT u.id, u.name,
 		       COUNT(DISTINCT s.ppl_id), COUNT(s.id),
 		       COALESCE(SUM(p.fasih_total),0), COALESCE(SUM(s.target_prelist_resmi),0),
 		       COALESCE(SUM(p.fasih_submitted),0), COALESCE(SUM(p.jumlah_submit),0),
@@ -71,6 +71,7 @@ func DownloadPML(c echo.Context) error {
 	defer rows.Close()
 
 	type row struct {
+		id                                                                     int
 		name                                                                   string
 		jmlPPL, jmlSLS, total, targetPrelist, fasihSubmit, jumlahSubmit, draft int
 		apprPengawas, rejPengawas, revPengawas                                 int
@@ -80,24 +81,26 @@ func DownloadPML(c echo.Context) error {
 	var data []row
 	for rows.Next() {
 		var r row
-		rows.Scan(&r.name, &r.jmlPPL, &r.jmlSLS, &r.total, &r.targetPrelist, &r.fasihSubmit, &r.jumlahSubmit, &r.draft,
+		rows.Scan(&r.id, &r.name, &r.jmlPPL, &r.jmlSLS, &r.total, &r.targetPrelist, &r.fasihSubmit, &r.jumlahSubmit, &r.draft,
 			&r.apprPengawas, &r.rejPengawas, &r.revPengawas,
 			&r.apprKab, &r.rejKab, &r.apprProv, &r.rejProv, &r.apprPusat, &r.rejPusat,
 			&r.editedAdmin, &r.completedAdmin)
 		data = append(data, r)
 	}
 
+	pmlIDs := make([]int, len(data))
+	for i, r := range data {
+		pmlIDs[i] = r.id
+	}
+	verifMap := queryPMLPrioritasVerifikasi(pmlIDs)
+
 	fname := fmt.Sprintf("monitoring_pml_%s.xlsx", time.Now().In(wita).Format("20060102"))
 	headers := []string{"Nama PML", "Jml PPL", "Jml SLS", "Total", "Submit", "Draft", "Approved", "Rejected", "Revoke", "% Progres", "% Terverifikasi"}
 	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
 		for i, r := range data {
 			n := i + 2
-			terverifikasi := r.apprPengawas + r.rejPengawas + r.revPengawas +
-				r.apprKab + r.rejKab + r.apprProv + r.rejProv + r.apprPusat + r.rejPusat
-			pctTerverifikasi := 0.0
-			if r.jumlahSubmit > 0 {
-				pctTerverifikasi = math.Min(float64(terverifikasi)*100/float64(r.jumlahSubmit), 100)
-			}
+			v := verifMap[r.id]
+			pctTerverifikasi := computePctProgres(metode, v.Terverifikasi, v.FasihTotal, v.TargetPrelist)
 			approved := r.apprPengawas +
 				r.apprKab + r.rejKab +
 				r.apprProv + r.rejProv +

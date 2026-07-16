@@ -137,7 +137,9 @@ type PMLRow struct {
 	PctSubmit      float64
 	Observasi      int
 	KendalaTerbuka int
-	// Terverifikasi = semua status kecuali open, submit, draft (approved+rejected+revoked di semua level)
+	// Terverifikasi & PctTerverifikasi: KHUSUS SLS PRIORITAS milik PML ini
+	// (approved+rejected+revoked di semua level), dibagi Total/Target Prelist
+	// SLS prioritas (metode-aware, lihat queryPMLPrioritasVerifikasi).
 	Terverifikasi    int
 	PctTerverifikasi float64
 }
@@ -546,11 +548,24 @@ var adminPMLSortCols = map[string]string{
 	"draft":    "COALESCE(SUM(p.jumlah_draft),0)",
 	"approved": approvedColSQLAgg,
 	"rejected": "COALESCE(SUM(p.fasih_rejected_pengawas),0)",
-	"progres":  "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
-	"terverifikasi": "(COALESCE(SUM(p.fasih_approved_pengawas),0)+COALESCE(SUM(p.fasih_rejected_pengawas),0)+COALESCE(SUM(p.fasih_revoked_pengawas),0)+" +
-		"COALESCE(SUM(p.fasih_approved_kabupaten),0)+COALESCE(SUM(p.fasih_rejected_kabupaten),0)+" +
-		"COALESCE(SUM(p.fasih_approved_provinsi),0)+COALESCE(SUM(p.fasih_rejected_provinsi),0)+" +
-		"COALESCE(SUM(p.fasih_approved_pusat),0)+COALESCE(SUM(p.fasih_rejected_pusat),0))",
+	"progres": "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
+	// "terverifikasi" di-override per query (lihat queryAdminPML) supaya
+	// metode-aware & scoped ke SLS prioritas, sama seperti nilai yang ditampilkan.
+}
+
+// pmlTerverifikasiPrioritasExprs mengembalikan (numeratorExpr, fasihTotalExpr,
+// targetPrelistExpr) utk kolom sort "terverifikasi" — SUM bersyarat SLS
+// prioritas saja, biar sort konsisten dgn PctTerverifikasi yang ditampilkan
+// (lihat queryPMLPrioritasVerifikasi).
+func pmlTerverifikasiPrioritasExprs() (numerator, fasihTotal, targetPrelist string) {
+	numerator = "(SUM(CASE WHEN s.prioritas=1 THEN " +
+		"COALESCE(p.fasih_approved_pengawas,0)+COALESCE(p.fasih_rejected_pengawas,0)+COALESCE(p.fasih_revoked_pengawas,0)+" +
+		"COALESCE(p.fasih_approved_kabupaten,0)+COALESCE(p.fasih_rejected_kabupaten,0)+" +
+		"COALESCE(p.fasih_approved_provinsi,0)+COALESCE(p.fasih_rejected_provinsi,0)+" +
+		"COALESCE(p.fasih_approved_pusat,0)+COALESCE(p.fasih_rejected_pusat,0) ELSE 0 END))"
+	fasihTotal = "(SUM(CASE WHEN s.prioritas=1 THEN COALESCE(p.fasih_total,0) ELSE 0 END))"
+	targetPrelist = "(SUM(CASE WHEN s.prioritas=1 THEN s.target_prelist_resmi ELSE 0 END))"
+	return
 }
 
 func queryAdminPML(page int, q, sort, dir, metode string) ([]PMLRow, models.PageInfo) {
@@ -570,6 +585,8 @@ func queryAdminPML(page int, q, sort, dir, metode string) ([]PMLRow, models.Page
 	}
 	sortCols["progres"] = progresSortExprGeneric(metode, "COALESCE(SUM(p.jumlah_submit),0)", "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target_prelist_resmi),0)")
 	sortCols["total"] = totalSortExprGeneric(metode, "COALESCE(SUM(p.fasih_total),0)", "COALESCE(SUM(s.target_prelist_resmi),0)")
+	terverifNumerator, terverifFasihTotal, terverifTargetPrelist := pmlTerverifikasiPrioritasExprs()
+	sortCols["terverifikasi"] = progresSortExprGeneric(metode, terverifNumerator, terverifFasihTotal, terverifTargetPrelist)
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "u.name")
 	offset := (page - 1) * models.PerPage
 
@@ -633,18 +650,18 @@ func queryAdminPML(page int, q, sort, dir, metode string) ([]PMLRow, models.Page
 			editedAdmin + completedAdmin
 		r.Error = r.RejectedPengawas
 		r.PctSubmit = computePctProgres(metode, r.JumlahSubmit, r.FasihTotal, r.TargetPrelist)
-		// Terverifikasi = semua status kecuali open, submit, draft
-		r.Terverifikasi = r.ApprovedPengawas + r.RejectedPengawas + r.RevokedPengawas +
-			r.ApprovedKabupaten + r.RejectedKabupaten +
-			r.ApprovedProvinsi + r.RejectedProvinsi +
-			r.ApprovedPusat + r.RejectedPusat
-		// Pembagi pakai JumlahSubmit (submit+approve+reject+revoke, tidak termasuk open/draft),
-		// bukan FasihTotal — supaya assignment yang belum pernah disubmit sama sekali
-		// tidak ikut mengencerkan persentase verifikasi PML.
-		if r.JumlahSubmit > 0 {
-			r.PctTerverifikasi = math.Min(float64(r.Terverifikasi)*100/float64(r.JumlahSubmit), 100)
-		}
 		pmls = append(pmls, r)
+	}
+
+	pmlIDs := make([]int, len(pmls))
+	for i := range pmls {
+		pmlIDs[i] = pmls[i].ID
+	}
+	verifMap := queryPMLPrioritasVerifikasi(pmlIDs)
+	for i := range pmls {
+		v := verifMap[pmls[i].ID]
+		pmls[i].Terverifikasi = v.Terverifikasi
+		pmls[i].PctTerverifikasi = computePctProgres(metode, v.Terverifikasi, v.FasihTotal, v.TargetPrelist)
 	}
 	return pmls, pageInfo
 }
@@ -805,6 +822,56 @@ func fillPctSLSSelesai(ppls []PPLRow, metode string) {
 			r.PctSLSSelesai = math.Min(float64(doneSLS)*100/float64(totalSLS), 100)
 		}
 	}
+}
+
+type pmlPrioritasVerif struct {
+	Terverifikasi int
+	FasihTotal    int
+	TargetPrelist int
+}
+
+// queryPMLPrioritasVerifikasi menghitung "% Terverifikasi" PML dari SLS
+// PRIORITAS-nya saja (bukan semua SLS): numerator = approved+rejected+revoked
+// di semua level (Pengawas/Kabupaten/Provinsi/Pusat) khusus SLS prioritas;
+// pembagi = target Prelist awal SLS prioritas (metode Total/Prelist atau
+// Prelist/Prelist) atau Total assignment SLS prioritas (metode Total/Total)
+// — lihat computePctProgres. Sebelumnya pembaginya jumlah_submit semua SLS,
+// yang nggak nyambung kalau mau fokus ke progres SLS prioritas.
+func queryPMLPrioritasVerifikasi(pmlIDs []int) map[int]pmlPrioritasVerif {
+	result := make(map[int]pmlPrioritasVerif, len(pmlIDs))
+	if len(pmlIDs) == 0 {
+		return result
+	}
+	placeholders := make([]string, len(pmlIDs))
+	args := make([]interface{}, len(pmlIDs))
+	for i, id := range pmlIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+	rows, err := db.DB.Query(`
+		SELECT s.pml_id,
+		       COALESCE(SUM(p.fasih_approved_pengawas),0)+COALESCE(SUM(p.fasih_rejected_pengawas),0)+COALESCE(SUM(p.fasih_revoked_pengawas),0)+
+		       COALESCE(SUM(p.fasih_approved_kabupaten),0)+COALESCE(SUM(p.fasih_rejected_kabupaten),0)+
+		       COALESCE(SUM(p.fasih_approved_provinsi),0)+COALESCE(SUM(p.fasih_rejected_provinsi),0)+
+		       COALESCE(SUM(p.fasih_approved_pusat),0)+COALESCE(SUM(p.fasih_rejected_pusat),0),
+		       COALESCE(SUM(p.fasih_total),0), COALESCE(SUM(s.target_prelist_resmi),0)
+		FROM sls s
+		LEFT JOIN progress p ON p.sls_id = s.id
+		WHERE s.prioritas = 1 AND s.pml_id IN (`+strings.Join(placeholders, ",")+`)
+		GROUP BY s.pml_id`, args...)
+	if err != nil {
+		return result
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var pmlID int
+		var v pmlPrioritasVerif
+		if err := rows.Scan(&pmlID, &v.Terverifikasi, &v.FasihTotal, &v.TargetPrelist); err != nil {
+			continue
+		}
+		result[pmlID] = v
+	}
+	return result
 }
 
 var adminSLSSortCols = map[string]string{
