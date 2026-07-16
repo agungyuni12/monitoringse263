@@ -261,6 +261,12 @@ func normalizeMetode(m string) string {
 // computePctProgres TIDAK di-cap ke 100 — SLS/PPL/PML yang submit-nya
 // melebihi pembaginya (mis. ada assignment tambahan) harus tetap kelihatan
 // >100%, bukan keliatan "penuh" padahal aslinya lebih.
+//
+// Kalau target Prelist-nya 0 (belum ke-cover di data Rekap Prelist resmi —
+// lihat db/target_prelist_resmi_migration.sql), metode 2/3 fallback ke
+// Total/Total (bagi fasihTotal) alih-alih dipaksa 0%. Tanpa fallback ini,
+// SLS/PPL/PML yang sudah full progress tapi belum ke-assign target
+// resminya jadi keliatan 0% dan nggak pernah lolos ambang manapun.
 func computePctProgres(metode string, jumlahSubmit, fasihTotal, target int) float64 {
 	switch metode {
 	case MetodeTotalVsPrelist:
@@ -272,10 +278,10 @@ func computePctProgres(metode string, jumlahSubmit, fasihTotal, target int) floa
 			sisaBelum := math.Max(float64(fasihTotal-jumlahSubmit), 0)
 			return math.Max((float64(target)-sisaBelum)*100/float64(target), 0)
 		}
-	default: // MetodeTotalVsTotal
-		if fasihTotal > 0 {
-			return float64(jumlahSubmit) * 100 / float64(fasihTotal)
-		}
+	}
+	// MetodeTotalVsTotal, atau fallback saat target Prelist 0.
+	if fasihTotal > 0 {
+		return float64(jumlahSubmit) * 100 / float64(fasihTotal)
 	}
 	return 0
 }
@@ -294,14 +300,22 @@ func totalSortExprGeneric(metode, fasihTotalExpr, targetExpr string) string {
 // progresSortExprGeneric membangun ekspresi SQL sort utk kolom "progres", sesuai
 // metode yang dipilih. submitExpr/totalExpr/targetExpr adalah fragmen SQL yang
 // beda tergantung level (SLS: kolom mentah; Desa/Kec: SUM(...) aggregate).
+//
+// Kalau targetExpr (target Prelist) bernilai 0 — mis. SLS prioritas yang
+// belum ke-cover di data Rekap Prelist resmi — metode 2/3 fallback ke rasio
+// Total/Total (submitExpr/totalExpr) alih-alih dipaksa 0. Ini krusial utk
+// fillPctSLSSelesai ("Persentase SLS"): tanpa fallback ini, SLS yang
+// progresnya sudah >100% tapi belum punya target_prelist_resmi jadi
+// keliatan 0% dan nggak pernah lolos ambang 95%.
 func progresSortExprGeneric(metode, submitExpr, totalExpr, targetExpr string) string {
+	fallback := fmt.Sprintf("(CASE WHEN %s=0 THEN 0 ELSE %s/%s END)", totalExpr, submitExpr, totalExpr)
 	switch metode {
 	case MetodeTotalVsPrelist:
-		return fmt.Sprintf("(CASE WHEN %s=0 THEN 0 ELSE %s/%s END)", targetExpr, submitExpr, targetExpr)
+		return fmt.Sprintf("(CASE WHEN %s=0 THEN %s ELSE %s/%s END)", targetExpr, fallback, submitExpr, targetExpr)
 	case MetodePrelistVsPrelist:
-		return fmt.Sprintf("(CASE WHEN %s=0 THEN 0 ELSE (%s-GREATEST(%s-%s,0))/%s END)", targetExpr, targetExpr, totalExpr, submitExpr, targetExpr)
+		return fmt.Sprintf("(CASE WHEN %s=0 THEN %s ELSE (%s-GREATEST(%s-%s,0))/%s END)", targetExpr, fallback, targetExpr, totalExpr, submitExpr, targetExpr)
 	default:
-		return fmt.Sprintf("(CASE WHEN %s=0 THEN 0 ELSE %s/%s END)", totalExpr, submitExpr, totalExpr)
+		return fallback
 	}
 }
 
