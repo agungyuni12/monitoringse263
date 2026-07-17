@@ -16,7 +16,7 @@ DB table: keberadaan_usaha
   gate_label, assignment_status, synced_at
 """
 
-import os, time, json
+import os, time, json, random
 import pymysql
 from datetime import datetime, timezone, timedelta
 from playwright.sync_api import sync_playwright
@@ -37,8 +37,11 @@ DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "kelayu1998")
 DB_NAME = os.getenv("DB_NAME", "se2026")
 
-CHUNK_SIZE     = 5    # SLS per chunk sebelum re-login
-CHUNK_DELAY    = 5    # detik istirahat antar chunk
+CHUNK_SIZE     = 1    # SLS per chunk sebelum re-login — dibikin 1 (bukan batch besar)
+                       # supaya traffic-nya kurang "rapi"/predictable buat WAF, tiap SLS
+                       # langsung disimpan ke DB & re-login sebelum lanjut ke SLS berikutnya
+CHUNK_DELAY_MIN = 5    # jeda sebelum login berikutnya diacak (detik), bukan flat — lihat
+CHUNK_DELAY_MAX = 15   # CHUNK_SIZE=1 di atas: makin gak beraturan, makin gak kayak bot
 REQUEST_DELAY  = 0.4  # detik jeda antar request detail assignment (sequential — lihat
                        # _page_fetch_one: Promise.all/batch concurrent kena block WAF F5,
                        # walau cuma 5 sekaligus, jadi detail assignment diambil satu-satu)
@@ -582,8 +585,9 @@ def run_once():
             _save_progress(conn, next_start)
 
             if next_start < total_sls:
-                print(f"  [jeda {CHUNK_DELAY}s]", flush=True)
-                time.sleep(CHUNK_DELAY)
+                delay = random.uniform(CHUNK_DELAY_MIN, CHUNK_DELAY_MAX)
+                print(f"  [jeda {delay:.1f}s]", flush=True)
+                time.sleep(delay)
 
         browser.close()
 

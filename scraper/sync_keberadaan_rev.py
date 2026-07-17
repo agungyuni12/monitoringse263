@@ -5,7 +5,7 @@ Dijalankan paralel di laptop supaya ketemu di tengah.
 Progress disimpan di DB dengan job='keberadaan_rev'.
 """
 
-import os, time, json
+import os, time, json, random
 import pymysql
 from datetime import datetime, timezone, timedelta
 from playwright.sync_api import sync_playwright
@@ -25,8 +25,9 @@ DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "kelayu1998")
 DB_NAME = os.getenv("DB_NAME", "se2026")
 
-CHUNK_SIZE    = 5
-CHUNK_DELAY   = 5
+CHUNK_SIZE      = 1    # 1 SLS per re-login — lihat sync_keberadaan.py untuk alasannya
+CHUNK_DELAY_MIN = 5     # jeda sebelum login berikutnya diacak (detik), bukan flat
+CHUNK_DELAY_MAX = 15
 REQUEST_DELAY = 0.4  # detik jeda antar request detail assignment (sequential — lihat
                       # _page_fetch_one: Promise.all/batch concurrent kena block WAF F5)
 JOB_NAME      = "keberadaan_rev"
@@ -532,8 +533,9 @@ def run_once():
             next_start = chunk_start - CHUNK_SIZE
             if next_start >= 0:
                 _save_progress(conn, next_start)
-                print(f"  [jeda {CHUNK_DELAY}s]", flush=True)
-                time.sleep(CHUNK_DELAY)
+                delay = random.uniform(CHUNK_DELAY_MIN, CHUNK_DELAY_MAX)
+                print(f"  [jeda {delay:.1f}s]", flush=True)
+                time.sleep(delay)
 
         browser.close()
 
