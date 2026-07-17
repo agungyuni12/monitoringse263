@@ -226,49 +226,53 @@ def _page_fetch(page, url):
         return None
 
 
-def _page_fetch_batch(page, urls):
-    """HTTP 429 (rate limit FASIH — gampang kena kalau sync_keberadaan.py &
-    sync_keberadaan_rev.py jalan bersamaan) di-retry dengan backoff di sisi JS
-    dulu sebelum menyerah. Kalau tetap gagal, hasil per-URL diisi
-    {"__fetch_error": "<alasan>"} — bukan None diam-diam — supaya caller bisa log
-    kenapa gagalnya (HTTP error/timeout/exception).
-
-    Tiap request di-stagger (jeda start bertahap per index) supaya batch tidak
-    membentur rate limiter FASIH sebagai satu burst instan, dan delay backoff-nya
-    diberi jitter acak supaya request-request yang sama-sama kena 429 tidak
-    retry berbarengan lagi di percobaan berikutnya (dulu delay-nya deterministik,
-    jadi seluruh batch retry di detik yang sama persis → kena 429 lagi sekaligus)."""
-    urls_js = json.dumps(urls)
+def _page_fetch_one(page, url):
+    """Fetch SATU URL, sequential (bukan Promise.all/batch) — WAF F5 FASIH
+    mendeteksi fetch() konkuren dari page yang sama sebagai bot, meskipun cuma
+    5 sekaligus, dan diam-diam membalas HTTP 200 berisi HTML block-page alih-alih
+    JSON (bukan 429 — makanya gak ketangkap pengecekan status). Jadi tiap
+    assignment diambil satu-satu di sisi Python (lihat REQUEST_DELAY), dan di sini
+    responsenya dicek content-type-nya juga, bukan cuma r.ok, supaya block-page
+    ketahuan dan di-retry dengan backoff (bukan gagal diam-diam / exception mentah).
+    Hasil gagal diisi {"__fetch_error": "<alasan>"} supaya caller bisa log alasannya."""
     try:
         return page.evaluate(f"""async () => {{
-            const urls = {urls_js};
-            async function fetchWithRetry(u, idx, maxRetries=5, baseDelay=1500) {{
-                await new Promise(res => setTimeout(res, idx * 350));
-                for (let attempt = 0; attempt <= maxRetries; attempt++) {{
-                    try {{
-                        const r = await fetch(u, {{credentials:'include'}});
-                        if (r.ok) return await r.json();
-                        if (r.status === 429 && attempt < maxRetries) {{
+            const maxRetries = 5, baseDelay = 1500;
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {{
+                try {{
+                    const r = await fetch('{url}', {{credentials:'include'}});
+                    if (r.status === 429) {{
+                        if (attempt < maxRetries) {{
                             const retryAfter = parseFloat(r.headers.get('Retry-After'));
                             const jitter = 0.5 + Math.random();
                             const delay = retryAfter > 0 ? retryAfter * 1000 : baseDelay * Math.pow(2, attempt) * jitter;
                             await new Promise(res => setTimeout(res, delay));
                             continue;
                         }}
-                        return {{__fetch_error: 'HTTP ' + r.status}};
-                    }} catch (e) {{
+                        return {{__fetch_error: 'HTTP 429'}};
+                    }}
+                    if (!r.ok) return {{__fetch_error: 'HTTP ' + r.status}};
+                    const ct = r.headers.get('content-type') || '';
+                    if (!ct.includes('application/json')) {{
                         if (attempt < maxRetries) {{
-                            await new Promise(res => setTimeout(res, baseDelay * (0.5 + Math.random())));
+                            const jitter = 0.5 + Math.random();
+                            await new Promise(res => setTimeout(res, baseDelay * Math.pow(2, attempt) * jitter));
                             continue;
                         }}
-                        return {{__fetch_error: String(e)}};
+                        return {{__fetch_error: 'Blocked (non-JSON, content-type: ' + ct + ')'}};
                     }}
+                    return await r.json();
+                }} catch (e) {{
+                    if (attempt < maxRetries) {{
+                        await new Promise(res => setTimeout(res, baseDelay * (0.5 + Math.random())));
+                        continue;
+                    }}
+                    return {{__fetch_error: String(e)}};
                 }}
             }}
-            return await Promise.all(urls.map((u, idx) => fetchWithRetry(u, idx)));
         }}""")
     except Exception as e:
-        return [{"__fetch_error": f"batch exception: {e}"}] * len(urls)
+        return {"__fetch_error": f"fetch exception: {e}"}
 
 
 def fetch_assignments_per_sls(page, kode_sls):
@@ -355,11 +359,14 @@ def _parse_assignment(raw_r):
 
 
 def fetch_keberadaan_batch(page, assignment_ids):
-    base    = f"{FASIH_URL}/app/api/assignment-general/api/assignment/get-by-assignment-id?assignmentId="
-    urls    = [base + aid for aid in assignment_ids]
-    results = _page_fetch_batch(page, urls)
+    """Fetch keberadaan SATU-SATU (sequential, lihat _page_fetch_one — Promise.all/
+    batch konkuren kena block WAF F5 walau kecil)."""
+    base = f"{FASIH_URL}/app/api/assignment-general/api/assignment/get-by-assignment-id?assignmentId="
     parsed = []
-    for aid, r in zip(assignment_ids, results):
+    for i, aid in enumerate(assignment_ids):
+        if i > 0:
+            time.sleep(REQUEST_DELAY)
+        r = _page_fetch_one(page, base + aid)
         if isinstance(r, dict) and "__fetch_error" in r:
             print(f"      [FETCH FAIL] {aid[:8]}… : {r['__fetch_error']}", flush=True)
             parsed.append((None, None, None, None, f"Gagal: {r['__fetch_error']}"))
@@ -430,32 +437,28 @@ def run_once():
             chunk_ok   = 0
             chunk_null = 0
             if pending:
-                for start in range(0, len(pending), BATCH_SIZE):
-                    if start > 0:
-                        time.sleep(BATCH_DELAY)
-                    batch           = pending[start : start + BATCH_SIZE]
-                    ids             = [a["assignment_id"] for a in batch]
-                    keberadaan_list = fetch_keberadaan_batch(page, ids)
-                    for asgn, (kode, label, gate_label, assignment_status, sync_keterangan) in zip(batch, keberadaan_list):
-                        if kode is None and label is None and gate_label is None:
-                            null_count += 1
-                            chunk_null += 1
-                        else:
-                            ok       += 1
-                            chunk_ok += 1
-                        upsert_keberadaan(
-                            conn,
-                            sls_id            = asgn["sls_id"],
-                            assignment_id     = asgn["assignment_id"],
-                            nama              = asgn["nama"],
-                            skala_usaha       = asgn["skala_usaha"],
-                            kode              = kode,
-                            label             = label,
-                            gate_label        = gate_label,
-                            assignment_status = assignment_status,
-                            synced_at         = synced_at,
-                            sync_keterangan   = sync_keterangan,
-                        )
+                ids             = [a["assignment_id"] for a in pending]
+                keberadaan_list = fetch_keberadaan_batch(page, ids)
+                for asgn, (kode, label, gate_label, assignment_status, sync_keterangan) in zip(pending, keberadaan_list):
+                    if kode is None and label is None and gate_label is None:
+                        null_count += 1
+                        chunk_null += 1
+                    else:
+                        ok       += 1
+                        chunk_ok += 1
+                    upsert_keberadaan(
+                        conn,
+                        sls_id            = asgn["sls_id"],
+                        assignment_id     = asgn["assignment_id"],
+                        nama              = asgn["nama"],
+                        skala_usaha       = asgn["skala_usaha"],
+                        kode              = kode,
+                        label             = label,
+                        gate_label        = gate_label,
+                        assignment_status = assignment_status,
+                        synced_at         = synced_at,
+                        sync_keterangan   = sync_keterangan,
+                    )
                 total_asgn += len(pending)
 
             print(f"  → simpan {len(pending)} asgn | ok={chunk_ok} null={chunk_null} | total ok={ok}", flush=True)
