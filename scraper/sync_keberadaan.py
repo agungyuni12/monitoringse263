@@ -43,6 +43,19 @@ REQUEST_DELAY  = 0.4  # detik jeda antar request detail assignment (sequential �
                        # _page_fetch_one: Promise.all/batch concurrent kena block WAF F5,
                        # walau cuma 5 sekaligus, jadi detail assignment diambil satu-satu)
 
+# Cooldown kalau kena block bertubi-tubi — terbukti dari log: sequential SATU
+# proses SENDIRIAN pun akhirnya diblokir setelah ~1177 request kumulatif (bukan
+# soal tabrakan sesama proses/burst), jadi WAF FASIH kemungkinan menghitung
+# volume request per sesi/IP dalam rentang waktu, bukan cuma laju sesaat. Kalau
+# gagal beruntun COOLDOWN_FAIL_THRESHOLD kali, itu tanda sedang diblokir massal
+# (bukan gagal acak) — berhenti nge-gas requestnya & kasih jeda panjang dulu,
+# supaya rentang waktu WAF-nya sempat reset, daripada ngotot nembak sisa batch
+# yang sudah pasti gagal semua.
+COOLDOWN_FAIL_THRESHOLD = 5    # kegagalan berturut-turut sebelum dianggap "lagi diblokir"
+COOLDOWN_BASE_SECONDS   = 90   # jeda dasar tiap kali cooldown terpicu (makin sering, makin lama)
+COOLDOWN_MAX_CYCLES     = 3    # maksimal cooldown per batch — di atas ini, lanjut apa adanya
+                                # (biar gak nyangkut selamanya kalau memang lagi diblokir lama)
+
 WITA = timezone(timedelta(hours=8))
 
 
@@ -58,6 +71,27 @@ def _connect_db():
         password=DB_PASS, database=DB_NAME, charset="utf8mb4",
         cursorclass=pymysql.cursors.DictCursor
     )
+
+
+# Named lock MySQL (bukan lock tabel) supaya proses INI dan sync_keberadaan_rev.py
+# GANTIAN memakai koneksi ke FASIH — WAF FASIH nge-block berdasar IP sumber
+# gabungan kedua proses (login pakai akun BEDA tetap kena, karena bukan
+# per-akun/session, tapi per-IP), jadi request-nya sendiri yang harus dicegah
+# tabrakan, bukan cuma proses-nya yang dianggap "independen".
+FASIH_LOCK_NAME    = "fasih_fetch"
+FASIH_LOCK_TIMEOUT = 30  # detik nunggu giliran kalau proses lawan sedang pegang lock
+
+
+def _fasih_lock(conn):
+    with conn.cursor() as cur:
+        cur.execute("SELECT GET_LOCK(%s, %s) AS got", (FASIH_LOCK_NAME, FASIH_LOCK_TIMEOUT))
+        cur.fetchone()
+
+
+def _fasih_unlock(conn):
+    with conn.cursor() as cur:
+        cur.execute("SELECT RELEASE_LOCK(%s) AS released", (FASIH_LOCK_NAME,))
+        cur.fetchone()
 
 
 def ensure_table(conn):
@@ -227,7 +261,7 @@ def _page_fetch_one(page, url):
 
 # ── FASIH API ─────────────────────────────────────────────────────────────────
 
-def fetch_assignments_per_sls(page, kode_sls):
+def fetch_assignments_per_sls(page, kode_sls, conn):
     """
     Kembalikan list usaha assignments untuk satu SLS.
     Response: {"success":true,"data":[{"assignmentId":...,"data1":nama,"data6":skala_usaha},...]}
@@ -235,7 +269,11 @@ def fetch_assignments_per_sls(page, kode_sls):
     """
     url = (f"{FASIH_URL}/assignment-general/api/assignments"
            f"/get-principal-values-by-smallest-code/{FASIH_PERIOD_ID}/{kode_sls}")
-    raw = _page_fetch(page, url)
+    _fasih_lock(conn)
+    try:
+        raw = _page_fetch(page, url)
+    finally:
+        _fasih_unlock(conn)
     if not raw:
         return []
     items = raw.get("data") if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
@@ -331,24 +369,43 @@ def _parse_assignment(raw_r):
     return kode, label, gate_label, assignment_status
 
 
-def fetch_keberadaan_batch(page, assignment_ids):
+def fetch_keberadaan_batch(page, assignment_ids, conn):
     """
     Fetch keberadaan untuk banyak assignments SATU-SATU (sequential, lihat
     _page_fetch_one — Promise.all/batch konkuren kena block WAF F5 walau kecil).
+    Tiap request dibungkus _fasih_lock/_fasih_unlock supaya proses ini gantian
+    (bukan tabrakan) dengan sync_keberadaan_rev.py — WAF FASIH block berdasar IP
+    gabungan kedua proses, bukan per-akun/session.
     Return list of (kode, label, gate_label, assignment_status, sync_keterangan) sesuai
     urutan assignment_ids. sync_keterangan None kalau fetch sukses, diisi pesan error
     kalau fetch gagal (beda dari "kode/label None karena memang belum diisi").
     """
     base = f"{FASIH_URL}/app/api/assignment-general/api/assignment/get-by-assignment-id?assignmentId="
     parsed = []
+    consecutive_fail = 0
+    cooldown_cycles  = 0
     for i, aid in enumerate(assignment_ids):
         if i > 0:
             time.sleep(REQUEST_DELAY)
-        r = _page_fetch_one(page, base + aid)
+        _fasih_lock(conn)
+        try:
+            r = _page_fetch_one(page, base + aid)
+        finally:
+            _fasih_unlock(conn)
         if isinstance(r, dict) and "__fetch_error" in r:
             print(f"      [FETCH FAIL] {aid[:8]}… : {r['__fetch_error']}", flush=True)
             parsed.append((None, None, None, None, f"Gagal: {r['__fetch_error']}"))
+            consecutive_fail += 1
+            if consecutive_fail >= COOLDOWN_FAIL_THRESHOLD and cooldown_cycles < COOLDOWN_MAX_CYCLES:
+                cooldown_cycles += 1
+                wait = COOLDOWN_BASE_SECONDS * cooldown_cycles
+                print(f"      [COOLDOWN] {consecutive_fail} gagal berturut-turut (diduga kena "
+                      f"block massal) — jeda {wait}s (cycle {cooldown_cycles}/{COOLDOWN_MAX_CYCLES})",
+                      flush=True)
+                time.sleep(wait)
+                consecutive_fail = 0
         else:
+            consecutive_fail = 0
             kode, label, gate_label, assignment_status = _parse_assignment(r)
             parsed.append((kode, label, gate_label, assignment_status, None))
     return parsed
@@ -469,7 +526,7 @@ def run_once():
 
             for j, (kode_sls, sls_id) in enumerate(chunk):
                 global_i = chunk_start + j
-                items    = fetch_assignments_per_sls(page, kode_sls)
+                items    = fetch_assignments_per_sls(page, kode_sls, conn)
                 usaha    = [it for it in items if it.get("assignment_id")]
                 for it in usaha:
                     it["sls_id"] = sls_id
@@ -481,7 +538,7 @@ def run_once():
             chunk_null = 0
             if pending:
                 ids             = [a["assignment_id"] for a in pending]
-                keberadaan_list = fetch_keberadaan_batch(page, ids)
+                keberadaan_list = fetch_keberadaan_batch(page, ids, conn)
                 for asgn, (kode, label, gate_label, assignment_status, sync_keterangan) in zip(pending, keberadaan_list):
                     if kode is None and label is None and gate_label is None:
                         null_count += 1
