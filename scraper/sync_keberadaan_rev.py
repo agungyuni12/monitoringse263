@@ -25,11 +25,11 @@ DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "kelayu1998")
 DB_NAME = os.getenv("DB_NAME", "se2026")
 
-BATCH_SIZE  = 5    # kecil supaya gak langsung kena 429 (lihat _page_fetch_batch)
-CHUNK_SIZE  = 5
-CHUNK_DELAY = 5
-BATCH_DELAY = 1.5  # detik istirahat antar batch (dalam 1 chunk yang sama)
-JOB_NAME    = "keberadaan_rev"
+CHUNK_SIZE    = 5
+CHUNK_DELAY   = 5
+REQUEST_DELAY = 0.4  # detik jeda antar request detail assignment (sequential — lihat
+                      # _page_fetch_one: Promise.all/batch concurrent kena block WAF F5)
+JOB_NAME      = "keberadaan_rev"
 
 # Sentinel "sudah selesai satu putaran penuh" — dipakai supaya status "selesai"
 # beda dari "belum pernah jalan" (dulu keduanya sama-sama None karena barisnya
