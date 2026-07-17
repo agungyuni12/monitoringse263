@@ -37,9 +37,11 @@ DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "kelayu1998")
 DB_NAME = os.getenv("DB_NAME", "se2026")
 
-BATCH_SIZE    = 20   # assignment per Promise.all batch
+BATCH_SIZE    = 5    # assignment per Promise.all batch (kecil supaya gak langsung kena 429 —
+                      # lihat _page_fetch_batch, dulu 20 & FASIH nolak hampir semuanya sekaligus)
 CHUNK_SIZE    = 5    # SLS per chunk sebelum re-login
 CHUNK_DELAY   = 5    # detik istirahat antar chunk
+BATCH_DELAY   = 1.5  # detik istirahat antar batch (dalam 1 chunk yang sama)
 
 WITA = timezone(timedelta(hours=8))
 
@@ -180,33 +182,41 @@ def _page_fetch_batch(page, urls):
     sync_keberadaan_rev.py jalan bersamaan) di-retry dengan backoff di sisi JS
     dulu sebelum menyerah. Kalau tetap gagal, hasil per-URL diisi
     {"__fetch_error": "<alasan>"} — bukan None diam-diam — supaya caller bisa log
-    kenapa gagalnya (HTTP error/timeout/exception)."""
+    kenapa gagalnya (HTTP error/timeout/exception).
+
+    Tiap request di-stagger (jeda start bertahap per index) supaya batch tidak
+    membentur rate limiter FASIH sebagai satu burst instan, dan delay backoff-nya
+    diberi jitter acak supaya request-request yang sama-sama kena 429 tidak
+    retry berbarengan lagi di percobaan berikutnya (dulu delay-nya deterministik,
+    jadi seluruh batch retry di detik yang sama persis → kena 429 lagi sekaligus)."""
     urls_js = json.dumps(urls)
     try:
         return page.evaluate(f"""async () => {{
             const urls = {urls_js};
-            async function fetchWithRetry(u, maxRetries=4, baseDelay=2000) {{
+            async function fetchWithRetry(u, idx, maxRetries=5, baseDelay=1500) {{
+                await new Promise(res => setTimeout(res, idx * 350));
                 for (let attempt = 0; attempt <= maxRetries; attempt++) {{
                     try {{
                         const r = await fetch(u, {{credentials:'include'}});
                         if (r.ok) return await r.json();
                         if (r.status === 429 && attempt < maxRetries) {{
                             const retryAfter = parseFloat(r.headers.get('Retry-After'));
-                            const delay = retryAfter > 0 ? retryAfter * 1000 : baseDelay * Math.pow(2, attempt);
+                            const jitter = 0.5 + Math.random();
+                            const delay = retryAfter > 0 ? retryAfter * 1000 : baseDelay * Math.pow(2, attempt) * jitter;
                             await new Promise(res => setTimeout(res, delay));
                             continue;
                         }}
                         return {{__fetch_error: 'HTTP ' + r.status}};
                     }} catch (e) {{
                         if (attempt < maxRetries) {{
-                            await new Promise(res => setTimeout(res, baseDelay));
+                            await new Promise(res => setTimeout(res, baseDelay * (0.5 + Math.random())));
                             continue;
                         }}
                         return {{__fetch_error: String(e)}};
                     }}
                 }}
             }}
-            return await Promise.all(urls.map(u => fetchWithRetry(u)));
+            return await Promise.all(urls.map((u, idx) => fetchWithRetry(u, idx)));
         }}""")
     except Exception as e:
         return [{"__fetch_error": f"batch exception: {e}"}] * len(urls)
@@ -466,6 +476,8 @@ def run_once():
             chunk_null = 0
             if pending:
                 for start in range(0, len(pending), BATCH_SIZE):
+                    if start > 0:
+                        time.sleep(BATCH_DELAY)
                     batch           = pending[start : start + BATCH_SIZE]
                     ids             = [a["assignment_id"] for a in batch]
                     keberadaan_list = fetch_keberadaan_batch(page, ids)
