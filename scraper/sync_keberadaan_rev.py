@@ -81,8 +81,19 @@ def _fasih_unlock(conn):
 
 
 def load_sls_map(conn):
+    """Dibatasi ke SLS yang punya usaha BKU tidak ditemukan (coverage_usaha_keluarga,
+    kode_indikator 10247 'Jumlah Usaha Tidak Ditemukan (BKU)' > 0) — lihat
+    sync_keberadaan.py untuk detail."""
     with conn.cursor() as cur:
-        cur.execute("SELECT id, kode_sls FROM sls ORDER BY kode_sls")
+        cur.execute("""
+            SELECT s.id, s.kode_sls
+            FROM sls s
+            JOIN coverage_usaha_keluarga c
+              ON c.sls_id = s.id
+             AND c.kode_indikator = '10247'
+             AND c.total_value > 0
+            ORDER BY s.kode_sls
+        """)
         return [(r["kode_sls"], r["id"]) for r in cur.fetchall()]
 
 

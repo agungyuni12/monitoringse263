@@ -119,9 +119,18 @@ def ensure_table(conn):
 
 
 def load_sls_map(conn):
-    """kode_sls_16 → sls_id"""
+    """kode_sls_16 → sls_id — dibatasi ke SLS yang punya usaha BKU tidak ditemukan
+    (coverage_usaha_keluarga, kode_indikator 10247 'Jumlah Usaha Tidak Ditemukan
+    (BKU)' > 0) — itu yang perlu di-recheck keberadaannya, bukan semua SLS."""
     with conn.cursor() as cur:
-        cur.execute("SELECT id, kode_sls FROM sls")
+        cur.execute("""
+            SELECT s.id, s.kode_sls
+            FROM sls s
+            JOIN coverage_usaha_keluarga c
+              ON c.sls_id = s.id
+             AND c.kode_indikator = '10247'
+             AND c.total_value > 0
+        """)
         return {r["kode_sls"]: r["id"] for r in cur.fetchall()}
 
 
