@@ -187,7 +187,11 @@ def _make_browser(pw):
     return browser, ctx
 
 
-def login_fasih(ctx):
+LOGIN_MAX_RETRY   = 3
+LOGIN_RETRY_DELAY = 15  # detik jeda antar percobaan login
+
+
+def _do_login(ctx):
     page = ctx.new_page()
     _stealth.apply_stealth_sync(page)
     try:
@@ -206,8 +210,38 @@ def login_fasih(ctx):
         if "fasih-sm.bps.go.id" in u and "login" not in u and "oauth2" not in u:
             break
     time.sleep(3)
-    print(f"[FASIH] login OK → {page.url}")
+    print(f"[FASIH] login OK → {page.url}", flush=True)
     return page
+
+
+def login_fasih(browser):
+    """Coba login sampai LOGIN_MAX_RETRY kali. FASIH kadang timeout sesaat
+    (server lambat/anti-bot intermiten) — 1x gagal jangan langsung bikin
+    seluruh proses crash, apalagi dengan CHUNK_SIZE=1 sekarang login jauh lebih
+    sering terjadi. Context yang gagal ditutup dulu sebelum retry biar gak numpuk."""
+    last_err = None
+    for attempt in range(1, LOGIN_MAX_RETRY + 1):
+        ctx = browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1280, "height": 720},
+        )
+        try:
+            page = _do_login(ctx)
+            return page, ctx
+        except Exception as e:
+            last_err = e
+            try:
+                ctx.close()
+            except Exception:
+                pass
+            print(f"[FASIH] login gagal (percobaan {attempt}/{LOGIN_MAX_RETRY}): {e}", flush=True)
+            if attempt < LOGIN_MAX_RETRY:
+                print(f"  [jeda {LOGIN_RETRY_DELAY}s sebelum coba lagi]", flush=True)
+                time.sleep(LOGIN_RETRY_DELAY)
+    raise last_err
 
 
 def _page_fetch(page, url):
@@ -524,15 +558,8 @@ def run_once():
             chunk = sls_list[chunk_start : chunk_start + CHUNK_SIZE]
             print(f"\n[chunk {chunk_i+1}/{total_chunks}] Login...", flush=True)
 
-            # Context baru + login ulang tiap chunk
-            ctx  = browser.new_context(
-                user_agent=(
-                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-                ),
-                viewport={"width": 1280, "height": 720},
-            )
-            page = login_fasih(ctx)
+            # Context baru + login ulang tiap chunk (dengan retry — lihat login_fasih)
+            page, ctx = login_fasih(browser)
 
             pending = []  # kumpulkan semua assignment dari 5 SLS
 
