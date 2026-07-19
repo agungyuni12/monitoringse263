@@ -204,6 +204,7 @@ type fasihPageResp struct {
 }
 
 type fasihPencacah struct {
+	UserID        string `json:"userId"`
 	RegionSummary []struct {
 		RegionCode      string `json:"regionCode"`
 		StatusBreakdown []struct {
@@ -328,10 +329,19 @@ func doFasihSync() (int, error) {
 	totalPages := (totalPencacah + fasihPageSize - 1) / fasihPageSize
 	log.Printf("[FASIH] %d pencacah, %d halaman", totalPencacah, totalPages)
 
-	// Aggregate semua halaman
+	// Aggregate semua halaman. seenUserIDs mencegah satu pencacah dihitung dua
+	// kali — endpoint report-progress-by-responsibility ini tidak selalu
+	// stabil urutannya, jadi kalau ada aktivitas live (mis. Pengawas approve)
+	// selagi 24-an halaman ini di-scrape, satu pencacah bisa "geser" posisi
+	// dan muncul lagi di halaman lain, bikin regionSummary-nya (dan SLS yang
+	// dia pegang) ke-agregat dobel. Dikonfirmasi nyata: dibandingkan 2 dump
+	// DB berjarak ~20 jam, 313 dari 1659 SLS punya fasih_total persis 2x
+	// lipat — terlalu presisi buat pertumbuhan data asli.
 	agg := make(map[string]*slsAgg)
 	unknownStatuses := make(map[string]int)
-	processPencacah(first.Data.Content, agg, unknownStatuses)
+	seenUserIDs := make(map[string]bool)
+	dupCount := 0
+	processPencacah(first.Data.Content, agg, unknownStatuses, seenUserIDs, &dupCount)
 
 	for pg := 1; pg < totalPages; pg++ {
 		time.Sleep(300 * time.Millisecond)
@@ -340,9 +350,12 @@ func doFasihSync() (int, error) {
 			log.Printf("[FASIH] halaman %d error: %v (lanjut)", pg, err)
 			continue
 		}
-		processPencacah(page.Data.Content, agg, unknownStatuses)
+		processPencacah(page.Data.Content, agg, unknownStatuses, seenUserIDs, &dupCount)
 	}
 
+	if dupCount > 0 {
+		log.Printf("[FASIH] %d pencacah duplikat (muncul di >1 halaman) dilewati", dupCount)
+	}
 	log.Printf("[FASIH] %d SLS unik ditemukan", len(agg))
 	if len(unknownStatuses) > 0 {
 		// Status yang belum masuk submitStatuses/switch-case di atas — kalau FASIH
@@ -354,8 +367,15 @@ func doFasihSync() (int, error) {
 	return upsertProgress(agg)
 }
 
-func processPencacah(content []fasihPencacah, agg map[string]*slsAgg, unknownStatuses map[string]int) {
+func processPencacah(content []fasihPencacah, agg map[string]*slsAgg, unknownStatuses map[string]int, seenUserIDs map[string]bool, dupCount *int) {
 	for _, p := range content {
+		if p.UserID != "" {
+			if seenUserIDs[p.UserID] {
+				*dupCount++
+				continue
+			}
+			seenUserIDs[p.UserID] = true
+		}
 		for _, rs := range p.RegionSummary {
 			kode := rs.RegionCode
 			if !strings.HasPrefix(kode, "5205") {

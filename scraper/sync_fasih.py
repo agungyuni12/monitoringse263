@@ -278,11 +278,29 @@ def apply_status(a, status, cnt, unknown_statuses=None):
 
 
 def aggregate(all_content):
-    """Aggregate status per kode_sls (16-digit regionCode)."""
+    """Aggregate status per kode_sls (16-digit regionCode).
+
+    seen_user_ids mencegah satu pencacah dihitung dua kali — endpoint
+    report-progress-by-responsibility ini tidak selalu stabil urutannya,
+    jadi kalau ada aktivitas live (mis. Pengawas approve) selagi puluhan
+    halaman ini di-scrape, satu pencacah bisa "geser" posisi dan muncul lagi
+    di halaman lain, bikin regionSummary-nya (dan SLS yang dia pegang)
+    ke-agregat dobel. Dikonfirmasi nyata: dibandingkan 2 dump DB berjarak
+    ~20 jam, 313 dari 1659 SLS punya fasih_total persis 2x lipat — terlalu
+    presisi buat pertumbuhan data asli.
+    """
     sls_agg = defaultdict(_new_sls_agg)
     unknown_statuses = defaultdict(int)
+    seen_user_ids = set()
+    dup_count = 0
 
     for pencacah in all_content:
+        user_id = pencacah.get("userId")
+        if user_id:
+            if user_id in seen_user_ids:
+                dup_count += 1
+                continue
+            seen_user_ids.add(user_id)
         for rs in pencacah.get("regionSummary", []):
             kode = rs.get("regionCode", "")
             if not kode or not kode.startswith("5205"):
@@ -293,6 +311,8 @@ def aggregate(all_content):
                 cnt    = int(sb.get("count", 0))
                 apply_status(a, status, cnt, unknown_statuses)
 
+    if dup_count:
+        print(f"[AGGREGATE] {dup_count} pencacah duplikat (muncul di >1 halaman) dilewati", flush=True)
     print(f"[AGGREGATE] SLS unik: {len(sls_agg)}", flush=True)
     if unknown_statuses:
         print(f"[AGGREGATE] PERINGATAN: status belum dikenali (tidak masuk hitungan submit/approved): {dict(unknown_statuses)}", flush=True)
