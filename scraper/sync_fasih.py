@@ -153,7 +153,12 @@ def login(ctx):
     _human_type(active.locator("#password"), FASIH_PASS)
     _human_pause(0.3, 0.9)
     active.click("#kc-login")
-    active.wait_for_url("**fasih-sm.bps.go.id**", timeout=LONG)
+    try:
+        active.wait_for_url("**fasih-sm.bps.go.id**", timeout=LONG)
+    except Exception:
+        print(f"[LOGIN] wait_for_url timeout. URL saat ini: {active.url}", flush=True)
+        _check_bot_wall(active, "setelah submit kredensial")
+        raise
     print(f"[LOGIN] Redirect ke: {active.url}", flush=True)
     _check_bot_wall(active, "setelah login")
 
