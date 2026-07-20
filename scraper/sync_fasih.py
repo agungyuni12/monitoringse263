@@ -5,13 +5,11 @@ Endpoint: /analytic/api/v2/assignment/report-progress-by-responsibility
 Strategi: paginate 235 pencacah Dompu (5 halaman), aggregate per sub-SLS (16-digit),
           upsert ke tabel progress berdasarkan kode_sls.
 
-Verifikasi ground-truth utk status OPEN/DRAFT yang basi (STEP 2b versi lama)
-sudah DIPINDAH ke script terpisah: sync_fasih_verify_stale.py — jalan
-independen (jadwal sendiri, tiap 8 jam), TIDAK lagi menempel/memperlambat
-siklus sync 2-jam-an di sini. Script ini cuma baca cache hasil verifikasi
-itu (apply_verified_cache, dari tabel sync_state) tiap siklus, supaya
-koreksinya tidak ketimpa balik oleh aggregate() yang selalu baca ulang data
-mentah (mungkin masih basi) dari FASIH.
+Data yang dipakai di sini murni mentah dari FASIH (endpoint report-progress-
+by-responsibility bisa telat sinkron utk status OPEN/DRAFT — lihat docstring
+sync_fasih_verify_stale.py). Verifikasi ground-truth dijalankan terpisah,
+manual, lewat sync_fasih_verify_stale.py — hasilnya tidak lagi otomatis
+diterapkan balik ke sini.
 
 Env vars:
   FASIH_USER    (default: agung.yuniarta)
@@ -378,82 +376,6 @@ def aggregate(all_content):
     return sls_agg
 
 
-# === CACHE HASIL VERIFIKASI GROUND-TRUTH (dari sync_fasih_verify_stale.py) ===
-#
-# Verifikasi ground-truth status OPEN/DRAFT yang basi (bug ada di index
-# pencarian internal FASIH, lihat docstring sync_fasih_verify_stale.py) TIDAK
-# lagi dikerjakan di sini — proses itu lambat (rate-limited per-assignment)
-# dan sekarang jalan independen di script terpisah, jadwal sendiri (8 jam).
-#
-# Di sini kita cuma BACA hasil verifikasi itu (disimpan script satunya ke
-# tabel sync_state) dan terapkan ke sls_agg SEBELUM upload — supaya koreksi
-# ground-truth tidak ketimpa balik oleh aggregate() yang tiap siklus (2 jam)
-# selalu baca ulang data mentah (mungkin masih basi) dari FASIH. Cache
-# dianggap masih berlaku selama fasih_total SLS itu belum berubah (set
-# assignment-nya sama, cuma status yang tadinya lag); kalau fasih_total
-# berubah berarti ada perubahan nyata → entri cache itu dilewati begitu saja
-# (script verifikasi yang akan mendeteksi & verifikasi ulang di siklusnya).
-_verified_cache = {}  # kode_sls -> dict hasil agregat SLS yang sudah diverifikasi
-
-
-def apply_verified_cache(sls_agg):
-    """Timpa balik SLS di sls_agg dengan hasil verifikasi ground-truth yang
-    masih berlaku (fasih_total belum berubah sejak diverifikasi)."""
-    applied = 0
-    for kode, cached in _verified_cache.items():
-        fresh = sls_agg.get(kode)
-        if fresh is None or fresh["fasih_total"] != cached["fasih_total"]:
-            continue  # entri sudah berubah/tidak ada lagi — biarkan data fresh, jangan dipaksa cache lama
-        if fresh != cached:
-            sls_agg[kode] = dict(cached)
-            applied += 1
-    if applied:
-        print(f"[VERIFY-CACHE] {applied} SLS pakai hasil verifikasi ground-truth (dari sync_fasih_verify_stale.py)", flush=True)
-    return sls_agg
-
-
-def _connect_state_db():
-    return pymysql.connect(
-        host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASS,
-        database=DB_NAME, charset="utf8mb4", ssl={"ssl": False},
-    )
-
-
-def _ensure_sync_state_table(conn):
-    with conn.cursor() as cur:
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS sync_state (
-                job        VARCHAR(50) PRIMARY KEY,
-                state_json LONGTEXT NOT NULL,
-                updated_at DATETIME NOT NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        """)
-    conn.commit()
-
-
-def load_verify_state():
-    """Muat _verified_cache dari tabel sync_state (diisi sync_fasih_verify_stale.py)
-    — dipanggil tiap awal run_once() supaya selalu pakai koreksi ground-truth
-    TERBARU, termasuk yang baru saja ditulis proses verifikasi independen itu."""
-    global _verified_cache
-    try:
-        conn = _connect_state_db()
-        _ensure_sync_state_table(conn)
-        with conn.cursor() as cur:
-            cur.execute("SELECT state_json FROM sync_state WHERE job = 'fasih_verify'")
-            row = cur.fetchone()
-        conn.close()
-        if not row:
-            _verified_cache = {}
-            return
-        data = json.loads(row[0])
-        _verified_cache = data.get("cache") or {}
-        print(f"[VERIFY-STATE] dimuat dari DB: {len(_verified_cache)} SLS di cache", flush=True)
-    except Exception as e:
-        print(f"[VERIFY-STATE] gagal muat state dari DB ({e}), lanjut tanpa cache", flush=True)
-        _verified_cache = {}
-
-
 def apply_non_sls_override(sls_agg):
     """
     SLS "Non SLS" (area kosong seperti gunung/sawah/kebun/ladang tanpa usaha/
@@ -617,8 +539,6 @@ def run_once():
     print(f"SYNC FASIH → se2026  [{_now_wita():%Y-%m-%d %H:%M:%S} WITA]")
     print("="*50)
 
-    load_verify_state()  # ambil koreksi ground-truth terbaru dari sync_fasih_verify_stale.py
-
     with sync_playwright() as pw:
         browser, ctx = _make_browser(pw)
         try:
@@ -628,7 +548,6 @@ def run_once():
 
             print("\n[STEP 2] Aggregate per SLS...")
             sls_agg = aggregate(all_content)
-            sls_agg = apply_verified_cache(sls_agg)
         finally:
             browser.close()
 
