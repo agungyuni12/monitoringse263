@@ -23,7 +23,7 @@ Env vars:
   DB_NAME       (default: se2026)
 """
 
-import os, json, math, time
+import os, json, math, random, re, time
 from datetime import datetime, timedelta
 from collections import defaultdict
 import pymysql
@@ -75,8 +75,45 @@ def _make_browser(pw):
     ctx = browser.new_context(
         user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
         viewport={"width": 1280, "height": 720},
+        locale="id-ID",
+        timezone_id="Asia/Makassar",
+        extra_http_headers={"Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7"},
     )
     return browser, ctx
+
+
+def _human_pause(a=0.4, b=1.1):
+    time.sleep(random.uniform(a, b))
+
+
+def _human_mouse_wander(page, moves=3):
+    """Gerakkan mouse sedikit sebelum interaksi, biar gak terlihat instan/scripted."""
+    try:
+        w = page.viewport_size["width"]
+        h = page.viewport_size["height"]
+        for _ in range(moves):
+            page.mouse.move(random.randint(50, w - 50), random.randint(50, h - 50), steps=random.randint(5, 15))
+            time.sleep(random.uniform(0.08, 0.25))
+    except Exception:
+        pass
+
+
+def _human_type(locator, text):
+    locator.click()
+    _human_pause(0.15, 0.4)
+    locator.press_sequentially(text, delay=random.randint(60, 160))
+
+
+def _check_bot_wall(page, tag):
+    body = ""
+    try:
+        body = page.content()
+    except Exception:
+        pass
+    if "Bot Detected" in body or "sistem kami mendeteksi koneksi anda sebagai bot" in body:
+        m = re.search(r"BOT-\d+", body)
+        code = m.group(0) if m else "?"
+        raise RuntimeError(f"Diblokir bot-detection BPS di tahap '{tag}' (kode {code})")
 
 
 def login(ctx):
@@ -93,6 +130,7 @@ def login(ctx):
     except Exception:
         pass
     print(f"[LOGIN] URL setelah challenge: {page.url}", flush=True)
+    _check_bot_wall(page, "challenge")
 
     active = page
     if page.url in ("about:blank", ""):
@@ -100,17 +138,24 @@ def login(ctx):
         active = ctx.new_page()
         _stealth.apply_stealth_sync(active)
 
+    _human_pause(0.6, 1.4)
     print("[LOGIN] Navigasi ulang ke SSO...", flush=True)
     active.goto(f"{BASE_URL}/oauth2/authorization/ics", wait_until="networkidle", timeout=LONG)
     print(f"[LOGIN] URL: {active.url}", flush=True)
+    _check_bot_wall(active, "navigasi SSO")
 
     active.wait_for_selector("#kc-form-login", timeout=LONG)
     print("[LOGIN] Form login ditemukan.", flush=True)
-    active.fill("#username", FASIH_USER)
-    active.fill("#password", FASIH_PASS)
+    _human_mouse_wander(active)
+    _human_pause(0.3, 0.8)
+    _human_type(active.locator("#username"), FASIH_USER)
+    _human_pause(0.2, 0.6)
+    _human_type(active.locator("#password"), FASIH_PASS)
+    _human_pause(0.3, 0.9)
     active.click("#kc-login")
     active.wait_for_url("**fasih-sm.bps.go.id**", timeout=LONG)
     print(f"[LOGIN] Redirect ke: {active.url}", flush=True)
+    _check_bot_wall(active, "setelah login")
 
     cookies = ctx.cookies()
     xsrf = next((c["value"] for c in cookies if c["name"] == "XSRF-TOKEN"), "")
