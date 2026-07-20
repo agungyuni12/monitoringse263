@@ -51,16 +51,24 @@ var pplTableSortCols = map[string]string{
 	"sync":     "p.fasih_synced_at",
 }
 
-func pplQueryList(userID, page int, sort, dir string) ([]models.SLSProgress, string, string, error) {
+func pplQueryList(userID, page int, sort, dir, q string) ([]models.SLSProgress, string, string, error) {
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, pplTableSortCols, "s.kode_kec, s.kode_desa, s.kode_sls")
 	offset := (page - 1) * models.PerPage
+	where := `WHERE s.ppl_id = ?`
+	args := []interface{}{userID}
+	if q != "" {
+		like := "%" + q + "%"
+		where += ` AND (s.nama_sls LIKE ? OR s.nama_desa LIKE ? OR s.nama_kec LIKE ?)`
+		args = append(args, like, like, like)
+	}
+	args = append(args, models.PerPage, offset)
 	rows, err := db.DB.Query(`
 		SELECT `+laporanCols+`
 		FROM sls s
 		LEFT JOIN progress p ON p.sls_id = s.id
-		WHERE s.ppl_id = ?
+		`+where+`
 		`+orderBy+`
-		LIMIT ? OFFSET ?`, userID, models.PerPage, offset)
+		LIMIT ? OFFSET ?`, args...)
 	if err != nil {
 		return nil, sortCol, sortDir, err
 	}
@@ -105,7 +113,7 @@ func PPLDashboard(c echo.Context) error {
 	var totalRow int
 	db.DB.QueryRow("SELECT COUNT(*) FROM sls WHERE ppl_id=?", userID).Scan(&totalRow)
 
-	list, _, _, err := pplQueryList(userID, page, "", "")
+	list, _, _, err := pplQueryList(userID, page, "", "", "")
 	if err != nil {
 		return err
 	}
@@ -170,17 +178,32 @@ func PPLTable(c echo.Context) error {
 	}
 	sort := c.QueryParam("sort")
 	dir := c.QueryParam("dir")
-	var totalRow int
-	db.DB.QueryRow("SELECT COUNT(*) FROM sls WHERE ppl_id=?", userID).Scan(&totalRow)
+	q := c.QueryParam("q")
 
-	list, sortCol, sortDir, err := pplQueryList(userID, page, sort, dir)
+	extra := ""
+	if q != "" {
+		extra = "&q=" + q
+	}
+
+	var totalRow int
+	if q != "" {
+		like := "%" + q + "%"
+		db.DB.QueryRow(`
+			SELECT COUNT(*) FROM sls s
+			WHERE s.ppl_id=? AND (s.nama_sls LIKE ? OR s.nama_desa LIKE ? OR s.nama_kec LIKE ?)`,
+			userID, like, like, like).Scan(&totalRow)
+	} else {
+		db.DB.QueryRow("SELECT COUNT(*) FROM sls WHERE ppl_id=?", userID).Scan(&totalRow)
+	}
+
+	list, sortCol, sortDir, err := pplQueryList(userID, page, sort, dir, q)
 	if err != nil {
 		return err
 	}
-	pageInfo := models.NewPageInfo(page, totalRow, "/ppl/table", "ppl-table-wrap", models.SortQueryString(sortCol, sortDir))
+	pageInfo := models.NewPageInfo(page, totalRow, "/ppl/table", "ppl-table-wrap", extra+models.SortQueryString(sortCol, sortDir))
 	pageInfo.Sort = sortCol
 	pageInfo.Dir = sortDir
-	pageInfo.FilterExtra = ""
+	pageInfo.FilterExtra = extra
 
 	return c.Render(http.StatusOK, "ppl_table.html", map[string]interface{}{
 		"List": list,
