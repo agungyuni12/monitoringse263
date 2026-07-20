@@ -46,6 +46,7 @@ SURVEY_ID = "a0429e96-51a5-477b-a415-485f9c153004"
 PERIOD_ID = "fd68e454-ba45-4b85-8205-f3bf777ded24"
 
 PENCACAH_ROLE_ID = "6d7d919a-45e5-4779-bb87-2905b49fd31a"
+PENGAWAS_ROLE_ID = "93bcf446-c4c1-4462-8ed0-4b0f7ae89e52"
 DOMPU_REGION2_ID = "546a26bf-e388-41ab-9083-e02cbbc093d4"
 
 # Status yang dihitung sebagai "submit"
@@ -187,10 +188,10 @@ def _make_session(ctx):
     return session
 
 
-def fetch_page(session, xsrf, page_num, retries=3):
+def fetch_page(session, xsrf, page_num, role_id=PENCACAH_ROLE_ID, retries=3):
     payload = {
         "surveyPeriodId": PERIOD_ID,
-        "surveyRoleId":   PENCACAH_ROLE_ID,
+        "surveyRoleId":   role_id,
         "size":   PAGE_SIZE,
         "page":   page_num,
         "search": "",
@@ -245,21 +246,21 @@ def fetch_page(session, xsrf, page_num, retries=3):
     return [], 0
 
 
-def _scrape_pass(session, xsrf, label):
+def _scrape_pass(session, xsrf, label, role_id=PENCACAH_ROLE_ID):
     print(f"[SCRAPE] ({label}) Mengambil halaman 1...", flush=True)
-    content0, total = fetch_page(session, xsrf, 0)
+    content0, total = fetch_page(session, xsrf, 0, role_id=role_id)
     if not total and not content0:
         raise RuntimeError("Tidak ada data dari FASIH")
     if not total:
         total = len(content0)
 
     pages = max(1, math.ceil(total / PAGE_SIZE))
-    print(f"[SCRAPE] ({label}) Total pencacah: {total} | Halaman: {pages}", flush=True)
+    print(f"[SCRAPE] ({label}) Total: {total} | Halaman: {pages}", flush=True)
 
     all_content = list(content0)
     if pages > 1:
         with ThreadPoolExecutor(max_workers=PAGE_WORKERS) as pool:
-            futures = {pool.submit(fetch_page, session, xsrf, pg): pg for pg in range(1, pages)}
+            futures = {pool.submit(fetch_page, session, xsrf, pg, role_id): pg for pg in range(1, pages)}
             done = 0
             for fut in as_completed(futures):
                 c, _ = fut.result()
@@ -267,40 +268,58 @@ def _scrape_pass(session, xsrf, label):
                 done += 1
                 print(f"  ({label}) Halaman selesai: {done}/{pages - 1}...", flush=True)
 
-    print(f"[SCRAPE] ({label}) Total pencacah diambil: {len(all_content)}", flush=True)
+    print(f"[SCRAPE] ({label}) Total diambil: {len(all_content)}", flush=True)
     return all_content
 
 
 def scrape_all(ctx, xsrf):
-    """Scrape 2 pass lalu digabung (union) — endpoint report-progress-by-
-    responsibility live/berubah selagi di-scrape (lihat docstring aggregate()),
-    jadi satu pencacah bisa kelewat total di satu pass. Peluang kelewat di
-    KEDUA pass jauh lebih kecil, jadi gabungan 2 pass mendekati cakupan penuh.
-    Dedup akhir tetap ditangani aggregate() lewat seen_user_ids.
+    """Scrape role Pencacah 2 pass lalu digabung (union) — endpoint report-
+    progress-by-responsibility live/berubah selagi di-scrape (lihat docstring
+    aggregate()), jadi satu pencacah bisa kelewat total di satu pass. Peluang
+    kelewat di KEDUA pass jauh lebih kecil, jadi gabungan 2 pass mendekati
+    cakupan penuh. Dedup akhir tetap ditangani aggregate() lewat seen_user_ids.
 
     Pass 2 TIDAK BOLEH bikin seluruh sync gagal kalau dia gagal (mis. masih
     kena rate-limit 429 sisa dari pass 1) — dikonfirmasi nyata: rate-limit
     FASIH bisa bertahan sampai nge-block request pertama pass 2. Kalau itu
-    terjadi, cukup pakai hasil pass 1 saja drpd bikin 0 SLS ke-upload."""
+    terjadi, cukup pakai hasil pass 1 saja drpd bikin 0 SLS ke-upload.
+
+    Tambahan scrape role Pengawas: assignment yang statusnya sudah "naik"
+    ke tanggung jawab Pengawas (submit/reject menunggu review) TIDAK muncul
+    sama sekali di query role Pencacah — bukan soal kelewat scrape, tapi
+    memang difilter keluar (dikonfirmasi manual lewat endpoint datatable-all-
+    user-survey-periode utk salah satu SLS yang hilang). Satu assignment cuma
+    "active" di SATU role pada satu waktu, jadi gabungan Pencacah+Pengawas
+    saling melengkapi (bukan dobel hitung)."""
     session = _make_session(ctx)
 
-    pass1 = _scrape_pass(session, xsrf, "pass 1/2")
+    pass1 = _scrape_pass(session, xsrf, "pencacah pass 1/2", role_id=PENCACAH_ROLE_ID)
 
     print("[SCRAPE] Jeda 20 detik sebelum pass 2 (kasih waktu rate-limit reset)...", flush=True)
     time.sleep(20)
 
     try:
-        pass2 = _scrape_pass(session, xsrf, "pass 2/2")
+        pass2 = _scrape_pass(session, xsrf, "pencacah pass 2/2", role_id=PENCACAH_ROLE_ID)
     except Exception as e:
-        print(f"[SCRAPE] pass 2 gagal ({e}), lanjut pakai hasil pass 1 saja", flush=True)
-        return pass1
+        print(f"[SCRAPE] pencacah pass 2 gagal ({e}), lanjut pakai hasil pass 1 saja", flush=True)
+        pass2 = []
 
     combined = pass1 + pass2
     ids_pass1 = {p.get("userId") for p in pass1 if p.get("userId")}
     ids_pass2 = {p.get("userId") for p in pass2 if p.get("userId")}
     tambahan = len(ids_pass2 - ids_pass1)
     if tambahan:
-        print(f"[SCRAPE] pass 2 menambahkan {tambahan} pencacah yang kelewat di pass 1", flush=True)
+        print(f"[SCRAPE] pencacah pass 2 menambahkan {tambahan} yang kelewat di pass 1", flush=True)
+
+    print("[SCRAPE] Jeda 20 detik sebelum scrape role Pengawas...", flush=True)
+    time.sleep(20)
+
+    try:
+        pengawas = _scrape_pass(session, xsrf, "pengawas", role_id=PENGAWAS_ROLE_ID)
+        combined += pengawas
+        print(f"[SCRAPE] role Pengawas menambahkan {len(pengawas)} entri (assignment yang sudah naik status)", flush=True)
+    except Exception as e:
+        print(f"[SCRAPE] scrape role Pengawas gagal ({e}), lanjut tanpa data ini", flush=True)
 
     return combined
 
