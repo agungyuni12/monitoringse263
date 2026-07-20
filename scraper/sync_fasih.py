@@ -46,7 +46,6 @@ SURVEY_ID = "a0429e96-51a5-477b-a415-485f9c153004"
 PERIOD_ID = "fd68e454-ba45-4b85-8205-f3bf777ded24"
 
 PENCACAH_ROLE_ID = "6d7d919a-45e5-4779-bb87-2905b49fd31a"
-PENGAWAS_ROLE_ID = "93bcf446-c4c1-4462-8ed0-4b0f7ae89e52"
 DOMPU_REGION2_ID = "546a26bf-e388-41ab-9083-e02cbbc093d4"
 
 # Status yang dihitung sebagai "submit"
@@ -273,55 +272,105 @@ def _scrape_pass(session, xsrf, label, role_id=PENCACAH_ROLE_ID):
 
 
 def scrape_all(ctx, xsrf):
-    """Scrape role Pencacah 2 pass lalu digabung (union) — endpoint report-
-    progress-by-responsibility live/berubah selagi di-scrape (lihat docstring
-    aggregate()), jadi satu pencacah bisa kelewat total di satu pass. Peluang
-    kelewat di KEDUA pass jauh lebih kecil, jadi gabungan 2 pass mendekati
-    cakupan penuh. Dedup akhir tetap ditangani aggregate() lewat seen_user_ids.
-
-    Pass 2 TIDAK BOLEH bikin seluruh sync gagal kalau dia gagal (mis. masih
-    kena rate-limit 429 sisa dari pass 1) — dikonfirmasi nyata: rate-limit
-    FASIH bisa bertahan sampai nge-block request pertama pass 2. Kalau itu
-    terjadi, cukup pakai hasil pass 1 saja drpd bikin 0 SLS ke-upload.
-
-    Tambahan scrape role Pengawas: assignment yang statusnya sudah "naik"
-    ke tanggung jawab Pengawas (submit/reject menunggu review) TIDAK muncul
-    sama sekali di query role Pencacah — bukan soal kelewat scrape, tapi
-    memang difilter keluar (dikonfirmasi manual lewat endpoint datatable-all-
-    user-survey-periode utk salah satu SLS yang hilang). Satu assignment cuma
-    "active" di SATU role pada satu waktu, jadi gabungan Pencacah+Pengawas
-    saling melengkapi (bukan dobel hitung)."""
+    """Scrape role Pencacah SEKALI (bukan multi-pass/multi-role lagi — itu
+    malah menggandakan total request dan terbukti bikin 429 makin sering
+    kena, hasilnya lebih jelek drpd single pass biasa). Gap yang tersisa
+    (kelewat krn reorder live, ATAU assignment lagi di tangan Pengawas, ATAU
+    index ringkasan telat sync — tiga penyebab berbeda yang sempat diselidiki
+    satu-satu) semuanya ditutup lewat SATU mekanisme yang sama & jauh lebih
+    hemat request: fallback per-SLS via datatable-all-user-survey-periode,
+    lihat fill_missing_sls() — dipanggil dari run_once() stlh aggregate()."""
     session = _make_session(ctx)
+    return _scrape_pass(session, xsrf, "pencacah", role_id=PENCACAH_ROLE_ID)
 
-    pass1 = _scrape_pass(session, xsrf, "pencacah pass 1/2", role_id=PENCACAH_ROLE_ID)
 
-    print("[SCRAPE] Jeda 20 detik sebelum pass 2 (kasih waktu rate-limit reset)...", flush=True)
-    time.sleep(20)
-
+def get_all_kode_sls():
+    conn = pymysql.connect(
+        host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASS,
+        database=DB_NAME, charset="utf8mb4", ssl={"ssl": False},
+    )
     try:
-        pass2 = _scrape_pass(session, xsrf, "pencacah pass 2/2", role_id=PENCACAH_ROLE_ID)
-    except Exception as e:
-        print(f"[SCRAPE] pencacah pass 2 gagal ({e}), lanjut pakai hasil pass 1 saja", flush=True)
-        pass2 = []
+        with conn.cursor() as cur:
+            cur.execute("SELECT kode_sls FROM sls")
+            return {row[0] for row in cur.fetchall()}
+    finally:
+        conn.close()
 
-    combined = pass1 + pass2
-    ids_pass1 = {p.get("userId") for p in pass1 if p.get("userId")}
-    ids_pass2 = {p.get("userId") for p in pass2 if p.get("userId")}
-    tambahan = len(ids_pass2 - ids_pass1)
-    if tambahan:
-        print(f"[SCRAPE] pencacah pass 2 menambahkan {tambahan} yang kelewat di pass 1", flush=True)
 
-    print("[SCRAPE] Jeda 20 detik sebelum scrape role Pengawas...", flush=True)
-    time.sleep(20)
+def fetch_sls_assignments(session, xsrf, kode_sls, retries=2):
+    """Ambil status per-assignment langsung utk satu kode_sls lewat
+    datatable-all-user-survey-periode — dipakai sbg fallback ground-truth
+    utk SLS yang gak muncul di scrape utama, apapun sebabnya. Return None
+    kalau gagal total (caller harus skip, bukan anggap kosong)."""
+    payload = {
+        "draw": 1,
+        "columns": [{"data": c, "name": "", "searchable": True,
+                     "orderable": c not in ("id", "codeIdentity"),
+                     "search": {"value": "", "regex": False}}
+                    for c in ["id", "codeIdentity", "data1", "data2", "data3", "data4",
+                              "data5", "data6", "data7", "data8", "data9"]],
+        "order": [{"column": 0, "dir": "asc"}],
+        "start": 0, "length": 150,
+        "search": {"value": kode_sls, "regex": False},
+        "assignmentExtraParam": {
+            "region1Id": None, "region2Id": DOMPU_REGION2_ID, "region3Id": None, "region4Id": None,
+            "region5Id": None, "region6Id": None, "region7Id": None, "region8Id": None,
+            "region9Id": None, "region10Id": None,
+            "surveyPeriodId": PERIOD_ID, "assignmentErrorStatusType": -1,
+            "assignmentStatusAlias": None,
+            "data1": None, "data2": None, "data3": None, "data4": None, "data5": None,
+            "data6": None, "data7": None, "data8": None, "data9": None, "data10": None,
+            "userIdResponsibility": None, "currentUserId": None, "regionId": None,
+            "filterTargetType": "TARGET_ONLY",
+        },
+    }
+    hdrs = {
+        "Accept": "application/json, */*", "Content-Type": "application/json",
+        "X-XSRF-TOKEN": xsrf,
+        "Referer": f"{BASE_URL}/survey-collection/collect/{SURVEY_ID}", "Origin": BASE_URL,
+    }
+    for attempt in range(1, retries + 1):
+        try:
+            r = session.post(
+                f"{BASE_URL}/analytic/api/v2/assignment/datatable-all-user-survey-periode",
+                data=json.dumps(payload), headers=hdrs, timeout=30,
+            )
+            if r.status_code != 200:
+                if attempt < retries:
+                    time.sleep(5 * attempt)
+                    continue
+                return None
+            d = r.json()
+            records = d.get("searchData", []) or []
+            return [rec for rec in records if str(rec.get("codeIdentity", "")).startswith(kode_sls)]
+        except Exception:
+            if attempt < retries:
+                time.sleep(5 * attempt)
+    return None
 
-    try:
-        pengawas = _scrape_pass(session, xsrf, "pengawas", role_id=PENGAWAS_ROLE_ID)
-        combined += pengawas
-        print(f"[SCRAPE] role Pengawas menambahkan {len(pengawas)} entri (assignment yang sudah naik status)", flush=True)
-    except Exception as e:
-        print(f"[SCRAPE] scrape role Pengawas gagal ({e}), lanjut tanpa data ini", flush=True)
 
-    return combined
+def fill_missing_sls(ctx, xsrf, sls_agg, master_kode_set):
+    missing = sorted(master_kode_set - set(sls_agg.keys()))
+    if not missing:
+        return sls_agg
+    print(f"[FALLBACK] {len(missing)} SLS gak ketemu di scrape utama, cek satu-satu via datatable-all-user-survey-periode...", flush=True)
+    session = _make_session(ctx)
+    filled = gagal = 0
+    with ThreadPoolExecutor(max_workers=PAGE_WORKERS) as pool:
+        futures = {pool.submit(fetch_sls_assignments, session, xsrf, kode): kode for kode in missing}
+        for fut in as_completed(futures):
+            kode = futures[fut]
+            records = fut.result()
+            if records is None:
+                gagal += 1
+                continue
+            a = _new_sls_agg()
+            for rec in records:
+                apply_status(a, rec.get("assignmentStatusAlias", ""), 1)
+            sls_agg[kode] = a
+            filled += 1
+    print(f"[FALLBACK] {filled}/{len(missing)} SLS terisi lewat fallback ({gagal} gagal query)", flush=True)
+    return sls_agg
 
 
 def _new_sls_agg():
@@ -634,6 +683,9 @@ def run_once():
 
             print("\n[STEP 2] Aggregate per SLS...")
             sls_agg = aggregate(all_content)
+
+            master_kode_set = get_all_kode_sls()
+            sls_agg = fill_missing_sls(ctx, xsrf, sls_agg, master_kode_set)
         finally:
             browser.close()
 
