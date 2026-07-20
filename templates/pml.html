@@ -94,10 +94,6 @@
         class="tab-btn px-4 py-2 rounded-xl text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
         Anomali
       </button>
-      <button onclick="switchTab('keberadaan')" id="tab-keberadaan"
-        class="tab-btn px-4 py-2 rounded-xl text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
-        Keberadaan
-      </button>
       <button onclick="switchTab('progres-ppl')" id="tab-progres-ppl"
         class="tab-btn px-4 py-2 rounded-xl text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
         Progres PPL
@@ -111,6 +107,13 @@
           <div class="w-2 h-5 bg-se rounded-full"></div>
           <h2 class="font-semibold text-gray-800 dark:text-gray-100">Monitoring PPL</h2>
           <span class="text-xs text-gray-400 dark:text-gray-500 ml-auto">{{.Page.TotalRow}} SLS</span>
+        </div>
+        <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="pml-ringkasan-filter">
+          <input type="text" name="q"
+            hx-get="/pml/table" hx-target="#pml-table-wrap" hx-swap="innerHTML"
+            hx-trigger="input changed delay:400ms" hx-include="#pml-ringkasan-filter"
+            placeholder="Cari nama SLS, PPL, Desa, Kecamatan..."
+            class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"/>
         </div>
         <div id="pml-table-wrap">
           {{template "pml_table.html" .}}
@@ -163,42 +166,6 @@
         <div id="pml-anomali-result"
           hx-get="/pml/anomali" hx-trigger="load" hx-swap="innerHTML">
           <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat data anomali...</div>
-        </div>
-      </div>
-
-      <!-- TAB: Keberadaan -->
-      <div id="panel-keberadaan" class="tab-panel">
-        <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="pml-keberadaan-filter">
-          <input type="text" name="q"
-            hx-get="/pml/keberadaan" hx-target="#pml-keberadaan-result" hx-swap="innerHTML"
-            hx-trigger="input changed delay:400ms" hx-include="#pml-keberadaan-filter"
-            placeholder="Cari nama usaha..."
-            class="w-full md:w-56 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"/>
-          <select name="label"
-            hx-get="/pml/keberadaan" hx-target="#pml-keberadaan-result" hx-swap="innerHTML"
-            hx-trigger="change" hx-include="#pml-keberadaan-filter"
-            class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100">
-            <option value="">Semua Status</option>
-            <option value="Ditemukan">✅ Ditemukan</option>
-            <option value="Tidak Ditemukan">❌ Tidak Ditemukan</option>
-            <option value="Baru">🆕 Baru</option>
-            <option value="Tutup">🔒 Tutup</option>
-            <option value="Ganda">⚠️ Ganda</option>
-            <option value="Non Respon">🚫 Non Respon</option>
-          </select>
-          {{if .PPLList}}
-          <select name="ppl_id"
-            hx-get="/pml/keberadaan" hx-target="#pml-keberadaan-result" hx-swap="innerHTML"
-            hx-trigger="change" hx-include="#pml-keberadaan-filter"
-            class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100">
-            <option value="">Semua PPL</option>
-            {{range .PPLList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
-          </select>
-          {{end}}
-        </div>
-        <div id="pml-keberadaan-result"
-          hx-get="/pml/keberadaan" hx-trigger="load" hx-swap="innerHTML">
-          <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat data keberadaan...</div>
         </div>
       </div>
 

@@ -51,17 +51,25 @@ var pmlTableSortCols = map[string]string{
 	"rejected": "COALESCE(p.fasih_rejected_pengawas,0)",
 }
 
-func pmlQueryList(userID, page int, sort, dir string) ([]models.SLSProgress, string, string, error) {
+func pmlQueryList(userID, page int, sort, dir, q string) ([]models.SLSProgress, string, string, error) {
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, pmlTableSortCols, "s.kode_kec, s.kode_desa, u.name, s.kode_sls")
 	offset := (page - 1) * models.PerPage
+	where := `WHERE s.pml_id = ?`
+	args := []interface{}{userID}
+	if q != "" {
+		like := "%" + q + "%"
+		where += ` AND (s.nama_sls LIKE ? OR s.nama_desa LIKE ? OR s.nama_kec LIKE ? OR u.name LIKE ?)`
+		args = append(args, like, like, like, like)
+	}
+	args = append(args, models.PerPage, offset)
 	rows, err := db.DB.Query(`
 		SELECT `+verifCols+`
 		FROM sls s
 		JOIN users u ON u.id = s.ppl_id
 		LEFT JOIN progress p ON p.sls_id = s.id
-		WHERE s.pml_id = ?
+		`+where+`
 		`+orderBy+`
-		LIMIT ? OFFSET ?`, userID, models.PerPage, offset)
+		LIMIT ? OFFSET ?`, args...)
 	if err != nil {
 		return nil, sortCol, sortDir, err
 	}
@@ -196,7 +204,7 @@ func PMLDashboard(c echo.Context) error {
 	var totalRow int
 	db.DB.QueryRow("SELECT COUNT(*) FROM sls WHERE pml_id=?", userID).Scan(&totalRow)
 
-	list, _, _, err := pmlQueryList(userID, page, "", "")
+	list, _, _, err := pmlQueryList(userID, page, "", "", "")
 	if err != nil {
 		return err
 	}
@@ -266,17 +274,33 @@ func PMLTable(c echo.Context) error {
 	}
 	sort := c.QueryParam("sort")
 	dir := c.QueryParam("dir")
-	var totalRow int
-	db.DB.QueryRow("SELECT COUNT(*) FROM sls WHERE pml_id=?", userID).Scan(&totalRow)
+	q := c.QueryParam("q")
 
-	list, sortCol, sortDir, err := pmlQueryList(userID, page, sort, dir)
+	extra := ""
+	if q != "" {
+		extra = "&q=" + q
+	}
+
+	var totalRow int
+	if q != "" {
+		like := "%" + q + "%"
+		db.DB.QueryRow(`
+			SELECT COUNT(*) FROM sls s
+			JOIN users u ON u.id = s.ppl_id
+			WHERE s.pml_id=? AND (s.nama_sls LIKE ? OR s.nama_desa LIKE ? OR s.nama_kec LIKE ? OR u.name LIKE ?)`,
+			userID, like, like, like, like).Scan(&totalRow)
+	} else {
+		db.DB.QueryRow("SELECT COUNT(*) FROM sls WHERE pml_id=?", userID).Scan(&totalRow)
+	}
+
+	list, sortCol, sortDir, err := pmlQueryList(userID, page, sort, dir, q)
 	if err != nil {
 		return err
 	}
-	pageInfo := models.NewPageInfo(page, totalRow, "/pml/table", "pml-table-wrap", models.SortQueryString(sortCol, sortDir))
+	pageInfo := models.NewPageInfo(page, totalRow, "/pml/table", "pml-table-wrap", extra+models.SortQueryString(sortCol, sortDir))
 	pageInfo.Sort = sortCol
 	pageInfo.Dir = sortDir
-	pageInfo.FilterExtra = ""
+	pageInfo.FilterExtra = extra
 
 	return c.Render(http.StatusOK, "pml_table.html", map[string]interface{}{
 		"List":       list,
