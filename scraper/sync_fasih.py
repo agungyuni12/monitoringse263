@@ -221,7 +221,11 @@ def fetch_page(session, xsrf, page_num, retries=3):
             if r.status_code != 200:
                 print(f"  [WARN] page {page_num}: HTTP {r.status_code} (percobaan {attempt}/{retries})", flush=True)
                 if attempt < retries:
-                    time.sleep(5 * attempt)
+                    # 429 = rate-limit yang bertahan cukup lama (dikonfirmasi:
+                    # masih ke-block bahkan di request pertama pass berikutnya),
+                    # jadi backoff-nya jauh lebih panjang drpd exception biasa.
+                    wait = 20 * attempt if r.status_code == 429 else 5 * attempt
+                    time.sleep(wait)
                     continue
                 return [], 0
             d = r.json()
@@ -272,11 +276,24 @@ def scrape_all(ctx, xsrf):
     responsibility live/berubah selagi di-scrape (lihat docstring aggregate()),
     jadi satu pencacah bisa kelewat total di satu pass. Peluang kelewat di
     KEDUA pass jauh lebih kecil, jadi gabungan 2 pass mendekati cakupan penuh.
-    Dedup akhir tetap ditangani aggregate() lewat seen_user_ids."""
+    Dedup akhir tetap ditangani aggregate() lewat seen_user_ids.
+
+    Pass 2 TIDAK BOLEH bikin seluruh sync gagal kalau dia gagal (mis. masih
+    kena rate-limit 429 sisa dari pass 1) — dikonfirmasi nyata: rate-limit
+    FASIH bisa bertahan sampai nge-block request pertama pass 2. Kalau itu
+    terjadi, cukup pakai hasil pass 1 saja drpd bikin 0 SLS ke-upload."""
     session = _make_session(ctx)
 
     pass1 = _scrape_pass(session, xsrf, "pass 1/2")
-    pass2 = _scrape_pass(session, xsrf, "pass 2/2")
+
+    print("[SCRAPE] Jeda 20 detik sebelum pass 2 (kasih waktu rate-limit reset)...", flush=True)
+    time.sleep(20)
+
+    try:
+        pass2 = _scrape_pass(session, xsrf, "pass 2/2")
+    except Exception as e:
+        print(f"[SCRAPE] pass 2 gagal ({e}), lanjut pakai hasil pass 1 saja", flush=True)
+        return pass1
 
     combined = pass1 + pass2
     ids_pass1 = {p.get("userId") for p in pass1 if p.get("userId")}
