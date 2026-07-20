@@ -24,7 +24,9 @@ Env vars:
 import os, json, math, random, re, time
 from datetime import datetime, timedelta
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import pymysql
+import requests
 from playwright.sync_api import sync_playwright
 from playwright_stealth import Stealth
 _stealth = Stealth(navigator_webdriver=True)
@@ -58,8 +60,11 @@ SUBMIT_STATUSES = frozenset({
     "APPROVED BY Admin Pusat",     "REJECTED BY Admin Pusat",
 })
 
-PAGE_SIZE = 10    # server membatasi max 10 per halaman
-DELAY     = 0.3   # detik jeda antar halaman
+PAGE_SIZE     = 10    # server membatasi max 10 per halaman
+PAGE_WORKERS  = 5      # jumlah halaman di-fetch paralel — mempersingkat jendela
+                        # waktu scrape 24 halaman, supaya data (yang live berubah
+                        # krn approval Pengawas) gak keburu geser urutan/reorder
+                        # dan bikin sebagian pencacah kelewat (lihat aggregate())
 
 
 HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
@@ -168,7 +173,21 @@ def login(ctx):
     return active, xsrf
 
 
-def fetch_page(ctx, xsrf, page_num, retries=3):
+def _make_session(ctx):
+    """Bikin requests.Session dari cookie sesi login Playwright, supaya
+    pemanggilan endpoint report-progress-by-responsibility bisa diparalel
+    lewat ThreadPoolExecutor (Playwright sync API sendiri tidak thread-safe)."""
+    session = requests.Session()
+    for c in ctx.cookies():
+        session.cookies.set(c["name"], c["value"], domain=c.get("domain") or None, path=c.get("path") or "/")
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
+    })
+    return session
+
+
+def fetch_page(session, xsrf, page_num, retries=3):
     payload = {
         "surveyPeriodId": PERIOD_ID,
         "surveyRoleId":   PENCACAH_ROLE_ID,
@@ -193,14 +212,14 @@ def fetch_page(ctx, xsrf, page_num, retries=3):
     }
     for attempt in range(1, retries + 1):
         try:
-            r = ctx.request.post(
+            r = session.post(
                 f"{BASE_URL}/analytic/api/v2/assignment/report-progress-by-responsibility",
                 data=json.dumps(payload),
                 headers=hdrs,
-                timeout=90000,
+                timeout=90,
             )
-            if r.status != 200:
-                print(f"  [WARN] page {page_num}: HTTP {r.status} (percobaan {attempt}/{retries})", flush=True)
+            if r.status_code != 200:
+                print(f"  [WARN] page {page_num}: HTTP {r.status_code} (percobaan {attempt}/{retries})", flush=True)
                 if attempt < retries:
                     time.sleep(5 * attempt)
                     continue
@@ -223,8 +242,10 @@ def fetch_page(ctx, xsrf, page_num, retries=3):
 
 
 def scrape_all(ctx, xsrf):
+    session = _make_session(ctx)
+
     print("[SCRAPE] Mengambil halaman 1...", flush=True)
-    content0, total = fetch_page(ctx, xsrf, 0)
+    content0, total = fetch_page(session, xsrf, 0)
     if not total and not content0:
         raise RuntimeError("Tidak ada data dari FASIH")
     if not total:
@@ -234,11 +255,15 @@ def scrape_all(ctx, xsrf):
     print(f"[SCRAPE] Total pencacah: {total} | Halaman: {pages}", flush=True)
 
     all_content = list(content0)
-    for pg in range(1, pages):
-        print(f"  Halaman {pg+1}/{pages}...", flush=True)
-        c, _ = fetch_page(ctx, xsrf, pg)
-        all_content.extend(c)
-        time.sleep(DELAY)
+    if pages > 1:
+        with ThreadPoolExecutor(max_workers=PAGE_WORKERS) as pool:
+            futures = {pool.submit(fetch_page, session, xsrf, pg): pg for pg in range(1, pages)}
+            done = 0
+            for fut in as_completed(futures):
+                c, _ = fut.result()
+                all_content.extend(c)
+                done += 1
+                print(f"  Halaman selesai: {done}/{pages - 1}...", flush=True)
 
     print(f"[SCRAPE] Total pencacah diambil: {len(all_content)}", flush=True)
     return all_content
