@@ -200,11 +200,17 @@ def fetch_page(ctx, xsrf, page_num, retries=3):
                 timeout=90000,
             )
             if r.status != 200:
-                print(f"  [WARN] page {page_num}: HTTP {r.status}", flush=True)
+                print(f"  [WARN] page {page_num}: HTTP {r.status} (percobaan {attempt}/{retries})", flush=True)
+                if attempt < retries:
+                    time.sleep(5 * attempt)
+                    continue
                 return [], 0
             d = r.json()
             if not d.get("success"):
-                print(f"  [WARN] page {page_num} error: {d}", flush=True)
+                print(f"  [WARN] page {page_num} error: {d} (percobaan {attempt}/{retries})", flush=True)
+                if attempt < retries:
+                    time.sleep(5 * attempt)
+                    continue
                 return [], 0
             inner = d.get("data", {})
             total = inner.get("totalElements") or 0
