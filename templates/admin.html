@@ -604,6 +604,12 @@
               <button type="button" onclick="switchKeberadaanRekapSub(this,'/admin/table/keberadaan-keluarga','/admin/download/keberadaan-keluarga')"
                 class="keberadaan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Keluarga</button>
             </div>
+            <select id="keb-level-select" onchange="reloadKeberadaanRekapTable()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Per SLS</option>
+              <option value="desa">Per Desa</option>
+              <option value="kec">Per Kecamatan</option>
+            </select>
             <input type="text" id="keberadaan-rekap-q" oninput="onKeberadaanRekapSearch()"
               placeholder="Cari nama SLS, Desa, Kecamatan..."
               class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
@@ -900,10 +906,12 @@
     // punya SLS di kecamatan itu), pilih PML -> opsi PPL ikut mengecil lagi.
     function kebFilterParams() {
       var q = document.getElementById('keberadaan-rekap-q').value;
+      var level = document.getElementById('keb-level-select').value;
       var kec = document.getElementById('keb-kec-select').value;
       var pml = document.getElementById('keb-pml-select').value;
       var ppl = document.getElementById('keb-ppl-select').value;
       var params = [];
+      if (level) params.push('level=' + level);
       if (q) params.push('q=' + encodeURIComponent(q));
       if (kec) params.push('kec=' + encodeURIComponent(kec));
       if (pml) params.push('pml_id=' + pml);

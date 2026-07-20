@@ -1,16 +1,18 @@
-{{define "admin_keberadaan_keluarga_table.html"}}
+{{define "admin_keberadaan_group_table.html"}}
 <div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
-  Status keberadaan Keluarga per SLS, disinkron dari Dashboard SE2026.
+  {{.TableDesc}}, direkap per {{if eq .GroupLevel "kec"}}Kecamatan{{else}}Desa{{end}}, disinkron dari Dashboard SE2026.
 </div>
 <div class="overflow-x-auto">
   <table class="w-full text-sm">
     <thead>
       <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left text-xs uppercase tracking-wide">
-        {{template "sortable_th" dict "Label" "Kode SLS" "Col" "kode_sls" "PageInfo" .Page "Class" "px-4 py-3 font-medium"}}
-        {{template "sortable_th" dict "Label" "Nama SLS" "Col" "nama_sls" "PageInfo" .Page "Class" "px-4 py-3 font-medium"}}
-        {{template "sortable_th" dict "Label" "PPL" "Col" "ppl" "PageInfo" .Page "Class" "px-4 py-3 font-medium"}}
-        {{template "sortable_th" dict "Label" "PML" "Col" "pml" "PageInfo" .Page "Class" "px-4 py-3 font-medium"}}
-        {{template "sortable_th" dict "Label" "Desa / Kec" "Col" "lokasi" "PageInfo" .Page "Class" "px-4 py-3 font-medium"}}
+        {{if eq .GroupLevel "desa"}}
+        <th class="px-4 py-3 font-medium">Nama Desa</th>
+        <th class="px-4 py-3 font-medium">Kecamatan</th>
+        {{else}}
+        <th class="px-4 py-3 font-medium">Kecamatan</th>
+        {{end}}
+        <th class="px-4 py-3 font-medium text-center">Jml SLS</th>
         {{range .Indikators}}
         <th class="px-3 py-3 font-medium text-center whitespace-nowrap" title="{{.Nama}}">{{.Nama}}</th>
         {{end}}
@@ -19,14 +21,13 @@
     <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
       {{range $r := .Rows}}
       <tr class="hover:bg-orange-50/30 dark:hover:bg-gray-800/60 transition-colors">
-        <td class="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-400">{{$r.KodeSLS}}</td>
-        <td class="px-4 py-3 text-gray-800 dark:text-gray-100 text-xs font-medium whitespace-nowrap">{{$r.NamaSLS}}</td>
-        <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">{{$r.NamaPPL}}</td>
-        <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">{{$r.NamaPML}}</td>
-        <td class="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
-          <p>{{$r.NamaDesa}}</p>
-          <p class="text-gray-400 dark:text-gray-500">Kec. {{$r.NamaKec}}</p>
-        </td>
+        {{if eq $.GroupLevel "desa"}}
+        <td class="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">{{$r.NamaDesa}}</td>
+        <td class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">Kec. {{$r.NamaKec}}</td>
+        {{else}}
+        <td class="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">{{$r.NamaKec}}</td>
+        {{end}}
+        <td class="px-4 py-3 text-center text-gray-700 dark:text-gray-300">{{$r.JmlSLS}}</td>
         {{range $k := $.Indikators}}
         {{$v := index $r.Values $k.Kode}}
         <td class="px-3 py-3 text-center text-xs whitespace-nowrap {{if gt $v 0}}text-gray-700 dark:text-gray-300 font-semibold{{else}}text-gray-300 dark:text-gray-600{{end}}">
@@ -39,13 +40,13 @@
         {{end}}
       </tr>
       {{else}}
-      <tr><td colspan="15" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">Belum ada data keberadaan Keluarga. Jalankan sinkronisasi terlebih dahulu.</td></tr>
+      <tr><td colspan="20" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">Tidak ada data yang cocok.</td></tr>
       {{end}}
     </tbody>
     {{if .Rows}}
     <tfoot>
       <tr class="bg-orange-50 dark:bg-gray-800 font-semibold border-t-2 border-orange-200 dark:border-gray-700">
-        <td colspan="5" class="px-4 py-3 text-xs text-gray-700 dark:text-gray-200 text-right">Total (sesuai filter)</td>
+        <td colspan="{{if eq .GroupLevel "desa"}}3{{else}}2{{end}}" class="px-4 py-3 text-xs text-gray-700 dark:text-gray-200 text-right">Total (sesuai filter)</td>
         {{range $k := .Indikators}}
         <td class="px-3 py-3 text-center text-xs whitespace-nowrap text-gray-800 dark:text-gray-100">{{index $.Totals $k.Kode}}</td>
         {{end}}
