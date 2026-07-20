@@ -241,10 +241,8 @@ def fetch_page(session, xsrf, page_num, retries=3):
     return [], 0
 
 
-def scrape_all(ctx, xsrf):
-    session = _make_session(ctx)
-
-    print("[SCRAPE] Mengambil halaman 1...", flush=True)
+def _scrape_pass(session, xsrf, label):
+    print(f"[SCRAPE] ({label}) Mengambil halaman 1...", flush=True)
     content0, total = fetch_page(session, xsrf, 0)
     if not total and not content0:
         raise RuntimeError("Tidak ada data dari FASIH")
@@ -252,7 +250,7 @@ def scrape_all(ctx, xsrf):
         total = len(content0)
 
     pages = max(1, math.ceil(total / PAGE_SIZE))
-    print(f"[SCRAPE] Total pencacah: {total} | Halaman: {pages}", flush=True)
+    print(f"[SCRAPE] ({label}) Total pencacah: {total} | Halaman: {pages}", flush=True)
 
     all_content = list(content0)
     if pages > 1:
@@ -263,10 +261,31 @@ def scrape_all(ctx, xsrf):
                 c, _ = fut.result()
                 all_content.extend(c)
                 done += 1
-                print(f"  Halaman selesai: {done}/{pages - 1}...", flush=True)
+                print(f"  ({label}) Halaman selesai: {done}/{pages - 1}...", flush=True)
 
-    print(f"[SCRAPE] Total pencacah diambil: {len(all_content)}", flush=True)
+    print(f"[SCRAPE] ({label}) Total pencacah diambil: {len(all_content)}", flush=True)
     return all_content
+
+
+def scrape_all(ctx, xsrf):
+    """Scrape 2 pass lalu digabung (union) — endpoint report-progress-by-
+    responsibility live/berubah selagi di-scrape (lihat docstring aggregate()),
+    jadi satu pencacah bisa kelewat total di satu pass. Peluang kelewat di
+    KEDUA pass jauh lebih kecil, jadi gabungan 2 pass mendekati cakupan penuh.
+    Dedup akhir tetap ditangani aggregate() lewat seen_user_ids."""
+    session = _make_session(ctx)
+
+    pass1 = _scrape_pass(session, xsrf, "pass 1/2")
+    pass2 = _scrape_pass(session, xsrf, "pass 2/2")
+
+    combined = pass1 + pass2
+    ids_pass1 = {p.get("userId") for p in pass1 if p.get("userId")}
+    ids_pass2 = {p.get("userId") for p in pass2 if p.get("userId")}
+    tambahan = len(ids_pass2 - ids_pass1)
+    if tambahan:
+        print(f"[SCRAPE] pass 2 menambahkan {tambahan} pencacah yang kelewat di pass 1", flush=True)
+
+    return combined
 
 
 def _new_sls_agg():
