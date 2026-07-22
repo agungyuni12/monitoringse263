@@ -878,3 +878,67 @@ func DownloadKeberadaanUsahaKeluarga(c echo.Context) error {
 func DownloadKeberadaanKeluarga(c echo.Context) error {
 	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_keluarga", kodeCovKeluargaAll, kodeCovKeluargaPrelist)
 }
+
+// DownloadTidakDitemukan — GET /admin/download/tidak-ditemukan?tipe=usaha|keluarga
+// Filter sama persis dengan AdminTidakDitemukanTable (lihat handlers/tidak_ditemukan.go).
+func DownloadTidakDitemukan(c echo.Context) error {
+	tipe := c.QueryParam("tipe")
+	if tipe != "keluarga" {
+		tipe = "usaha"
+	}
+	table := tidakDitemukanTable(tipe)
+	where, args, _, _, _ := tidakDitemukanFilters(c, tipe)
+
+	skalaCol := "''"
+	if tipe == "usaha" {
+		skalaCol = "COALESCE(t.skala_usaha,'')"
+	}
+
+	rows, err := db.DB.Query(`
+		SELECT s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
+		       ppl.name, pml.name,
+		       COALESCE(t.nama,''), `+skalaCol+`, COALESCE(t.alamat,''),
+		       COALESCE(t.assignment_status,''),
+		       COALESCE(DATE_FORMAT(t.tanggal_modified,'%d/%m/%Y %H:%i'),'')
+		FROM `+table+` t
+		JOIN sls s ON s.id = t.sls_id
+		JOIN users ppl ON ppl.id = s.ppl_id
+		JOIN users pml ON pml.id = s.pml_id`+where+`
+		ORDER BY s.nama_kec, s.nama_desa, s.nama_sls, t.nama`, args...)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+	defer rows.Close()
+
+	type row struct {
+		sls, kec, desa, ppl, pml, nama, skala, alamat, status, tanggal string
+	}
+	var data []row
+	for rows.Next() {
+		var r row
+		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.nama, &r.skala, &r.alamat, &r.status, &r.tanggal)
+		data = append(data, r)
+	}
+
+	namaLabel := "Nama Usaha"
+	if tipe == "keluarga" {
+		namaLabel = "Nama KK"
+	}
+	fname := fmt.Sprintf("tidak_ditemukan_%s_%s.xlsx", tipe, time.Now().In(wita).Format("20060102"))
+	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", namaLabel, "Skala", "Alamat", "Status Assignment", "Tanggal Modified"}
+	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
+		for i, r := range data {
+			n := i + 2
+			f.SetCellValue(sheet, cell(1, n), r.sls)
+			f.SetCellValue(sheet, cell(2, n), r.kec)
+			f.SetCellValue(sheet, cell(3, n), r.desa)
+			f.SetCellValue(sheet, cell(4, n), r.ppl)
+			f.SetCellValue(sheet, cell(5, n), r.pml)
+			f.SetCellValue(sheet, cell(6, n), r.nama)
+			f.SetCellValue(sheet, cell(7, n), r.skala)
+			f.SetCellValue(sheet, cell(8, n), r.alamat)
+			f.SetCellValue(sheet, cell(9, n), r.status)
+			f.SetCellValue(sheet, cell(10, n), r.tanggal)
+		}
+	})
+}
