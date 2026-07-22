@@ -184,11 +184,15 @@ def _run_query_and_fetch(page, sql, retries=5):
             # hasil yang muncul setelah reload jadinya cache query SEBELUMNYA
             # (kejadian nyata: query pertama malah balikin 1 baris hasil
             # COUNT(*) yang dijalankan sebelumnya, bukan 1000 baris data baru).
+            # Cuma perlu TAHU request-nya sudah tuntas (buat cegah race di atas),
+            # gak perlu baca body-nya — kadang CDP gagal ambil body response
+            # yang sudah kepakai/hilang dari buffer ("No resource with given
+            # identifier found"), padahal request-nya sendiri sukses.
             with page.expect_response(
                 lambda r: "/api/v1/sqllab/execute/" in r.url, timeout=45_000
             ) as exec_resp_info:
                 page.locator('button:has-text("Run")').click()
-            _check_bot_wall(exec_resp_info.value.text(), "eksekusi query")
+            exec_resp_info.value
 
             with page.expect_response(
                 lambda r: "/api/v1/sqllab/results/" in r.url, timeout=45_000
