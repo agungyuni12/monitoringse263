@@ -462,28 +462,35 @@
 
         <!-- TAB: Keberadaan — Tidak Ditemukan (Usaha/Keluarga) -->
         <div id="panel-keberadaan" class="tab-panel">
-          <div id="tidak-ditemukan-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center">
+          <div id="tidak-ditemukan-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" data-mode="usaha">
             <input type="hidden" name="tipe" id="tidak-ditemukan-tipe-input" value="usaha"/>
             <div class="flex gap-1.5">
               <button type="button" onclick="switchTidakDitemukanSub(this,'usaha')"
                 class="tidak-ditemukan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-se text-white transition-colors">Usaha</button>
               <button type="button" onclick="switchTidakDitemukanSub(this,'keluarga')"
                 class="tidak-ditemukan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Keluarga</button>
+              <button type="button" onclick="switchTidakDitemukanSub(this,'rekap')"
+                class="tidak-ditemukan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Rekap</button>
             </div>
-            <input type="text" name="q"
-              hx-get="/admin/table/tidak-ditemukan" hx-target="#tidak-ditemukan-result" hx-swap="innerHTML"
-              hx-trigger="input changed delay:400ms" hx-include="#tidak-ditemukan-filter-bar, #tidak-ditemukan-result"
+            <select name="level" id="tidak-ditemukan-level-select" onchange="reloadTidakDitemukanTable()"
+              class="hidden px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="sls">Per SLS</option>
+              <option value="desa">Per Desa</option>
+              <option value="kec">Per Kecamatan</option>
+            </select>
+            <input type="text" name="q" oninput="onTidakDitemukanSearch()"
               placeholder="Cari nama..."
               class="w-full md:w-56 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="kec" onchange="reloadTidakDitemukanTable()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Kecamatan</option>
+              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
+            </select>
             <select name="pml_id" id="tidak-ditemukan-pml-select"
-              hx-get="/admin/table/tidak-ditemukan" hx-target="#tidak-ditemukan-result" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#tidak-ditemukan-filter-bar, #tidak-ditemukan-result"
               class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
               <option value="">Semua PML</option>
             </select>
             <select name="ppl_id" id="tidak-ditemukan-ppl-select"
-              hx-get="/admin/table/tidak-ditemukan" hx-target="#tidak-ditemukan-result" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#tidak-ditemukan-filter-bar, #tidak-ditemukan-result"
               class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
               <option value="">Semua PPL</option>
             </select>
@@ -736,36 +743,52 @@
         toggleSidebar();
       }
     }
-    // ===== Tab Keberadaan: sub-menu Usaha/Keluarga (data tidak_ditemukan_usaha/keluarga) =====
-    // Beda dari sub-tab lain: satu route yang sama (/admin/table/tidak-ditemukan),
-    // dibedakan lewat query param `tipe` — jadi klik tombol sub-tab perlu reload
-    // manual (bukan cuma ganti hx-get statis kayak Rekap Keberadaan).
+    // ===== Tab Keberadaan: sub-menu Usaha/Keluarga/Rekap =====
+    // 3 mode beda endpoint: Usaha & Keluarga sama-sama /admin/table/tidak-ditemukan
+    // (dibedakan query param `tipe`), Rekap pakai /admin/table/tidak-ditemukan-rekap
+    // (query param `level`) — jadi tiap ganti sub-tab & tiap filter berubah perlu
+    // reload manual lewat htmx.ajax(), bukan hx-get statis.
     function tidakDitemukanFilterParams() {
       var bar = document.getElementById('tidak-ditemukan-filter-bar');
-      var result = document.getElementById('tidak-ditemukan-result');
+      var mode = bar.dataset.mode || 'usaha';
       var params = [];
-      params.push('tipe=' + encodeURIComponent(bar.querySelector('[name="tipe"]').value));
+      if (mode === 'rekap') {
+        params.push('level=' + encodeURIComponent(document.getElementById('tidak-ditemukan-level-select').value));
+      } else {
+        params.push('tipe=' + encodeURIComponent(mode));
+      }
       var q = bar.querySelector('[name="q"]').value;
+      var kec = bar.querySelector('[name="kec"]').value;
       var pmlID = bar.querySelector('[name="pml_id"]').value;
       var pplID = bar.querySelector('[name="ppl_id"]').value;
       if (q) params.push('q=' + encodeURIComponent(q));
+      if (kec) params.push('kec=' + encodeURIComponent(kec));
       if (pmlID) params.push('pml_id=' + pmlID);
       if (pplID) params.push('ppl_id=' + pplID);
-      if (result) {
-        result.querySelectorAll('input[name="kec"]:checked').forEach(function(el) {
-          params.push('kec=' + encodeURIComponent(el.value));
-        });
-      }
       return params.length ? ('?' + params.join('&')) : '';
     }
 
-    function reloadTidakDitemukanTable() {
-      var qs = tidakDitemukanFilterParams();
-      htmx.ajax('GET', '/admin/table/tidak-ditemukan' + qs, { target: '#tidak-ditemukan-result', swap: 'innerHTML' });
-      document.getElementById('tidak-ditemukan-dl-btn').href = '/admin/download/tidak-ditemukan' + qs;
+    function tidakDitemukanPaths() {
+      var mode = document.getElementById('tidak-ditemukan-filter-bar').dataset.mode || 'usaha';
+      return mode === 'rekap'
+        ? { tbl: '/admin/table/tidak-ditemukan-rekap', dl: '/admin/download/tidak-ditemukan-rekap' }
+        : { tbl: '/admin/table/tidak-ditemukan', dl: '/admin/download/tidak-ditemukan' };
     }
 
-    function switchTidakDitemukanSub(btn, tipe) {
+    function reloadTidakDitemukanTable() {
+      var paths = tidakDitemukanPaths();
+      var qs = tidakDitemukanFilterParams();
+      htmx.ajax('GET', paths.tbl + qs, { target: '#tidak-ditemukan-result', swap: 'innerHTML' });
+      document.getElementById('tidak-ditemukan-dl-btn').href = paths.dl + qs;
+    }
+
+    var _tidakDitemukanSearchDebounce = null;
+    function onTidakDitemukanSearch() {
+      clearTimeout(_tidakDitemukanSearchDebounce);
+      _tidakDitemukanSearchDebounce = setTimeout(reloadTidakDitemukanTable, 400);
+    }
+
+    function switchTidakDitemukanSub(btn, mode) {
       var bar = document.getElementById('tidak-ditemukan-filter-bar');
       bar.querySelectorAll('.tidak-ditemukan-subtab-btn').forEach(function(b) {
         b.classList.remove('bg-se', 'text-white');
@@ -773,13 +796,20 @@
       });
       btn.classList.add('bg-se', 'text-white');
       btn.classList.remove('text-gray-600', 'dark:text-gray-400');
-      bar.querySelector('[name="tipe"]').value = tipe;
+      bar.dataset.mode = mode;
+      var levelSel = document.getElementById('tidak-ditemukan-level-select');
+      if (mode === 'rekap') {
+        levelSel.classList.remove('hidden');
+      } else {
+        levelSel.classList.add('hidden');
+        bar.querySelector('[name="tipe"]').value = mode;
+      }
       reloadTidakDitemukanTable();
     }
 
-    // Update href download Tidak Ditemukan sesuai sub-tab (tipe) & filter aktif
+    // Update href download Tidak Ditemukan sesuai sub-tab/mode & filter aktif
     function updateTidakDitemukanDownload() {
-      document.getElementById('tidak-ditemukan-dl-btn').href = '/admin/download/tidak-ditemukan' + tidakDitemukanFilterParams();
+      document.getElementById('tidak-ditemukan-dl-btn').href = tidakDitemukanPaths().dl + tidakDitemukanFilterParams();
     }
 
     // Update href download SLS sesuai level & q

@@ -1,0 +1,85 @@
+{{define "tidak_ditemukan_rekap_table.html"}}
+{{template "oob_select" .PMLSelect}}
+{{template "oob_select" .PPLSelect}}
+<div>
+  <div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
+    Rekap jumlah tidak ditemukan, direkap per {{if eq .GroupLevel "kec"}}Kecamatan{{else if eq .GroupLevel "desa"}}Desa{{else}}SLS{{end}}
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="w-full text-xs">
+      <thead>
+        <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left uppercase tracking-wide">
+          <th class="px-3 py-2.5 font-medium text-center w-8">No</th>
+          {{if eq .GroupLevel "sls"}}
+          {{template "sortable_th" dict "Label" "Lokasi (Kec / Desa / SLS)" "Col" "lokasi" "PageInfo" $.PageInfo}}
+          {{template "sortable_th" dict "Label" "Petugas" "Col" "petugas" "PageInfo" $.PageInfo}}
+          {{else if eq .GroupLevel "desa"}}
+          <th class="px-3 py-2.5 font-medium">Desa</th>
+          <th class="px-3 py-2.5 font-medium">Kecamatan</th>
+          <th class="px-3 py-2.5 font-medium text-center">Jml SLS</th>
+          {{else}}
+          <th class="px-3 py-2.5 font-medium">Kecamatan</th>
+          <th class="px-3 py-2.5 font-medium text-center">Jml SLS</th>
+          {{end}}
+          {{if eq .GroupLevel "sls"}}
+          {{template "sortable_th" dict "Label" "Usaha Tidak Ditemukan" "Col" "usaha" "PageInfo" $.PageInfo "Center" true}}
+          {{template "sortable_th" dict "Label" "Keluarga Tidak Ditemukan" "Col" "keluarga" "PageInfo" $.PageInfo "Center" true}}
+          {{else}}
+          <th class="px-3 py-2.5 font-medium text-center">Usaha Tidak Ditemukan</th>
+          <th class="px-3 py-2.5 font-medium text-center">Keluarga Tidak Ditemukan</th>
+          {{end}}
+          <th class="px-3 py-2.5 font-medium text-center">Total</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+        {{range $i, $r := .Rows}}
+        <tr class="hover:bg-orange-50/20 dark:hover:bg-gray-800/40 transition-colors">
+          <td class="px-3 py-2 text-center text-gray-400 dark:text-gray-500">{{add $.PageInfo.From $i}}</td>
+          {{if eq $.GroupLevel "sls"}}
+          <td class="px-3 py-2 whitespace-nowrap">
+            <div class="text-gray-400 dark:text-gray-500">{{$r.NamaKec}} › {{$r.NamaDesa}}</div>
+            <div class="font-medium text-gray-700 dark:text-gray-300">{{$r.NamaSLS}}</div>
+          </td>
+          <td class="px-3 py-2 whitespace-nowrap">
+            <div class="text-gray-600 dark:text-gray-400">PPL: {{$r.NamaPPL}}</div>
+            <div class="text-gray-400 dark:text-gray-500">PML: {{$r.NamaPML}}</div>
+          </td>
+          {{else if eq $.GroupLevel "desa"}}
+          <td class="px-3 py-2 font-medium text-gray-800 dark:text-gray-100">{{$r.NamaDesa}}</td>
+          <td class="px-3 py-2 text-gray-500 dark:text-gray-400">Kec. {{$r.NamaKec}}</td>
+          <td class="px-3 py-2 text-center text-gray-700 dark:text-gray-300">{{$r.JmlSLS}}</td>
+          {{else}}
+          <td class="px-3 py-2 font-medium text-gray-800 dark:text-gray-100">{{$r.NamaKec}}</td>
+          <td class="px-3 py-2 text-center text-gray-700 dark:text-gray-300">{{$r.JmlSLS}}</td>
+          {{end}}
+          <td class="px-3 py-2 text-center {{if gt $r.UsahaCnt 0}}font-semibold text-gray-700 dark:text-gray-300{{else}}text-gray-300 dark:text-gray-600{{end}}">{{$r.UsahaCnt}}</td>
+          <td class="px-3 py-2 text-center {{if gt $r.KeluargaCnt 0}}font-semibold text-gray-700 dark:text-gray-300{{else}}text-gray-300 dark:text-gray-600{{end}}">{{$r.KeluargaCnt}}</td>
+          <td class="px-3 py-2 text-center font-semibold text-gray-800 dark:text-gray-100">{{add $r.UsahaCnt $r.KeluargaCnt}}</td>
+        </tr>
+        {{else}}
+        <tr><td colspan="7" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
+          <div class="flex flex-col items-center gap-2">
+            <svg class="w-8 h-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+            </svg>
+            <span class="text-sm">Tidak ada data yang cocok</span>
+          </div>
+        </td></tr>
+        {{end}}
+      </tbody>
+      {{if .Rows}}
+      <tfoot>
+        <tr class="bg-orange-50 dark:bg-gray-800 font-semibold border-t-2 border-orange-200 dark:border-gray-700">
+          <td colspan="{{if eq .GroupLevel "sls"}}3{{else if eq .GroupLevel "desa"}}4{{else}}3{{end}}" class="px-3 py-2.5 text-xs text-gray-700 dark:text-gray-200 text-right">Total (sesuai filter)</td>
+          <td class="px-3 py-2.5 text-center text-xs text-gray-800 dark:text-gray-100">{{.TotalUsaha}}</td>
+          <td class="px-3 py-2.5 text-center text-xs text-gray-800 dark:text-gray-100">{{.TotalKeluarga}}</td>
+          <td class="px-3 py-2.5 text-center text-xs text-gray-800 dark:text-gray-100">{{add .TotalUsaha .TotalKeluarga}}</td>
+        </tr>
+      </tfoot>
+      {{end}}
+    </table>
+  </div>
+  {{template "pagination" .PageInfo}}
+</div>
+{{end}}

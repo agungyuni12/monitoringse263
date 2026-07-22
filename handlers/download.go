@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"fmt"
 	"math"
 	"net/http"
@@ -850,6 +851,183 @@ func DownloadTidakDitemukan(c echo.Context) error {
 			f.SetCellValue(sheet, cell(8, n), r.alamat)
 			f.SetCellValue(sheet, cell(9, n), r.status)
 			f.SetCellValue(sheet, cell(10, n), r.tanggal)
+		}
+	})
+}
+
+// DownloadTidakDitemukanRekap — GET /admin/download/tidak-ditemukan-rekap?level=sls|desa|kec
+// Filter sama persis dengan AdminTidakDitemukanRekapTable (lihat handlers/tidak_ditemukan.go).
+func DownloadTidakDitemukanRekap(c echo.Context) error {
+	level := c.QueryParam("level")
+	if level != "desa" && level != "kec" {
+		level = "sls"
+	}
+	where, args, _, _, _, _ := tidakDitemukanRekapFilters(c)
+
+	fname := fmt.Sprintf("tidak_ditemukan_rekap_%s_%s.xlsx", level, time.Now().In(wita).Format("20060102"))
+
+	if level == "sls" {
+		rows, err := db.DB.Query(`
+			SELECT s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''), ppl.name, pml.name,
+			  (SELECT COUNT(*) FROM tidak_ditemukan_usaha tu WHERE tu.sls_id = s.id) AS usaha_cnt,
+			  (SELECT COUNT(*) FROM tidak_ditemukan_keluarga tk WHERE tk.sls_id = s.id) AS keluarga_cnt
+			FROM sls s
+			JOIN users ppl ON ppl.id = s.ppl_id
+			JOIN users pml ON pml.id = s.pml_id`+where+`
+			ORDER BY s.nama_kec, s.nama_desa, s.nama_sls`, args...)
+		if err != nil {
+			return c.String(http.StatusInternalServerError, err.Error())
+		}
+		defer rows.Close()
+
+		type row struct {
+			sls, kec, desa, ppl, pml string
+			usaha, keluarga          int
+		}
+		var data []row
+		for rows.Next() {
+			var r row
+			rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.usaha, &r.keluarga)
+			data = append(data, r)
+		}
+
+		headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Usaha Tidak Ditemukan", "Keluarga Tidak Ditemukan", "Total"}
+		return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
+			for i, r := range data {
+				n := i + 2
+				f.SetCellValue(sheet, cell(1, n), r.sls)
+				f.SetCellValue(sheet, cell(2, n), r.kec)
+				f.SetCellValue(sheet, cell(3, n), r.desa)
+				f.SetCellValue(sheet, cell(4, n), r.ppl)
+				f.SetCellValue(sheet, cell(5, n), r.pml)
+				f.SetCellValue(sheet, cell(6, n), r.usaha)
+				f.SetCellValue(sheet, cell(7, n), r.keluarga)
+				f.SetCellValue(sheet, cell(8, n), r.usaha+r.keluarga)
+			}
+		})
+	}
+
+	// level desa/kec: query grup lengkap (tanpa paginasi) lalu isi UsahaCnt/KeluargaCnt
+	var groupRows *sql.Rows
+	var err error
+	if level == "kec" {
+		groupRows, err = db.DB.Query(`
+			SELECT s.nama_kec, COUNT(DISTINCT s.id)
+			FROM sls s
+			JOIN users ppl ON ppl.id = s.ppl_id
+			JOIN users pml ON pml.id = s.pml_id`+where+`
+			GROUP BY s.nama_kec, s.kode_kec
+			ORDER BY s.kode_kec`, args...)
+	} else {
+		groupRows, err = db.DB.Query(`
+			SELECT s.nama_desa, s.nama_kec, COUNT(DISTINCT s.id)
+			FROM sls s
+			JOIN users ppl ON ppl.id = s.ppl_id
+			JOIN users pml ON pml.id = s.pml_id`+where+`
+			GROUP BY s.nama_desa, s.nama_kec, s.kode_desa, s.kode_kec
+			ORDER BY s.kode_kec, s.kode_desa`, args...)
+	}
+	if err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+	defer groupRows.Close()
+
+	type groupKey struct{ desa, kec string }
+	type groupRow struct {
+		desa, kec       string
+		jmlSLS          int
+		usaha, keluarga int
+	}
+	byKey := map[groupKey]*groupRow{}
+	var keys []groupKey
+	var data []*groupRow
+	for groupRows.Next() {
+		r := &groupRow{}
+		if level == "kec" {
+			groupRows.Scan(&r.kec, &r.jmlSLS)
+		} else {
+			groupRows.Scan(&r.desa, &r.kec, &r.jmlSLS)
+		}
+		data = append(data, r)
+		k := groupKey{r.desa, r.kec}
+		byKey[k] = r
+		keys = append(keys, k)
+	}
+
+	if len(keys) > 0 {
+		fillCount := func(table string, apply func(r *groupRow, n int)) {
+			valArgs := append([]interface{}{}, args...)
+			var valQuery string
+			if level == "kec" {
+				ph := make([]string, len(keys))
+				for i, k := range keys {
+					ph[i] = "?"
+					valArgs = append(valArgs, k.kec)
+				}
+				valQuery = fmt.Sprintf(`
+					SELECT s.nama_kec, COUNT(*)
+					FROM %s t
+					JOIN sls s ON s.id = t.sls_id
+					JOIN users ppl ON ppl.id = s.ppl_id
+					JOIN users pml ON pml.id = s.pml_id
+				`, table) + where + ` AND s.nama_kec IN (` + strings.Join(ph, ",") + `) GROUP BY s.nama_kec`
+			} else {
+				ph := make([]string, len(keys))
+				for i, k := range keys {
+					ph[i] = "(?,?)"
+					valArgs = append(valArgs, k.desa, k.kec)
+				}
+				valQuery = fmt.Sprintf(`
+					SELECT s.nama_desa, s.nama_kec, COUNT(*)
+					FROM %s t
+					JOIN sls s ON s.id = t.sls_id
+					JOIN users ppl ON ppl.id = s.ppl_id
+					JOIN users pml ON pml.id = s.pml_id
+				`, table) + where + ` AND (s.nama_desa, s.nama_kec) IN (` + strings.Join(ph, ",") + `) GROUP BY s.nama_desa, s.nama_kec`
+			}
+			if valRows, err := db.DB.Query(valQuery, valArgs...); err == nil {
+				defer valRows.Close()
+				for valRows.Next() {
+					var desa, kecName string
+					var n int
+					if level == "kec" {
+						valRows.Scan(&kecName, &n)
+					} else {
+						valRows.Scan(&desa, &kecName, &n)
+					}
+					if r, ok := byKey[groupKey{desa, kecName}]; ok {
+						apply(r, n)
+					}
+				}
+			}
+		}
+		fillCount("tidak_ditemukan_usaha", func(r *groupRow, n int) { r.usaha = n })
+		fillCount("tidak_ditemukan_keluarga", func(r *groupRow, n int) { r.keluarga = n })
+	}
+
+	var headers []string
+	if level == "kec" {
+		headers = []string{"Kecamatan", "Jml SLS", "Usaha Tidak Ditemukan", "Keluarga Tidak Ditemukan", "Total"}
+	} else {
+		headers = []string{"Desa", "Kecamatan", "Jml SLS", "Usaha Tidak Ditemukan", "Keluarga Tidak Ditemukan", "Total"}
+	}
+	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
+		for i, r := range data {
+			n := i + 2
+			col := 1
+			if level != "kec" {
+				f.SetCellValue(sheet, cell(col, n), r.desa)
+				col++
+			}
+			f.SetCellValue(sheet, cell(col, n), r.kec)
+			col++
+			f.SetCellValue(sheet, cell(col, n), r.jmlSLS)
+			col++
+			f.SetCellValue(sheet, cell(col, n), r.usaha)
+			col++
+			f.SetCellValue(sheet, cell(col, n), r.keluarga)
+			col++
+			f.SetCellValue(sheet, cell(col, n), r.usaha+r.keluarga)
 		}
 	})
 }

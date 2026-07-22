@@ -12,34 +12,7 @@
       <thead>
         <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left uppercase tracking-wide">
           <th class="px-3 py-2.5 font-medium text-center w-8">No</th>
-          {{/* Filter Kecamatan — dropdown multi-select di header kolom */}}
-          <th class="px-3 py-2.5 font-medium relative">
-            <details class="group/kec" data-filter="kec">
-              <summary class="list-none cursor-pointer flex items-center gap-1.5 select-none whitespace-nowrap">
-                <span>Lokasi (Kec / Desa / SLS)</span>
-                {{template "sort_icon" dict "Col" "lokasi" "PageInfo" $.PageInfo}}
-                {{if .Kecs}}<span class="bg-blue-500 text-white rounded-full text-[10px] leading-none px-1.5 py-0.5 font-bold normal-case">{{len .Kecs}}</span>{{end}}
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-gray-400 dark:text-gray-500 shrink-0 transition-transform group-open/kec:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-              </summary>
-              <div class="absolute top-full left-0 z-50 mt-1 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-100 dark:border-gray-800 p-1.5 min-w-[140px] flex flex-col gap-0.5 normal-case max-h-64 overflow-y-auto">
-                {{$kecs := .Kecs}}{{$allKec := eq (len $kecs) 0}}
-                {{range .KecList}}{{$v := .}}
-                <label class="cursor-pointer flex items-center">
-                  <input type="checkbox" name="kec" value="{{.}}"
-                    {{if $allKec}}checked{{else}}{{range $kecs}}{{if eq . $v}}checked{{end}}{{end}}{{end}}
-                    hx-get="/admin/table/tidak-ditemukan" hx-target="#tidak-ditemukan-result" hx-swap="innerHTML"
-                    hx-trigger="change" hx-include="#tidak-ditemukan-filter-bar, #tidak-ditemukan-result"
-                    class="sr-only peer">
-                  <span class="w-full px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors
-                    text-gray-600 dark:text-gray-400 hover:bg-gray-50
-                    peer-checked:bg-blue-50 peer-checked:text-blue-700">
-                    {{.}}
-                  </span>
-                </label>
-                {{end}}
-              </div>
-            </details>
-          </th>
+          {{template "sortable_th" dict "Label" "Lokasi (Kec / Desa / SLS)" "Col" "lokasi" "PageInfo" $.PageInfo}}
           {{template "sortable_th" dict "Label" "Petugas" "Col" "petugas" "PageInfo" $.PageInfo}}
           {{if eq .Tipe "keluarga"}}
           {{template "sortable_th" dict "Label" "Nama KK" "Col" "nama" "PageInfo" $.PageInfo}}
