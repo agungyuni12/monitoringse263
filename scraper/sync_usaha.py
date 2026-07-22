@@ -126,6 +126,16 @@ def login(ctx):
     _check_bot_wall(page.content(), "halaman login")
 
     # Dropdown "pilih jenis login" default-nya sudah "Pegawai BPS" — langsung Go!
+    # Timeout dilonggarkan (container headless kadang render-nya lebih lambat
+    # drpd browser interaktif) + dump snippet HTML kalau tombolnya gak ketemu,
+    # supaya kelihatan alasannya (bot-wall halus / DOM beda / dsb), bukan cuma
+    # "Timeout exceeded" polos.
+    try:
+        page.wait_for_selector("button:has-text('Go!')", timeout=60_000)
+    except Exception:
+        print(f"[LOGIN][DEBUG] url={page.url}", flush=True)
+        print(f"[LOGIN][DEBUG] html snippet: {page.content()[:1500]}", flush=True)
+        raise
     page.click("button:has-text('Go!')")
     page.wait_for_selector("#username", timeout=90_000)
     _human_pause(0.3, 0.8)
