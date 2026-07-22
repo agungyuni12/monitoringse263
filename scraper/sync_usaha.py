@@ -93,7 +93,8 @@ USAHA_DESA_LIST_QUERY = (
 USAHA_QUERY_TEMPLATE = """
 SELECT n.assignment_id, n.index1, n.nama_usaha, n.skala_usaha,
        n.alamat_usaha, n.alamat_usaha_utama, n.level_6_full_code,
-       n.assignment_status_alias, n.assignment_date_modified, r.jenis_prelist
+       n.assignment_status_alias, n.assignment_date_modified, r.jenis_prelist,
+       r.alamat_prelist, r.alamat_klrg
 FROM se2026_nested n
 INNER JOIN root_table r ON n.assignment_id = r.assignment_id
 WHERE n.keberadaan_usaha_value = '00'
@@ -360,7 +361,14 @@ def upsert_usaha(conn, rows, sls_map, synced_at):
                   imported_at       = VALUES(imported_at)
             """, (
                 sls_id, assignment_id, r.get("nama_usaha"), r.get("skala_usaha"),
-                r.get("jenis_prelist"), _first(r.get("alamat_usaha"), r.get("alamat_usaha_utama")),
+                r.get("jenis_prelist"),
+                # se2026_nested.alamat_usaha* nyaris selalu kosong utk usaha yg
+                # TIDAK DITEMUKAN (petugas belum sempat catat alamat detail di
+                # lapangan) — fallback ke alamat prelisting di root_table:
+                # alamat_prelist (usaha bangunan mandiri) atau alamat_klrg
+                # (usaha yg nempel keluarga, pakai alamat keluarganya).
+                _first(r.get("alamat_usaha"), r.get("alamat_usaha_utama"),
+                       r.get("alamat_prelist"), r.get("alamat_klrg")),
                 r.get("assignment_status_alias"), r.get("assignment_date_modified"), synced_at,
             ))
     conn.commit()
