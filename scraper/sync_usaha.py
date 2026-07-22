@@ -118,7 +118,25 @@ def _make_browser(pw):
     return browser, ctx
 
 
-def login(ctx):
+LOGIN_MAX_RETRY   = 3
+LOGIN_RETRY_DELAY = 15  # detik — container baru start kadang jaringannya belum
+                        # stabil sesaat (ERR_NETWORK_CHANGED), bukan bot-block
+
+
+def login(ctx, retries=LOGIN_MAX_RETRY):
+    last_err = None
+    for attempt in range(1, retries + 1):
+        try:
+            return _do_login(ctx)
+        except Exception as e:
+            last_err = e
+            print(f"[LOGIN] gagal (percobaan {attempt}/{retries}): {e}", flush=True)
+            if attempt < retries:
+                time.sleep(LOGIN_RETRY_DELAY)
+    raise last_err
+
+
+def _do_login(ctx):
     page = ctx.new_page()
     _stealth.apply_stealth_sync(page)
 
