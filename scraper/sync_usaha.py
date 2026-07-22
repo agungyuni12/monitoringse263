@@ -181,6 +181,8 @@ def _run_query_and_fetch(page, sql, retries=5):
     UI selesai (kena bot-wall)."""
     for attempt in range(1, retries + 1):
         try:
+            page.wait_for_selector(".ace_content", timeout=60_000)
+            page.wait_for_selector('button:has-text("Run")', timeout=60_000)
             page.locator(".ace_content").click()
             page.keyboard.press("ControlOrMeta+A")
             page.locator("textarea.ace_text-input").fill(sql)
@@ -202,6 +204,12 @@ def _run_query_and_fetch(page, sql, retries=5):
         except Exception as e:
             wait = 15 * attempt
             print(f"    [RETRY {attempt}/{retries}] {e} — jeda {wait}s", flush=True)
+            print(f"    [DEBUG] url={page.url}", flush=True)
+            try:
+                snippet = page.content()[:800].replace("\n", " ")
+                print(f"    [DEBUG] html: {snippet}", flush=True)
+            except Exception as dump_err:
+                print(f"    [DEBUG] gagal ambil html: {dump_err}", flush=True)
             time.sleep(wait)
     raise RuntimeError("Gagal ambil hasil query setelah semua retry")
 
