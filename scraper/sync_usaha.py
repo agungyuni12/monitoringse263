@@ -150,8 +150,17 @@ def _run_query_and_fetch(page, sql, retries=5):
             page.locator(".ace_content").click()
             page.keyboard.press("ControlOrMeta+A")
             page.locator("textarea.ace_text-input").fill(sql)
-            page.locator('button:has-text("Run")').click()
-            page.wait_for_timeout(int(random.uniform(1500, 3000)))
+
+            # Tunggu POST /execute/ betul-betul kelar SEBELUM reload — kalau
+            # reload duluan, request Run yang baru diklik bisa keputus, dan
+            # hasil yang muncul setelah reload jadinya cache query SEBELUMNYA
+            # (kejadian nyata: query pertama malah balikin 1 baris hasil
+            # COUNT(*) yang dijalankan sebelumnya, bukan 1000 baris data baru).
+            with page.expect_response(
+                lambda r: "/api/v1/sqllab/execute/" in r.url, timeout=45_000
+            ) as exec_resp_info:
+                page.locator('button:has-text("Run")').click()
+            _check_bot_wall(exec_resp_info.value.text(), "eksekusi query")
 
             with page.expect_response(
                 lambda r: "/api/v1/sqllab/results/" in r.url, timeout=45_000
