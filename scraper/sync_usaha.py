@@ -10,18 +10,24 @@ beda sendiri.
 
 Superset di server ini membatasi hasil query ke MAKS 1000 baris per eksekusi,
 independen dari nilai dropdown LIMIT di UI (dikonfirmasi manual: LIMIT diset
-100.000 tapi tetap balik 1000 baris, sementara SELECT COUNT(*) dengan kondisi
-sama menunjukkan total sebenarnya 14.766). Makanya data diambil bertahap pakai
-LIMIT 1000 OFFSET n, di-ORDER BY assignment_id supaya pagination-nya stabil.
+100.000 tapi tetap balik 1000 baris). Awalnya data diambil pakai LIMIT/OFFSET
+bertahap, tapi itu bikin dua masalah: (1) OFFSET makin dalam makin lambat,
+dan (2) reload halaman buat ambil hasil (workaround bot-wall, lihat di bawah)
+punya race condition — kalau di-reload sebelum server sempat menyimpan tab
+state query yang baru, hasil yang muncul malah cache query SEBELUMNYA (bukan
+error, jadi kelewat gak ketahuan salah). Makanya sekarang dipecah PER DESA
+(level_4_full_code) — dicek manual, desa dengan usaha terbanyak cuma 729
+baris (dari 81 desa total), jadi selalu di bawah cap 1000 tanpa OFFSET sama
+sekali, dan query per desa filternya beda-beda jadi gak ada risiko nyangkut
+cache query lain.
 
 WAF FASIH (F5, terlihat dari cookie "TS...") sempat membalas halaman "Bot
-Detected" walau lewat browser asli & klik tombol Run manusia — baik saat baca
-response POST /execute/ langsung, maupun (kadang) di percobaan berikutnya.
-Ditemukan lewat percobaan manual: me-reload halaman SQL Lab setelah Run
-(bukan baca response execute-nya langsung) berhasil mengambil hasil query
-dari cache server (GET /api/v1/sqllab/results/) dengan konsisten tanpa kena
-block lagi — jadi pola itu yang dipakai di sini (_run_query_and_fetch),
-lengkap dengan retry/backoff untuk jaga-jaga kalau suatu saat tetap kena.
+Detected" waktu baca response POST /execute/ langsung TANPA nunggu apa pun
+dulu (dua query berturut-turut secepat mungkin). Setelah dicek manual: kalau
+ditunggu dulu sampai teks "N rows returned" muncul di UI (tanda Superset-nya
+sendiri sudah selesai proses response), baca body /execute/ langsung itu
+konsisten aman — gak perlu reload sama sekali. Jadi _run_query_and_fetch di
+bawah ini nunggu render UI dulu baru baca network response-nya.
 
 Env vars:
   FASIH_USER    (default: agung.yuniarta)
@@ -55,9 +61,15 @@ SYNC_INTERVAL_HOURS = float(os.getenv("SYNC_INTERVAL_HOURS", "4"))
 
 DASH_URL = "https://fasih-dashboard.bps.go.id"
 
-PAGE_SIZE      = 1000  # hard cap server (lihat docstring) — jangan dinaikkan
-PAGE_DELAY_MIN = 3      # jeda antar halaman (detik) — biar traffic gak seragam
-PAGE_DELAY_MAX = 8
+DESA_DELAY_MIN = 3   # jeda antar desa (detik) — biar traffic gak seragam
+DESA_DELAY_MAX = 8
+
+DESA_LIST_QUERY = (
+    "SELECT j.level_4_full_code, COUNT(*) AS n FROM root_table j "
+    "INNER JOIN base_table_assignment i ON j.assignment_id = i.assignment_id "
+    "WHERE j.ada_bang_usaha_value = '0' "
+    "GROUP BY j.level_4_full_code ORDER BY n DESC LIMIT 500"
+)
 
 QUERY_TEMPLATE = """
 SELECT i.assignment_status_alias, j.nama_usaha_bang, i.data6,
@@ -66,15 +78,9 @@ SELECT i.assignment_status_alias, j.nama_usaha_bang, i.data6,
 FROM root_table j
 INNER JOIN base_table_assignment i ON j.assignment_id = i.assignment_id
 WHERE j.ada_bang_usaha_value = '0'
-ORDER BY j.assignment_id
-LIMIT {limit} OFFSET {offset}
+  AND j.level_4_full_code = '{desa_code}'
+LIMIT 1000
 """.strip()
-
-COUNT_QUERY = (
-    "SELECT COUNT(*) AS total_rows FROM root_table j "
-    "INNER JOIN base_table_assignment i ON j.assignment_id = i.assignment_id "
-    "WHERE j.ada_bang_usaha_value = '0'"
-)
 
 HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
 WITA = timezone(timedelta(hours=8))
@@ -169,36 +175,23 @@ def _do_login(ctx):
 
 
 def _run_query_and_fetch(page, sql, retries=5):
-    """Jalankan sql di SQL Lab lalu ambil hasilnya lewat reload halaman —
-    lihat docstring modul: baca response POST /execute/ langsung kadang kena
-    'Bot Detected', tapi reload lalu baca GET /api/v1/sqllab/results/ (cache
-    hasil query yang sudah tersimpan di server) terbukti konsisten berhasil."""
+    """Jalankan sql di SQL Lab, tunggu UI-nya sendiri selesai render ("N rows
+    returned"), baru baca response POST /execute/ langsung — lihat docstring
+    modul kenapa TIDAK pakai reload (race condition) atau baca body sebelum
+    UI selesai (kena bot-wall)."""
     for attempt in range(1, retries + 1):
         try:
             page.locator(".ace_content").click()
             page.keyboard.press("ControlOrMeta+A")
             page.locator("textarea.ace_text-input").fill(sql)
 
-            # Tunggu POST /execute/ betul-betul kelar SEBELUM reload — kalau
-            # reload duluan, request Run yang baru diklik bisa keputus, dan
-            # hasil yang muncul setelah reload jadinya cache query SEBELUMNYA
-            # (kejadian nyata: query pertama malah balikin 1 baris hasil
-            # COUNT(*) yang dijalankan sebelumnya, bukan 1000 baris data baru).
-            # Cuma perlu TAHU request-nya sudah tuntas (buat cegah race di atas),
-            # gak perlu baca body-nya — kadang CDP gagal ambil body response
-            # yang sudah kepakai/hilang dari buffer ("No resource with given
-            # identifier found"), padahal request-nya sendiri sukses.
             with page.expect_response(
-                lambda r: "/api/v1/sqllab/execute/" in r.url, timeout=45_000
+                lambda r: "/api/v1/sqllab/execute/" in r.url, timeout=60_000
             ) as exec_resp_info:
                 page.locator('button:has-text("Run")').click()
-            exec_resp_info.value
+                page.wait_for_selector("text=rows returned", timeout=60_000)
 
-            with page.expect_response(
-                lambda r: "/api/v1/sqllab/results/" in r.url, timeout=45_000
-            ) as resp_info:
-                page.reload(timeout=60_000)
-            resp = resp_info.value
+            resp = exec_resp_info.value
             body_text = resp.text()
             _check_bot_wall(body_text, "ambil hasil query")
             body = json.loads(body_text)
@@ -213,22 +206,21 @@ def _run_query_and_fetch(page, sql, retries=5):
     raise RuntimeError("Gagal ambil hasil query setelah semua retry")
 
 
-def get_total_rows(page):
-    data = _run_query_and_fetch(page, COUNT_QUERY)
-    return int(data[0]["total_rows"])
+def get_desa_codes(page):
+    data = _run_query_and_fetch(page, DESA_LIST_QUERY)
+    return [(r["level_4_full_code"], int(r["n"])) for r in data if r.get("level_4_full_code")]
 
 
-def scrape_all(page, total_rows):
+def scrape_all(page, desa_list):
     all_rows = []
-    offset = 0
-    while offset < total_rows:
-        sql = QUERY_TEMPLATE.format(limit=PAGE_SIZE, offset=offset)
+    for i, (desa_code, expected_n) in enumerate(desa_list, start=1):
+        sql = QUERY_TEMPLATE.format(desa_code=desa_code)
         rows = _run_query_and_fetch(page, sql)
         all_rows.extend(rows)
-        print(f"  [{offset}-{offset + len(rows)}] → {len(rows)} baris (total {len(all_rows)})", flush=True)
-        offset += PAGE_SIZE
-        if offset < total_rows:
-            _human_pause(PAGE_DELAY_MIN, PAGE_DELAY_MAX)
+        flag = "" if len(rows) == expected_n else f"  [WARN] beda dari hitungan awal ({expected_n})"
+        print(f"  [{i}/{len(desa_list)}] desa {desa_code} → {len(rows)} baris (total {len(all_rows)}){flag}", flush=True)
+        if i < len(desa_list):
+            _human_pause(DESA_DELAY_MIN, DESA_DELAY_MAX)
     return all_rows
 
 
@@ -320,10 +312,11 @@ def run_once():
             page.goto(f"{DASH_URL}/superset/sqllab/", wait_until="networkidle", timeout=90_000)
             _check_bot_wall(page.content(), "buka SQL Lab")
 
-            total = get_total_rows(page)
-            print(f"[SCRAPE] Total baris: {total}", flush=True)
+            desa_list = get_desa_codes(page)
+            expected_total = sum(n for _, n in desa_list)
+            print(f"[SCRAPE] {len(desa_list)} desa, total baris (perkiraan): {expected_total}", flush=True)
 
-            rows = scrape_all(page, total)
+            rows = scrape_all(page, desa_list)
         finally:
             browser.close()
 
