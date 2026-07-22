@@ -870,7 +870,8 @@ func DownloadTidakDitemukanRekap(c echo.Context) error {
 	if level == "sls" {
 		rows, err := db.DB.Query(`
 			SELECT s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''), ppl.name, pml.name,
-			  (SELECT COUNT(*) FROM tidak_ditemukan_usaha tu WHERE tu.sls_id = s.id) AS usaha_cnt,
+			  (SELECT COUNT(*) FROM tidak_ditemukan_usaha tu WHERE tu.sls_id = s.id`+usahaBangunanWhere+`) AS usaha_cnt,
+			  (SELECT COUNT(*) FROM tidak_ditemukan_usaha tu WHERE tu.sls_id = s.id`+usahaKeluargaWhere+`) AS usaha_keluarga_cnt,
 			  (SELECT COUNT(*) FROM tidak_ditemukan_keluarga tk WHERE tk.sls_id = s.id) AS keluarga_cnt
 			FROM sls s
 			JOIN users ppl ON ppl.id = s.ppl_id
@@ -882,17 +883,17 @@ func DownloadTidakDitemukanRekap(c echo.Context) error {
 		defer rows.Close()
 
 		type row struct {
-			sls, kec, desa, ppl, pml string
-			usaha, keluarga          int
+			sls, kec, desa, ppl, pml       string
+			usaha, usahaKeluarga, keluarga int
 		}
 		var data []row
 		for rows.Next() {
 			var r row
-			rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.usaha, &r.keluarga)
+			rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.usaha, &r.usahaKeluarga, &r.keluarga)
 			data = append(data, r)
 		}
 
-		headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Usaha Tidak Ditemukan", "Keluarga Tidak Ditemukan", "Total"}
+		headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Usaha Tidak Ditemukan", "Usaha dalam Keluarga", "Keluarga Tidak Ditemukan", "Total"}
 		return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
 			for i, r := range data {
 				n := i + 2
@@ -902,8 +903,9 @@ func DownloadTidakDitemukanRekap(c echo.Context) error {
 				f.SetCellValue(sheet, cell(4, n), r.ppl)
 				f.SetCellValue(sheet, cell(5, n), r.pml)
 				f.SetCellValue(sheet, cell(6, n), r.usaha)
-				f.SetCellValue(sheet, cell(7, n), r.keluarga)
-				f.SetCellValue(sheet, cell(8, n), r.usaha+r.keluarga)
+				f.SetCellValue(sheet, cell(7, n), r.usahaKeluarga)
+				f.SetCellValue(sheet, cell(8, n), r.keluarga)
+				f.SetCellValue(sheet, cell(9, n), r.usaha+r.usahaKeluarga+r.keluarga)
 			}
 		})
 	}
@@ -935,9 +937,9 @@ func DownloadTidakDitemukanRekap(c echo.Context) error {
 
 	type groupKey struct{ desa, kec string }
 	type groupRow struct {
-		desa, kec       string
-		jmlSLS          int
-		usaha, keluarga int
+		desa, kec                      string
+		jmlSLS                         int
+		usaha, usahaKeluarga, keluarga int
 	}
 	byKey := map[groupKey]*groupRow{}
 	var keys []groupKey
@@ -956,7 +958,7 @@ func DownloadTidakDitemukanRekap(c echo.Context) error {
 	}
 
 	if len(keys) > 0 {
-		fillCount := func(table string, apply func(r *groupRow, n int)) {
+		fillCount := func(table, extraWhere string, apply func(r *groupRow, n int)) {
 			valArgs := append([]interface{}{}, args...)
 			var valQuery string
 			if level == "kec" {
@@ -971,7 +973,7 @@ func DownloadTidakDitemukanRekap(c echo.Context) error {
 					JOIN sls s ON s.id = t.sls_id
 					JOIN users ppl ON ppl.id = s.ppl_id
 					JOIN users pml ON pml.id = s.pml_id
-				`, table) + where + ` AND s.nama_kec IN (` + strings.Join(ph, ",") + `) GROUP BY s.nama_kec`
+				`, table) + where + extraWhere + ` AND s.nama_kec IN (` + strings.Join(ph, ",") + `) GROUP BY s.nama_kec`
 			} else {
 				ph := make([]string, len(keys))
 				for i, k := range keys {
@@ -984,7 +986,7 @@ func DownloadTidakDitemukanRekap(c echo.Context) error {
 					JOIN sls s ON s.id = t.sls_id
 					JOIN users ppl ON ppl.id = s.ppl_id
 					JOIN users pml ON pml.id = s.pml_id
-				`, table) + where + ` AND (s.nama_desa, s.nama_kec) IN (` + strings.Join(ph, ",") + `) GROUP BY s.nama_desa, s.nama_kec`
+				`, table) + where + extraWhere + ` AND (s.nama_desa, s.nama_kec) IN (` + strings.Join(ph, ",") + `) GROUP BY s.nama_desa, s.nama_kec`
 			}
 			if valRows, err := db.DB.Query(valQuery, valArgs...); err == nil {
 				defer valRows.Close()
@@ -1002,15 +1004,16 @@ func DownloadTidakDitemukanRekap(c echo.Context) error {
 				}
 			}
 		}
-		fillCount("tidak_ditemukan_usaha", func(r *groupRow, n int) { r.usaha = n })
-		fillCount("tidak_ditemukan_keluarga", func(r *groupRow, n int) { r.keluarga = n })
+		fillCount("tidak_ditemukan_usaha", usahaBangunanWhere, func(r *groupRow, n int) { r.usaha = n })
+		fillCount("tidak_ditemukan_usaha", usahaKeluargaWhere, func(r *groupRow, n int) { r.usahaKeluarga = n })
+		fillCount("tidak_ditemukan_keluarga", "", func(r *groupRow, n int) { r.keluarga = n })
 	}
 
 	var headers []string
 	if level == "kec" {
-		headers = []string{"Kecamatan", "Jml SLS", "Usaha Tidak Ditemukan", "Keluarga Tidak Ditemukan", "Total"}
+		headers = []string{"Kecamatan", "Jml SLS", "Usaha Tidak Ditemukan", "Usaha dalam Keluarga", "Keluarga Tidak Ditemukan", "Total"}
 	} else {
-		headers = []string{"Desa", "Kecamatan", "Jml SLS", "Usaha Tidak Ditemukan", "Keluarga Tidak Ditemukan", "Total"}
+		headers = []string{"Desa", "Kecamatan", "Jml SLS", "Usaha Tidak Ditemukan", "Usaha dalam Keluarga", "Keluarga Tidak Ditemukan", "Total"}
 	}
 	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
 		for i, r := range data {
@@ -1026,9 +1029,11 @@ func DownloadTidakDitemukanRekap(c echo.Context) error {
 			col++
 			f.SetCellValue(sheet, cell(col, n), r.usaha)
 			col++
+			f.SetCellValue(sheet, cell(col, n), r.usahaKeluarga)
+			col++
 			f.SetCellValue(sheet, cell(col, n), r.keluarga)
 			col++
-			f.SetCellValue(sheet, cell(col, n), r.usaha+r.keluarga)
+			f.SetCellValue(sheet, cell(col, n), r.usaha+r.usahaKeluarga+r.keluarga)
 		}
 	})
 }

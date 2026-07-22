@@ -59,7 +59,7 @@ func tidakDitemukanSource(tipe string) (table string, extraWhere string) {
 // nonEmptyStrings membuang elemen string kosong — perlu krn query param spt
 // "kec=" (hadir tapi kosong, mis. dari select "Semua Kecamatan" yang value-nya
 // "") ke-serialize jadi satu elemen "" oleh c.QueryParams(), bukan slice kosong.
-// Tanpa ini, filter kecamatan salah kaprah jadi "WHERE nama_kec IN ('')" yang
+// Tanpa ini, filter kecamatan salah kaprah jadi "WHERE nama_kec IN (”)" yang
 // tidak match apapun, alih-alih "tidak difilter".
 func nonEmptyStrings(vals []string) []string {
 	out := vals[:0]
@@ -205,22 +205,30 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 // Keberadaan/Progres Semua SLS). NamaSLS/NamaPPL/NamaPML kosong di level desa/kec;
 // JmlSLS cuma dipakai di level desa/kec.
 type TidakDitemukanRekapRow struct {
-	NamaSLS     string
-	NamaKec     string
-	NamaDesa    string
-	NamaPPL     string
-	NamaPML     string
-	JmlSLS      int
-	UsahaCnt    int
-	KeluargaCnt int
+	NamaSLS          string
+	NamaKec          string
+	NamaDesa         string
+	NamaPPL          string
+	NamaPML          string
+	JmlSLS           int
+	UsahaCnt         int // usaha bangunan mandiri (jenis_prelist != 'keluarga')
+	UsahaKeluargaCnt int // usaha yg nempel roster keluarga (jenis_prelist = 'keluarga')
+	KeluargaCnt      int
 }
 
 var tidakDitemukanRekapSortCols = map[string]string{
-	"lokasi":   "s.nama_kec, s.nama_desa, s.nama_sls",
-	"petugas":  "ppl.name",
-	"usaha":    "usaha_cnt",
-	"keluarga": "keluarga_cnt",
+	"lokasi":         "s.nama_kec, s.nama_desa, s.nama_sls",
+	"petugas":        "ppl.name",
+	"usaha":          "usaha_cnt",
+	"usaha_keluarga": "usaha_keluarga_cnt",
+	"keluarga":       "keluarga_cnt",
 }
+
+// usahaBangunanWhere / usahaKeluargaWhere: klausa pembeda dua kategori usaha
+// yg disimpan di satu tabel tidak_ditemukan_usaha (lihat tidakDitemukanSource
+// di atas) — dipakai berulang di rekap SLS & rekap grup (desa/kec).
+const usahaBangunanWhere = ` AND (jenis_prelist IS NULL OR jenis_prelist != 'keluarga')`
+const usahaKeluargaWhere = ` AND jenis_prelist = 'keluarga'`
 
 // tidakDitemukanRekapFilters sama seperti tidakDitemukanFilters, tapi WHERE-nya
 // terhadap tabel sls langsung (bukan tidak_ditemukan_usaha/keluarga), krn rekap
@@ -271,12 +279,17 @@ func tidakDitemukanRekapExtra(level, q string, kecs []string, pmlID, pplID int) 
 // tidakDitemukanRekapTotals menghitung total baris tidak_ditemukan_usaha/keluarga
 // yang cocok filter lokasi aktif (SEMUA baris, bukan cuma halaman/grup ini) —
 // dipakai sbg footer "Total" yang tetap ikut filter, terlepas dari level grouping.
-func tidakDitemukanRekapTotals(where string, args []interface{}) (totalUsaha, totalKeluarga int) {
+func tidakDitemukanRekapTotals(where string, args []interface{}) (totalUsaha, totalUsahaKeluarga, totalKeluarga int) {
 	db.DB.QueryRow(`
 		SELECT COUNT(*) FROM tidak_ditemukan_usaha tu
 		JOIN sls s ON s.id = tu.sls_id
 		JOIN users ppl ON ppl.id = s.ppl_id
-		JOIN users pml ON pml.id = s.pml_id`+where, args...).Scan(&totalUsaha)
+		JOIN users pml ON pml.id = s.pml_id`+where+usahaBangunanWhere, args...).Scan(&totalUsaha)
+	db.DB.QueryRow(`
+		SELECT COUNT(*) FROM tidak_ditemukan_usaha tu
+		JOIN sls s ON s.id = tu.sls_id
+		JOIN users ppl ON ppl.id = s.ppl_id
+		JOIN users pml ON pml.id = s.pml_id`+where+usahaKeluargaWhere, args...).Scan(&totalUsahaKeluarga)
 	db.DB.QueryRow(`
 		SELECT COUNT(*) FROM tidak_ditemukan_keluarga tk
 		JOIN sls s ON s.id = tk.sls_id
@@ -295,7 +308,7 @@ func AdminTidakDitemukanRekapTable(c echo.Context) error {
 	}
 	where, args, kecs, pmlID, pplID, q := tidakDitemukanRekapFilters(c)
 	extra := tidakDitemukanRekapExtra(level, q, kecs, pmlID, pplID)
-	totalUsaha, totalKeluarga := tidakDitemukanRekapTotals(where, args)
+	totalUsaha, totalUsahaKeluarga, totalKeluarga := tidakDitemukanRekapTotals(where, args)
 
 	pmlSelect := OOBSelect{
 		TargetID: "tidak-ditemukan-pml-select", Name: "pml_id", Placeholder: "Semua PML",
@@ -309,12 +322,12 @@ func AdminTidakDitemukanRekapTable(c echo.Context) error {
 	}
 
 	if level == "sls" {
-		return tidakDitemukanRekapSLS(c, where, args, extra, totalUsaha, totalKeluarga, pmlSelect, pplSelect)
+		return tidakDitemukanRekapSLS(c, where, args, extra, totalUsaha, totalUsahaKeluarga, totalKeluarga, pmlSelect, pplSelect)
 	}
-	return tidakDitemukanRekapGroup(c, where, args, extra, level, totalUsaha, totalKeluarga, pmlSelect, pplSelect)
+	return tidakDitemukanRekapGroup(c, where, args, extra, level, totalUsaha, totalUsahaKeluarga, totalKeluarga, pmlSelect, pplSelect)
 }
 
-func tidakDitemukanRekapSLS(c echo.Context, where string, args []interface{}, extra string, totalUsaha, totalKeluarga int, pmlSelect, pplSelect OOBSelect) error {
+func tidakDitemukanRekapSLS(c echo.Context, where string, args []interface{}, extra string, totalUsaha, totalUsahaKeluarga, totalKeluarga int, pmlSelect, pplSelect OOBSelect) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
 		page = 1
@@ -335,7 +348,8 @@ func tidakDitemukanRekapSLS(c echo.Context, where string, args []interface{}, ex
 	queryArgs := append(append([]interface{}{}, args...), models.PerPage, offset)
 	rows, err := db.DB.Query(`
 		SELECT s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''), ppl.name, pml.name,
-		  (SELECT COUNT(*) FROM tidak_ditemukan_usaha tu WHERE tu.sls_id = s.id) AS usaha_cnt,
+		  (SELECT COUNT(*) FROM tidak_ditemukan_usaha tu WHERE tu.sls_id = s.id`+usahaBangunanWhere+`) AS usaha_cnt,
+		  (SELECT COUNT(*) FROM tidak_ditemukan_usaha tu WHERE tu.sls_id = s.id`+usahaKeluargaWhere+`) AS usaha_keluarga_cnt,
 		  (SELECT COUNT(*) FROM tidak_ditemukan_keluarga tk WHERE tk.sls_id = s.id) AS keluarga_cnt
 		FROM sls s
 		JOIN users ppl ON ppl.id = s.ppl_id
@@ -348,14 +362,14 @@ func tidakDitemukanRekapSLS(c echo.Context, where string, args []interface{}, ex
 		defer rows.Close()
 		for rows.Next() {
 			var r TidakDitemukanRekapRow
-			rows.Scan(&r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML, &r.UsahaCnt, &r.KeluargaCnt)
+			rows.Scan(&r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML, &r.UsahaCnt, &r.UsahaKeluargaCnt, &r.KeluargaCnt)
 			list = append(list, r)
 		}
 	}
 
 	return c.Render(http.StatusOK, "tidak_ditemukan_rekap_table.html", map[string]interface{}{
 		"Rows": list, "PageInfo": pageInfo, "GroupLevel": "sls",
-		"TotalUsaha": totalUsaha, "TotalKeluarga": totalKeluarga,
+		"TotalUsaha": totalUsaha, "TotalUsahaKeluarga": totalUsahaKeluarga, "TotalKeluarga": totalKeluarga,
 		"PMLSelect": pmlSelect, "PPLSelect": pplSelect,
 	})
 }
@@ -363,7 +377,7 @@ func tidakDitemukanRekapSLS(c echo.Context, where string, args []interface{}, ex
 // tidakDitemukanRekapGroup menangani level=desa|kec: query grup (mirip
 // adminWideAgregatGroupTable di kbli.go), lalu isi UsahaCnt/KeluargaCnt lewat
 // query terpisah ke masing2 tabel sumber, di-join per key desa/kec.
-func tidakDitemukanRekapGroup(c echo.Context, where string, args []interface{}, extra, level string, totalUsaha, totalKeluarga int, pmlSelect, pplSelect OOBSelect) error {
+func tidakDitemukanRekapGroup(c echo.Context, where string, args []interface{}, extra, level string, totalUsaha, totalUsahaKeluarga, totalKeluarga int, pmlSelect, pplSelect OOBSelect) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
 		page = 1
@@ -404,7 +418,7 @@ func tidakDitemukanRekapGroup(c echo.Context, where string, args []interface{}, 
 	renderData := func(list []*TidakDitemukanRekapRow) map[string]interface{} {
 		return map[string]interface{}{
 			"Rows": list, "PageInfo": pageInfo, "GroupLevel": level,
-			"TotalUsaha": totalUsaha, "TotalKeluarga": totalKeluarga,
+			"TotalUsaha": totalUsaha, "TotalUsahaKeluarga": totalUsahaKeluarga, "TotalKeluarga": totalKeluarga,
 			"PMLSelect": pmlSelect, "PPLSelect": pplSelect,
 		}
 	}
@@ -432,7 +446,7 @@ func tidakDitemukanRekapGroup(c echo.Context, where string, args []interface{}, 
 	}
 
 	if len(keys) > 0 {
-		fillCount := func(table string, apply func(r *TidakDitemukanRekapRow, n int)) {
+		fillCount := func(table, extraWhere string, apply func(r *TidakDitemukanRekapRow, n int)) {
 			valArgs := append([]interface{}{}, args...)
 			var valQuery string
 			if level == "kec" {
@@ -447,7 +461,7 @@ func tidakDitemukanRekapGroup(c echo.Context, where string, args []interface{}, 
 					JOIN sls s ON s.id = t.sls_id
 					JOIN users ppl ON ppl.id = s.ppl_id
 					JOIN users pml ON pml.id = s.pml_id
-				`, table) + where + ` AND s.nama_kec IN (` + strings.Join(ph, ",") + `) GROUP BY s.nama_kec`
+				`, table) + where + extraWhere + ` AND s.nama_kec IN (` + strings.Join(ph, ",") + `) GROUP BY s.nama_kec`
 			} else {
 				ph := make([]string, len(keys))
 				for i, k := range keys {
@@ -460,7 +474,7 @@ func tidakDitemukanRekapGroup(c echo.Context, where string, args []interface{}, 
 					JOIN sls s ON s.id = t.sls_id
 					JOIN users ppl ON ppl.id = s.ppl_id
 					JOIN users pml ON pml.id = s.pml_id
-				`, table) + where + ` AND (s.nama_desa, s.nama_kec) IN (` + strings.Join(ph, ",") + `) GROUP BY s.nama_desa, s.nama_kec`
+				`, table) + where + extraWhere + ` AND (s.nama_desa, s.nama_kec) IN (` + strings.Join(ph, ",") + `) GROUP BY s.nama_desa, s.nama_kec`
 			}
 			if valRows, err := db.DB.Query(valQuery, valArgs...); err == nil {
 				defer valRows.Close()
@@ -478,8 +492,9 @@ func tidakDitemukanRekapGroup(c echo.Context, where string, args []interface{}, 
 				}
 			}
 		}
-		fillCount("tidak_ditemukan_usaha", func(r *TidakDitemukanRekapRow, n int) { r.UsahaCnt = n })
-		fillCount("tidak_ditemukan_keluarga", func(r *TidakDitemukanRekapRow, n int) { r.KeluargaCnt = n })
+		fillCount("tidak_ditemukan_usaha", usahaBangunanWhere, func(r *TidakDitemukanRekapRow, n int) { r.UsahaCnt = n })
+		fillCount("tidak_ditemukan_usaha", usahaKeluargaWhere, func(r *TidakDitemukanRekapRow, n int) { r.UsahaKeluargaCnt = n })
+		fillCount("tidak_ditemukan_keluarga", "", func(r *TidakDitemukanRekapRow, n int) { r.KeluargaCnt = n })
 	}
 
 	return c.Render(http.StatusOK, "tidak_ditemukan_rekap_table.html", renderData(list))
