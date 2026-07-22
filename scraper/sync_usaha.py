@@ -55,7 +55,7 @@ Env vars:
   DB_USER       (default: root)
   DB_PASS       (default: kelayu1998)
   DB_NAME       (default: se2026)
-  SYNC_INTERVAL_HOURS (default: 4)
+  SYNC_HOUR     (default: 22) — jam WITA sync jalan tiap hari
 """
 
 import os, json, random, re, time
@@ -75,7 +75,7 @@ DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "kelayu1998")
 DB_NAME = os.getenv("DB_NAME", "se2026")
 
-SYNC_INTERVAL_HOURS = float(os.getenv("SYNC_INTERVAL_HOURS", "4"))
+SYNC_HOUR = int(os.getenv("SYNC_HOUR", "22"))  # jam WITA, sekali sehari
 
 DASH_URL = "https://fasih-dashboard.bps.go.id"
 
@@ -440,7 +440,14 @@ def run_once():
 
 
 def _next_run():
-    return _now_wita() + timedelta(hours=SYNC_INTERVAL_HOURS)
+    # Sekali sehari jam SYNC_HOUR WITA — percobaan dini hari (mis. 03:00)
+    # terbukti gagal terus (server FASIH kemungkinan maintenance/tidak
+    # stabil jam segitu), jadi dijadwalkan tetap malam saja.
+    now = _now_wita()
+    nxt = now.replace(hour=SYNC_HOUR, minute=0, second=0, microsecond=0)
+    if nxt <= now:
+        nxt += timedelta(days=1)
+    return nxt
 
 
 if __name__ == "__main__":
