@@ -146,7 +146,7 @@ def _do_login(ctx):
     page = ctx.new_page()
     _stealth.apply_stealth_sync(page)
 
-    page.goto(f"{DASH_URL}/login/", wait_until="networkidle", timeout=90_000)
+    page.goto(f"{DASH_URL}/login/", wait_until="networkidle", timeout=180_000)
     _check_bot_wall(page.content(), "halaman login")
 
     # Dropdown "pilih jenis login" default-nya sudah "Pegawai BPS" — langsung Go!
@@ -155,20 +155,20 @@ def _do_login(ctx):
     # supaya kelihatan alasannya (bot-wall halus / DOM beda / dsb), bukan cuma
     # "Timeout exceeded" polos.
     try:
-        page.wait_for_selector("button:has-text('Go!')", timeout=60_000)
+        page.wait_for_selector("button:has-text('Go!')", timeout=180_000)
     except Exception:
         print(f"[LOGIN][DEBUG] url={page.url}", flush=True)
         print(f"[LOGIN][DEBUG] html snippet: {page.content()[:1500]}", flush=True)
         raise
     page.click("button:has-text('Go!')")
-    page.wait_for_selector("#username", timeout=90_000)
+    page.wait_for_selector("#username", timeout=180_000)
     _human_pause(0.3, 0.8)
     _human_type(page.locator("#username"), FASIH_USER)
     _human_pause(0.2, 0.6)
     _human_type(page.locator("#password"), FASIH_PASS)
     _human_pause(0.3, 0.9)
     page.click("#kc-login")
-    page.wait_for_url("**fasih-dashboard.bps.go.id**", timeout=90_000)
+    page.wait_for_url("**fasih-dashboard.bps.go.id**", timeout=180_000)
     _check_bot_wall(page.content(), "setelah login")
     print(f"[LOGIN] Berhasil → {page.url}", flush=True)
     return page
@@ -181,17 +181,17 @@ def _run_query_and_fetch(page, sql, retries=5):
     UI selesai (kena bot-wall)."""
     for attempt in range(1, retries + 1):
         try:
-            page.wait_for_selector(".ace_content", timeout=60_000)
-            page.wait_for_selector('button:has-text("Run")', timeout=60_000)
+            page.wait_for_selector(".ace_content", timeout=180_000)
+            page.wait_for_selector('button:has-text("Run")', timeout=180_000)
             page.locator(".ace_content").click()
             page.keyboard.press("ControlOrMeta+A")
             page.locator("textarea.ace_text-input").fill(sql)
 
             with page.expect_response(
-                lambda r: "/api/v1/sqllab/execute/" in r.url, timeout=60_000
+                lambda r: "/api/v1/sqllab/execute/" in r.url, timeout=180_000
             ) as exec_resp_info:
                 page.locator('button:has-text("Run")').click()
-                page.wait_for_selector("text=rows returned", timeout=60_000)
+                page.wait_for_selector("text=rows returned", timeout=180_000)
 
             resp = exec_resp_info.value
             body_text = resp.text()
@@ -317,7 +317,7 @@ def run_once():
         browser, ctx = _make_browser(pw)
         try:
             page = login(ctx)
-            page.goto(f"{DASH_URL}/superset/sqllab/", wait_until="networkidle", timeout=90_000)
+            page.goto(f"{DASH_URL}/superset/sqllab/", wait_until="networkidle", timeout=180_000)
             _check_bot_wall(page.content(), "buka SQL Lab")
 
             desa_list = get_desa_codes(page)
