@@ -795,14 +795,15 @@ func DownloadKeberadaanKeluarga(c echo.Context) error {
 // Filter sama persis dengan AdminTidakDitemukanTable (lihat handlers/tidak_ditemukan.go).
 func DownloadTidakDitemukan(c echo.Context) error {
 	tipe := c.QueryParam("tipe")
-	if tipe != "keluarga" {
+	if tipe != "keluarga" && tipe != "usaha_keluarga" {
 		tipe = "usaha"
 	}
-	table := tidakDitemukanTable(tipe)
+	table, extraWhere := tidakDitemukanSource(tipe)
 	where, args, _, _, _ := tidakDitemukanFilters(c, tipe)
+	where += extraWhere
 
 	skalaCol := "''"
-	if tipe == "usaha" {
+	if tipe != "keluarga" {
 		skalaCol = "COALESCE(t.skala_usaha,'')"
 	}
 

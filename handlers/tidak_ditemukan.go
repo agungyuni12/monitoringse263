@@ -40,11 +40,20 @@ var tidakDitemukanSortCols = map[string]string{
 	"tanggal": "t.tanggal_modified",
 }
 
-func tidakDitemukanTable(tipe string) string {
-	if tipe == "keluarga" {
-		return "tidak_ditemukan_keluarga"
+// tidakDitemukanSource menentukan tabel sumber + klausa WHERE tambahan per tipe.
+// "usaha" dan "usaha_keluarga" sama-sama dari tidak_ditemukan_usaha (usaha
+// bangunan mandiri & usaha yg nempel roster keluarga disimpan di tabel yg
+// sama, dibedakan kolom jenis_prelist — lihat scraper/sync_usaha.py), bukan
+// tabel terpisah, krn sumber & bentuk query Superset-nya sama persis.
+func tidakDitemukanSource(tipe string) (table string, extraWhere string) {
+	switch tipe {
+	case "keluarga":
+		return "tidak_ditemukan_keluarga", ""
+	case "usaha_keluarga":
+		return "tidak_ditemukan_usaha", ` AND t.jenis_prelist = 'keluarga'`
+	default:
+		return "tidak_ditemukan_usaha", ` AND (t.jenis_prelist IS NULL OR t.jenis_prelist != 'keluarga')`
 	}
-	return "tidak_ditemukan_usaha"
 }
 
 // nonEmptyStrings membuang elemen string kosong — perlu krn query param spt
@@ -95,10 +104,10 @@ func tidakDitemukanFilters(c echo.Context, tipe string) (where string, args []in
 // "Tidak Ditemukan" dipilih (lihat panel-keberadaan di templates/admin.html).
 func AdminTidakDitemukanTable(c echo.Context) error {
 	tipe := c.QueryParam("tipe")
-	if tipe != "keluarga" {
+	if tipe != "keluarga" && tipe != "usaha_keluarga" {
 		tipe = "usaha"
 	}
-	table := tidakDitemukanTable(tipe)
+	table, extraWhere := tidakDitemukanSource(tipe)
 
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
@@ -109,6 +118,7 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 	q := c.QueryParam("q")
 
 	where, args, kecs, pmlID, pplID := tidakDitemukanFilters(c, tipe)
+	where += extraWhere
 
 	var total int
 	db.DB.QueryRow(`SELECT COUNT(*) FROM `+table+` t JOIN sls s ON s.id = t.sls_id`+where, args...).Scan(&total)
@@ -136,7 +146,7 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 	pageInfo.FilterExtra = extra
 
 	skalaCol := "''"
-	if tipe == "usaha" {
+	if tipe != "keluarga" {
 		skalaCol = "COALESCE(t.skala_usaha,'')"
 	}
 
