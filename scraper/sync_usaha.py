@@ -211,6 +211,15 @@ def _run_query_and_fetch(page, sql, retries=5):
             except Exception as dump_err:
                 print(f"    [DEBUG] gagal ambil html: {dump_err}", flush=True)
             time.sleep(wait)
+            # Halaman kadang nyangkut di state yang gak bisa pulih sendiri
+            # (query "running" gak pernah kelar, dsb) — ngulang aksi yang
+            # sama di halaman yang sama percuma kalau begitu (terbukti: 5x
+            # retry bisa gagal identik berturut-turut). Refresh dulu sebelum
+            # attempt berikutnya supaya mulai dari state bersih.
+            try:
+                page.goto(f"{DASH_URL}/superset/sqllab/", wait_until="networkidle", timeout=180_000)
+            except Exception as reload_err:
+                print(f"    [DEBUG] gagal refresh halaman: {reload_err}", flush=True)
     raise RuntimeError("Gagal ambil hasil query setelah semua retry")
 
 
