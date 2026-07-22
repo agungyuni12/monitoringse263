@@ -47,11 +47,26 @@ func tidakDitemukanTable(tipe string) string {
 	return "tidak_ditemukan_usaha"
 }
 
+// nonEmptyStrings membuang elemen string kosong — perlu krn query param spt
+// "kec=" (hadir tapi kosong, mis. dari select "Semua Kecamatan" yang value-nya
+// "") ke-serialize jadi satu elemen "" oleh c.QueryParams(), bukan slice kosong.
+// Tanpa ini, filter kecamatan salah kaprah jadi "WHERE nama_kec IN ('')" yang
+// tidak match apapun, alih-alih "tidak difilter".
+func nonEmptyStrings(vals []string) []string {
+	out := vals[:0]
+	for _, v := range vals {
+		if v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
 // tidakDitemukanFilters membaca & membangun klausa WHERE yang dipakai bareng oleh
 // tabel (paginated) dan download (semua baris) — supaya filter selalu konsisten.
 func tidakDitemukanFilters(c echo.Context, tipe string) (where string, args []interface{}, kecs []string, pmlID, pplID int) {
 	q := c.QueryParam("q")
-	kecs = c.QueryParams()["kec"]
+	kecs = nonEmptyStrings(c.QueryParams()["kec"])
 	pmlID, _ = strconv.Atoi(c.QueryParam("pml_id"))
 	pplID, _ = strconv.Atoi(c.QueryParam("ppl_id"))
 	like := "%" + q + "%"
@@ -202,7 +217,7 @@ var tidakDitemukanRekapSortCols = map[string]string{
 // menghitung DUA tabel sumber sekaligus per lokasi.
 func tidakDitemukanRekapFilters(c echo.Context) (where string, args []interface{}, kecs []string, pmlID, pplID int, q string) {
 	q = c.QueryParam("q")
-	kecs = c.QueryParams()["kec"]
+	kecs = nonEmptyStrings(c.QueryParams()["kec"])
 	pmlID, _ = strconv.Atoi(c.QueryParam("pml_id"))
 	pplID, _ = strconv.Atoi(c.QueryParam("ppl_id"))
 	like := "%" + q + "%"
