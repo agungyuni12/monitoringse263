@@ -222,7 +222,7 @@ def scrape_all(page):
     # halaman & nge-block klik di belakangnya — tutup dulu kalau ada
     # (timeout pendek, gak apa2 kalau memang gak muncul).
     try:
-        page.click("dialog button:has-text('Close')", timeout=5_000)
+        page.click("[role='dialog'] button:has-text('Close')", timeout=5_000)
     except Exception:
         pass
 
