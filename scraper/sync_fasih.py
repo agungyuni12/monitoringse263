@@ -21,7 +21,7 @@ Env vars:
   DB_NAME       (default: se2026)
 """
 
-import os, json, math, random, re, time
+import os, json, random, re, time
 from datetime import datetime, timedelta
 from collections import defaultdict
 import pymysql
@@ -43,7 +43,6 @@ BASE_URL  = "https://fasih-sm.bps.go.id"
 SURVEY_ID = "a0429e96-51a5-477b-a415-485f9c153004"
 PERIOD_ID = "fd68e454-ba45-4b85-8205-f3bf777ded24"
 
-PENCACAH_ROLE_ID = "6d7d919a-45e5-4779-bb87-2905b49fd31a"
 DOMPU_REGION2_ID = "546a26bf-e388-41ab-9083-e02cbbc093d4"
 
 # Status yang dihitung sebagai "submit"
@@ -58,14 +57,20 @@ SUBMIT_STATUSES = frozenset({
     "APPROVED BY Admin Pusat",     "REJECTED BY Admin Pusat",
 })
 
-PAGE_SIZE     = 10    # server membatasi max 10 per halaman
-# Sequential (bukan paralel ThreadPoolExecutor+requests) — requests.Session
-# konsisten kena connection-reset dari WAF F5 BPS meski cookie session-nya
-# valid; ctx.request Playwright yang jalan lewat browser lolos, tapi
-# Playwright sync API tidak thread-safe jadi gak bisa diparalel via thread.
-# Konsekuensinya scrape 24 halaman lebih lambat & data (yang live berubah
-# krn approval Pengawas) bisa geser urutan/reorder di tengah — makanya ada
-# dedup seen_user_ids di aggregate().
+# Scrape-nya lewat KLIK UI ASLI (tombol "Rekap Petugas" → tab "Pencacah" →
+# paginasi tombol "Next" di Dasbor survei), bukan panggilan API langsung sama
+# sekali. Sudah dicoba dua pendekatan sebelum ini dan DUA-duanya konsisten
+# kena connection-reset (ECONNRESET/RemoteDisconnected) dari WAF F5 BPS:
+# requests.Session (walau cookie-nya valid) MAUPUN ctx.request Playwright
+# (walau itu jalan lewat network stack browser yang sama dgn login) — jadi
+# WAF-nya kemungkinan mendeteksi request yang gak dipicu interaksi UI asli
+# (mouse/klik betulan), bukan cuma soal TLS/HTTP client fingerprint. Ukuran
+# halaman (5/request) & jumlah halaman ikut apa adanya dari UI, gak bisa
+# diatur manual krn gak ada lagi payload yang kita susun sendiri.
+# Konsekuensinya scrape jadi lebih lambat (sequential, gak bisa diparalel —
+# satu Playwright page cuma bisa diklik dari satu alur) & data (yang live
+# berubah krn approval Pengawas) bisa geser urutan/reorder di tengah —
+# makanya ada dedup seen_user_ids di aggregate().
 
 
 HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
@@ -174,105 +179,68 @@ def login(ctx):
     return active, xsrf
 
 
-def fetch_page(ctx, xsrf, page_num, role_id=PENCACAH_ROLE_ID, retries=3):
-    """Lewat ctx.request (Playwright, jalan via browser) — BUKAN requests.Session.
-    requests.Session (walau cookie-nya lengkap & valid) konsisten kena
-    connection reset dari WAF F5 BPS (dikonfirmasi lewat reproduksi manual:
-    ConnectionResetError persis di request pertama, padahal login browser di
-    atasnya sukses) — kemungkinan WAF fingerprint TLS/HTTP client-nya, bukan
-    cuma cek cookie. ctx.request lolos karena jalan lewat network stack
-    browser yang sama dgn yang dipakai login."""
-    payload = {
-        "surveyPeriodId": PERIOD_ID,
-        "surveyRoleId":   role_id,
-        "size":   PAGE_SIZE,
-        "page":   page_num,
-        "search": "",
-        "target": "TARGET_ONLY",
-        "region": {
-            "region1Id": None, "region2Id": DOMPU_REGION2_ID,
-            "region3Id": None, "region4Id": None, "region5Id": None,
-            "region6Id": None, "region7Id": None, "region8Id": None,
-            "region9Id": None, "region10Id": None,
-        },
-        "regionSummaryLevel": 6,
-    }
-    hdrs = {
-        "Accept": "application/json, */*",
-        "Content-Type": "application/json",
-        "X-XSRF-TOKEN": xsrf,
-        "Referer": f"{BASE_URL}/app/surveys/{SURVEY_ID}/{PERIOD_ID}",
-        "Origin": BASE_URL,
-    }
+def _click_and_capture(page, action, retries=5):
+    """Jalankan `action()` (klik) sambil nunggu response
+    report-progress-by-responsibility yang dipicu klik itu, balikin body
+    JSON-nya. Dipakai bareng utk buka 'Rekap Petugas' + tab 'Pencacah' MAUPUN
+    tiap klik 'Next' paginasi — lihat catatan di atas PAGE_SIZE soal kenapa
+    ini harus klik UI asli, bukan panggil API langsung."""
     for attempt in range(1, retries + 1):
         try:
-            r = ctx.request.post(
-                f"{BASE_URL}/analytic/api/v2/assignment/report-progress-by-responsibility",
-                data=json.dumps(payload),
-                headers=hdrs,
-                timeout=90_000,
-            )
-            if r.status != 200:
-                print(f"  [WARN] page {page_num}: HTTP {r.status} (percobaan {attempt}/{retries})", flush=True)
-                if attempt < retries:
-                    # 429 = rate-limit yang bertahan cukup lama (dikonfirmasi:
-                    # masih ke-block bahkan di request pertama pass berikutnya),
-                    # jadi backoff-nya jauh lebih panjang drpd exception biasa.
-                    wait = 20 * attempt if r.status == 429 else 5 * attempt
-                    time.sleep(wait)
-                    continue
-                return [], 0
-            d = r.json()
-            if not d.get("success"):
-                print(f"  [WARN] page {page_num} error: {d} (percobaan {attempt}/{retries})", flush=True)
-                if attempt < retries:
-                    time.sleep(5 * attempt)
-                    continue
-                return [], 0
-            inner = d.get("data", {})
-            total = inner.get("totalElements") or 0
-            return inner.get("content", []), total
+            with page.expect_response(
+                lambda r: "report-progress-by-responsibility" in r.url, timeout=60_000
+            ) as resp_info:
+                action()
+            body = resp_info.value.json()
+            if not body.get("success"):
+                raise RuntimeError(f"API gagal: {body}")
+            return body
         except Exception as e:
-            print(f"  [RETRY {attempt}/{retries}] page {page_num}: {e}", flush=True)
-            if attempt < retries:
-                time.sleep(5 * attempt)
-    return [], 0
+            wait = 10 * attempt
+            print(f"    [RETRY {attempt}/{retries}] {e} — jeda {wait}s", flush=True)
+            time.sleep(wait)
+    raise RuntimeError("Gagal ambil halaman setelah semua retry")
 
 
-def _scrape_pass(ctx, xsrf, label, role_id=PENCACAH_ROLE_ID):
-    print(f"[SCRAPE] ({label}) Mengambil halaman 1...", flush=True)
-    content0, total = fetch_page(ctx, xsrf, 0, role_id=role_id)
-    if not total and not content0:
-        raise RuntimeError("Tidak ada data dari FASIH")
-    if not total:
-        total = len(content0)
+def scrape_all(page):
+    """Scrape role Pencacah lewat Dasbor survei → tombol 'Rekap Petugas' →
+    sub-tab 'Pencacah' → paginasi tombol 'Next', SEMUA lewat klik UI asli
+    (lihat _click_and_capture). Server otomatis scope hasil ke Dompu
+    berdasarkan akun yang login (dikonfirmasi manual: totalElements=239,
+    semua regionCode berawalan kode kab Dompu '5205', walau region2Id di
+    payload null) — gak perlu isi DOMPU_REGION2_ID manual lagi spt versi
+    ctx.request lama.
 
-    pages = max(1, math.ceil(total / PAGE_SIZE))
-    print(f"[SCRAPE] ({label}) Total: {total} | Halaman: {pages}", flush=True)
+    Scrape SEKALI (bukan multi-pass/multi-role) — gap yang tersisa (kelewat
+    krn reorder live, ATAU assignment lagi di tangan Pengawas, ATAU index
+    ringkasan telat sync) ditutup lewat fallback per-SLS di
+    fill_missing_sls() — dipanggil dari run_once() stlh aggregate()."""
+    page.goto(f"{BASE_URL}/app/surveys/{SURVEY_ID}/{PERIOD_ID}", wait_until="networkidle", timeout=90_000)
+    _check_bot_wall(page, "buka dasbor survei")
 
-    # Sequential (bukan ThreadPoolExecutor) — ctx.request Playwright tidak
-    # thread-safe. Lebih lambat drpd paralel, tapi konsisten jalan (lihat
-    # docstring fetch_page soal kenapa requests.Session dihindari).
-    all_content = list(content0)
-    for pg in range(1, pages):
-        c, _ = fetch_page(ctx, xsrf, pg, role_id)
-        all_content.extend(c)
-        print(f"  ({label}) Halaman selesai: {pg}/{pages - 1}...", flush=True)
+    _click_and_capture(page, lambda: page.click('button:has-text("Rekap Petugas")'))
+    body = _click_and_capture(page, lambda: page.click('button:has-text("Pencacah")'))
 
-    print(f"[SCRAPE] ({label}) Total diambil: {len(all_content)}", flush=True)
+    inner = body["data"]
+    all_content = list(inner["content"])
+    total = inner["totalElements"]
+    last = inner["last"]
+    print(f"[SCRAPE] Total: {total}", flush=True)
+
+    pg = 0
+    while not last:
+        pg += 1
+        _human_pause(0.5, 1.3)
+        body = _click_and_capture(
+            page, lambda: page.get_by_role("link", name="Go to next page").click()
+        )
+        inner = body["data"]
+        all_content.extend(inner["content"])
+        last = inner["last"]
+        print(f"  Halaman {pg} selesai (total diambil {len(all_content)}/{total})", flush=True)
+
+    print(f"[SCRAPE] Total diambil: {len(all_content)}", flush=True)
     return all_content
-
-
-def scrape_all(ctx, xsrf):
-    """Scrape role Pencacah SEKALI (bukan multi-pass/multi-role lagi — itu
-    malah menggandakan total request dan terbukti bikin 429 makin sering
-    kena, hasilnya lebih jelek drpd single pass biasa). Gap yang tersisa
-    (kelewat krn reorder live, ATAU assignment lagi di tangan Pengawas, ATAU
-    index ringkasan telat sync — tiga penyebab berbeda yang sempat diselidiki
-    satu-satu) semuanya ditutup lewat SATU mekanisme yang sama & jauh lebih
-    hemat request: fallback per-SLS via datatable-all-user-survey-periode,
-    lihat fill_missing_sls() — dipanggil dari run_once() stlh aggregate()."""
-    return _scrape_pass(ctx, xsrf, "pencacah", role_id=PENCACAH_ROLE_ID)
 
 
 def get_all_kode_sls():
@@ -664,9 +632,9 @@ def run_once():
     with sync_playwright() as pw:
         browser, ctx = _make_browser(pw)
         try:
-            _, xsrf = login(ctx)
+            page, xsrf = login(ctx)
             print("\n[STEP 1] Scrape FASIH...")
-            all_content = scrape_all(ctx, xsrf)
+            all_content = scrape_all(page)
 
             print("\n[STEP 2] Aggregate per SLS...")
             sls_agg = aggregate(all_content)
