@@ -647,8 +647,11 @@ def run_once():
             print("\n[STEP 2] Aggregate per SLS...")
             sls_agg = aggregate(all_content)
 
-            master_kode_set = get_all_kode_sls()
-            sls_agg = fill_missing_sls(ctx, xsrf, sls_agg, master_kode_set)
+            # fill_missing_sls (fallback per-SLS via datatable-all-user-survey-periode)
+            # dimatikan sementara — masih lewat ctx.request yg belum ikut
+            # divalidasi ulang stlh WAF ternyata makin ketat (lihat scrape_all).
+            # Cukup satu jalur (scrape_all) dulu spy hasilnya jelas asalnya
+            # dari mana kalau ada yg aneh.
         finally:
             browser.close()
 
