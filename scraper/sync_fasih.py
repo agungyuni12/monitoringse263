@@ -218,6 +218,14 @@ def scrape_all(page):
     page.goto(f"{BASE_URL}/app/surveys/{SURVEY_ID}/{PERIOD_ID}", wait_until="networkidle", timeout=90_000)
     _check_bot_wall(page, "buka dasbor survei")
 
+    # Dialog "Riwayat Perubahan" (changelog) muncul otomatis tiap load
+    # halaman & nge-block klik di belakangnya — tutup dulu kalau ada
+    # (timeout pendek, gak apa2 kalau memang gak muncul).
+    try:
+        page.click("dialog button:has-text('Close')", timeout=5_000)
+    except Exception:
+        pass
+
     _click_and_capture(page, lambda: page.click('button:has-text("Rekap Petugas")'))
     body = _click_and_capture(page, lambda: page.click('button:has-text("Pencacah")'))
 
