@@ -24,9 +24,7 @@ Env vars:
 import os, json, math, random, re, time
 from datetime import datetime, timedelta
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import pymysql
-import requests
 from playwright.sync_api import sync_playwright
 from playwright_stealth import Stealth
 _stealth = Stealth(navigator_webdriver=True)
@@ -61,10 +59,13 @@ SUBMIT_STATUSES = frozenset({
 })
 
 PAGE_SIZE     = 10    # server membatasi max 10 per halaman
-PAGE_WORKERS  = 5      # jumlah halaman di-fetch paralel — mempersingkat jendela
-                        # waktu scrape 24 halaman, supaya data (yang live berubah
-                        # krn approval Pengawas) gak keburu geser urutan/reorder
-                        # dan bikin sebagian pencacah kelewat (lihat aggregate())
+# Sequential (bukan paralel ThreadPoolExecutor+requests) — requests.Session
+# konsisten kena connection-reset dari WAF F5 BPS meski cookie session-nya
+# valid; ctx.request Playwright yang jalan lewat browser lolos, tapi
+# Playwright sync API tidak thread-safe jadi gak bisa diparalel via thread.
+# Konsekuensinya scrape 24 halaman lebih lambat & data (yang live berubah
+# krn approval Pengawas) bisa geser urutan/reorder di tengah — makanya ada
+# dedup seen_user_ids di aggregate().
 
 
 HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
@@ -173,21 +174,14 @@ def login(ctx):
     return active, xsrf
 
 
-def _make_session(ctx):
-    """Bikin requests.Session dari cookie sesi login Playwright, supaya
-    pemanggilan endpoint report-progress-by-responsibility bisa diparalel
-    lewat ThreadPoolExecutor (Playwright sync API sendiri tidak thread-safe)."""
-    session = requests.Session()
-    for c in ctx.cookies():
-        session.cookies.set(c["name"], c["value"], domain=c.get("domain") or None, path=c.get("path") or "/")
-    session.headers.update({
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-        "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
-    })
-    return session
-
-
-def fetch_page(session, xsrf, page_num, role_id=PENCACAH_ROLE_ID, retries=3):
+def fetch_page(ctx, xsrf, page_num, role_id=PENCACAH_ROLE_ID, retries=3):
+    """Lewat ctx.request (Playwright, jalan via browser) — BUKAN requests.Session.
+    requests.Session (walau cookie-nya lengkap & valid) konsisten kena
+    connection reset dari WAF F5 BPS (dikonfirmasi lewat reproduksi manual:
+    ConnectionResetError persis di request pertama, padahal login browser di
+    atasnya sukses) — kemungkinan WAF fingerprint TLS/HTTP client-nya, bukan
+    cuma cek cookie. ctx.request lolos karena jalan lewat network stack
+    browser yang sama dgn yang dipakai login."""
     payload = {
         "surveyPeriodId": PERIOD_ID,
         "surveyRoleId":   role_id,
@@ -212,19 +206,19 @@ def fetch_page(session, xsrf, page_num, role_id=PENCACAH_ROLE_ID, retries=3):
     }
     for attempt in range(1, retries + 1):
         try:
-            r = session.post(
+            r = ctx.request.post(
                 f"{BASE_URL}/analytic/api/v2/assignment/report-progress-by-responsibility",
                 data=json.dumps(payload),
                 headers=hdrs,
-                timeout=90,
+                timeout=90_000,
             )
-            if r.status_code != 200:
-                print(f"  [WARN] page {page_num}: HTTP {r.status_code} (percobaan {attempt}/{retries})", flush=True)
+            if r.status != 200:
+                print(f"  [WARN] page {page_num}: HTTP {r.status} (percobaan {attempt}/{retries})", flush=True)
                 if attempt < retries:
                     # 429 = rate-limit yang bertahan cukup lama (dikonfirmasi:
                     # masih ke-block bahkan di request pertama pass berikutnya),
                     # jadi backoff-nya jauh lebih panjang drpd exception biasa.
-                    wait = 20 * attempt if r.status_code == 429 else 5 * attempt
+                    wait = 20 * attempt if r.status == 429 else 5 * attempt
                     time.sleep(wait)
                     continue
                 return [], 0
@@ -245,9 +239,9 @@ def fetch_page(session, xsrf, page_num, role_id=PENCACAH_ROLE_ID, retries=3):
     return [], 0
 
 
-def _scrape_pass(session, xsrf, label, role_id=PENCACAH_ROLE_ID):
+def _scrape_pass(ctx, xsrf, label, role_id=PENCACAH_ROLE_ID):
     print(f"[SCRAPE] ({label}) Mengambil halaman 1...", flush=True)
-    content0, total = fetch_page(session, xsrf, 0, role_id=role_id)
+    content0, total = fetch_page(ctx, xsrf, 0, role_id=role_id)
     if not total and not content0:
         raise RuntimeError("Tidak ada data dari FASIH")
     if not total:
@@ -256,16 +250,14 @@ def _scrape_pass(session, xsrf, label, role_id=PENCACAH_ROLE_ID):
     pages = max(1, math.ceil(total / PAGE_SIZE))
     print(f"[SCRAPE] ({label}) Total: {total} | Halaman: {pages}", flush=True)
 
+    # Sequential (bukan ThreadPoolExecutor) — ctx.request Playwright tidak
+    # thread-safe. Lebih lambat drpd paralel, tapi konsisten jalan (lihat
+    # docstring fetch_page soal kenapa requests.Session dihindari).
     all_content = list(content0)
-    if pages > 1:
-        with ThreadPoolExecutor(max_workers=PAGE_WORKERS) as pool:
-            futures = {pool.submit(fetch_page, session, xsrf, pg, role_id): pg for pg in range(1, pages)}
-            done = 0
-            for fut in as_completed(futures):
-                c, _ = fut.result()
-                all_content.extend(c)
-                done += 1
-                print(f"  ({label}) Halaman selesai: {done}/{pages - 1}...", flush=True)
+    for pg in range(1, pages):
+        c, _ = fetch_page(ctx, xsrf, pg, role_id)
+        all_content.extend(c)
+        print(f"  ({label}) Halaman selesai: {pg}/{pages - 1}...", flush=True)
 
     print(f"[SCRAPE] ({label}) Total diambil: {len(all_content)}", flush=True)
     return all_content
@@ -280,8 +272,7 @@ def scrape_all(ctx, xsrf):
     satu-satu) semuanya ditutup lewat SATU mekanisme yang sama & jauh lebih
     hemat request: fallback per-SLS via datatable-all-user-survey-periode,
     lihat fill_missing_sls() — dipanggil dari run_once() stlh aggregate()."""
-    session = _make_session(ctx)
-    return _scrape_pass(session, xsrf, "pencacah", role_id=PENCACAH_ROLE_ID)
+    return _scrape_pass(ctx, xsrf, "pencacah", role_id=PENCACAH_ROLE_ID)
 
 
 def get_all_kode_sls():
@@ -297,7 +288,7 @@ def get_all_kode_sls():
         conn.close()
 
 
-def fetch_sls_assignments(session, xsrf, kode_sls, retries=2):
+def fetch_sls_assignments(ctx, xsrf, kode_sls, retries=2):
     """Ambil status per-assignment langsung utk satu kode_sls lewat
     datatable-all-user-survey-periode — dipakai sbg fallback ground-truth
     utk SLS yang gak muncul di scrape utama, apapun sebabnya. Return None
@@ -331,11 +322,11 @@ def fetch_sls_assignments(session, xsrf, kode_sls, retries=2):
     }
     for attempt in range(1, retries + 1):
         try:
-            r = session.post(
+            r = ctx.request.post(
                 f"{BASE_URL}/analytic/api/v2/assignment/datatable-all-user-survey-periode",
-                data=json.dumps(payload), headers=hdrs, timeout=30,
+                data=json.dumps(payload), headers=hdrs, timeout=30_000,
             )
-            if r.status_code != 200:
+            if r.status != 200:
                 if attempt < retries:
                     time.sleep(5 * attempt)
                     continue
@@ -354,21 +345,17 @@ def fill_missing_sls(ctx, xsrf, sls_agg, master_kode_set):
     if not missing:
         return sls_agg
     print(f"[FALLBACK] {len(missing)} SLS gak ketemu di scrape utama, cek satu-satu via datatable-all-user-survey-periode...", flush=True)
-    session = _make_session(ctx)
     filled = gagal = 0
-    with ThreadPoolExecutor(max_workers=PAGE_WORKERS) as pool:
-        futures = {pool.submit(fetch_sls_assignments, session, xsrf, kode): kode for kode in missing}
-        for fut in as_completed(futures):
-            kode = futures[fut]
-            records = fut.result()
-            if records is None:
-                gagal += 1
-                continue
-            a = _new_sls_agg()
-            for rec in records:
-                apply_status(a, rec.get("assignmentStatusAlias", ""), 1)
-            sls_agg[kode] = a
-            filled += 1
+    for kode in missing:
+        records = fetch_sls_assignments(ctx, xsrf, kode)
+        if records is None:
+            gagal += 1
+            continue
+        a = _new_sls_agg()
+        for rec in records:
+            apply_status(a, rec.get("assignmentStatusAlias", ""), 1)
+        sls_agg[kode] = a
+        filled += 1
     print(f"[FALLBACK] {filled}/{len(missing)} SLS terisi lewat fallback ({gagal} gagal query)", flush=True)
     return sls_agg
 
