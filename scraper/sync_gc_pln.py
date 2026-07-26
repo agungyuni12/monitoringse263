@@ -67,8 +67,14 @@ HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
 
 PAGE_LENGTH  = 990   # aman di bawah batas deep-pagination ~999 yang diamati
 CHUNK_SIZE   = 4      # pencacah per login sebelum context+login baru
-CHUNK_DELAY  = 4      # detik istirahat antar chunk
-ROW_DELAY    = 0.3    # detik jeda antar request
+CHUNK_DELAY  = 8      # detik istirahat antar chunk
+# 3 detik (bukan 0.3 seperti awalnya) — request tunggal ke datatable-all-user-survey-periode
+# SELALU sukses (dites berkali-kali), tapi burst ~9 request beruntun (base + 8 fallback sort
+# buat pencacah besar) SELALU kena reset koneksi walau baru habis login sukses. Pola ini
+# konsisten diamati di 3 percobaan penuh berturut-turut — kemungkinan besar rate-limit
+# jaringan/WAF berbasis burst-volume per window pendek, bukan block per-akun/per-IP jangka
+# panjang (soalnya request tunggal maupun login tetap selalu jalan lancar).
+ROW_DELAY    = 3.0    # detik jeda antar request (dinaikkan dari 0.3 — lihat catatan di atas)
 
 # Kolom yang diminta ke datatable, sekaligus jadi index buat kombinasi sort di bawah.
 COLUMNS = ["id", "codeIdentity", "data1", "data2", "data3", "data4"]
@@ -262,7 +268,7 @@ def _fetch_one(ctx, xsrf, user_id, order_col, order_dir, retries=3):
             r = ctx.request.post(f"{BASE_URL}/analytic/api/v2/assignment/datatable-all-user-survey-periode",
                                   data=json.dumps(payload), headers=hdrs, timeout=60000)
             if r.status != 200:
-                time.sleep(2 * attempt)
+                time.sleep(6 * attempt)
                 continue
             d = r.json()
             rows = {}
@@ -276,7 +282,7 @@ def _fetch_one(ctx, xsrf, user_id, order_col, order_dir, retries=3):
             return rows, True
         except Exception as e:
             print(f"    [RETRY {attempt}/{retries}] datatable user={user_id[:8]}: {e}", flush=True)
-            time.sleep(2 * attempt)
+            time.sleep(6 * attempt)
     return {}, False
 
 

@@ -18,7 +18,7 @@
       .sidebar-collapsed .sidebar-nav-btn { justify-content:center; }
       .sidebar-collapsed #sidebar-collapse-icon { transform:rotate(180deg); }
       .sidebar-collapsed .sidebar-brand-row { justify-content:center; }
-      /* Submenu grup (Monitoring/Anomali/Rekap): saat sidebar diciutkan jadi rail
+      /* Submenu grup (Monitoring/Rekap): saat sidebar diciutkan jadi rail
          ikon-saja, tampilkan semua isi grup rata (bukan accordion) & non-aktifkan
          klik-buka/tutup pada judul grup — labelnya sudah hilang jadi tidak ada
          yang bisa dikelompokkan lagi secara visual. */
@@ -90,26 +90,6 @@
               class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
               <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 4h6a1 1 0 011 1v1H8V5a1 1 0 011-1z"/><rect x="5" y="6" width="14" height="15" rx="2" stroke-width="1.5"/><path stroke-linecap="round" stroke-width="1.5" d="M8.5 12h7M8.5 16h5"/></svg>
               <span class="sidebar-label">Progres Semua SLS</span>
-            </button>
-          </div>
-        </details>
-
-        <details class="sidebar-group group/anomali">
-          <summary class="sidebar-group-summary list-none cursor-pointer flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 select-none">
-            <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-            <span class="sidebar-label flex-1 text-left">Anomali &amp; Keberadaan</span>
-            <svg class="sidebar-label w-3.5 h-3.5 text-gray-400 dark:text-gray-500 shrink-0 transition-transform group-open/anomali:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-          </summary>
-          <div class="space-y-0.5 mt-0.5">
-            <button onclick="switchTab('anomali')" id="tab-anomali" title="Anomali"
-              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
-              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-              <span class="sidebar-label">Anomali</span>
-            </button>
-            <button onclick="switchTab('keberadaan')" id="tab-keberadaan" title="Keberadaan"
-              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
-              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 21s-7-6.5-7-11a7 7 0 1114 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5" stroke-width="1.5"/></svg>
-              <span class="sidebar-label">Keberadaan</span>
             </button>
           </div>
         </details>
@@ -394,124 +374,6 @@
           </div>
         </div>
 
-        <!-- TAB: Anomali -->
-        <div id="panel-anomali" class="tab-panel">
-          <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="anomali-filter-bar">
-            <input type="text" name="q"
-              hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
-              hx-trigger="input changed delay:400ms" hx-include="#anomali-filter-bar"
-              placeholder="Cari nama, jenis, keterangan, SLS..."
-              class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
-            <select name="kec"
-              hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#anomali-filter-bar"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
-              <option value="">Semua Kecamatan</option>
-              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
-            </select>
-            <select name="pml_id" id="anomali-pml-select"
-              hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#anomali-filter-bar"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
-              <option value="">Semua PML</option>
-              {{range .PMLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
-            </select>
-            <select name="ppl_id" id="anomali-ppl-select"
-              hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#anomali-filter-bar"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
-              <option value="">Semua PPL</option>
-              {{range .PPLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
-            </select>
-            <select name="status"
-              hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#anomali-filter-bar"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
-              <option value="">Semua Status SIGEMPAR</option>
-              <option value="belum">⏳ Belum Ditindaklanjuti (SIGEMPAR)</option>
-              <option value="sudah">✅ Sudah Ditindaklanjuti (SIGEMPAR)</option>
-            </select>
-            <select name="fasih"
-              hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
-              hx-trigger="change" hx-include="#anomali-filter-bar"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
-              <option value="">Semua Status FASIH</option>
-              <option value="belum">⏳ Belum Ditindaklanjuti (FASIH)</option>
-              <option value="sudah">✅ Sudah Ditindaklanjuti (FASIH)</option>
-            </select>
-            <label class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400" title="Filter berdasarkan tanggal anomali pertama kali muncul">
-              muncul s.d.
-              <input type="date" name="tgl"
-                hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
-                hx-trigger="change" hx-include="#anomali-filter-bar"
-                class="px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"/>
-            </label>
-            <a id="anomali-dl-btn" href="/admin/download/anomali"
-              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
-              </svg>
-              Download Excel
-            </a>
-          </div>
-          <div id="anomali-result"
-            hx-get="/admin/table/anomali" hx-trigger="load" hx-swap="innerHTML">
-            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data anomali...</div>
-          </div>
-        </div>
-
-        <!-- TAB: Keberadaan — Tidak Ditemukan (Usaha/Keluarga) -->
-        <div id="panel-keberadaan" class="tab-panel">
-          <div id="tidak-ditemukan-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" data-mode="usaha">
-            <input type="hidden" name="tipe" id="tidak-ditemukan-tipe-input" value="usaha"/>
-            <div class="flex gap-1.5">
-              <button type="button" onclick="switchTidakDitemukanSub(this,'usaha')"
-                class="tidak-ditemukan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-se text-white transition-colors">Usaha</button>
-              <button type="button" onclick="switchTidakDitemukanSub(this,'keluarga')"
-                class="tidak-ditemukan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Keluarga</button>
-              <button type="button" onclick="switchTidakDitemukanSub(this,'usaha_keluarga')"
-                class="tidak-ditemukan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Usaha dalam Keluarga</button>
-              <button type="button" onclick="switchTidakDitemukanSub(this,'rekap')"
-                class="tidak-ditemukan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Rekap</button>
-            </div>
-            <select name="level" id="tidak-ditemukan-level-select" onchange="reloadTidakDitemukanTable()"
-              class="hidden px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
-              <option value="sls">Per SLS</option>
-              <option value="desa">Per Desa</option>
-              <option value="kec">Per Kecamatan</option>
-            </select>
-            <input type="text" name="q" oninput="onTidakDitemukanSearch()"
-              placeholder="Cari nama..."
-              class="w-full md:w-56 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
-            <select name="kec" onchange="reloadTidakDitemukanTable()"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
-              <option value="">Semua Kecamatan</option>
-              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
-            </select>
-            <select name="pml_id" id="tidak-ditemukan-pml-select"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
-              <option value="">Semua PML</option>
-            </select>
-            <select name="ppl_id" id="tidak-ditemukan-ppl-select"
-              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
-              <option value="">Semua PPL</option>
-            </select>
-            <a id="tidak-ditemukan-dl-btn" href="/admin/download/tidak-ditemukan?tipe=usaha"
-              onclick="updateTidakDitemukanDownload()"
-              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
-              </svg>
-              Download Excel
-            </a>
-          </div>
-          <div id="tidak-ditemukan-result"
-            hx-get="/admin/table/tidak-ditemukan?tipe=usaha" hx-trigger="load" hx-swap="innerHTML"
-            hx-include="#tidak-ditemukan-filter-bar">
-            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data...</div>
-          </div>
-        </div>
-
         <!-- TAB: Rekap Progres (per SLS) -->
         <div id="panel-progresRekap" class="tab-panel">
           <div id="progres-rekap-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center">
@@ -745,75 +607,6 @@
         toggleSidebar();
       }
     }
-    // ===== Tab Keberadaan: sub-menu Usaha/Keluarga/Rekap =====
-    // 3 mode beda endpoint: Usaha & Keluarga sama-sama /admin/table/tidak-ditemukan
-    // (dibedakan query param `tipe`), Rekap pakai /admin/table/tidak-ditemukan-rekap
-    // (query param `level`) — jadi tiap ganti sub-tab & tiap filter berubah perlu
-    // reload manual lewat htmx.ajax(), bukan hx-get statis.
-    function tidakDitemukanFilterParams() {
-      var bar = document.getElementById('tidak-ditemukan-filter-bar');
-      var mode = bar.dataset.mode || 'usaha';
-      var params = [];
-      if (mode === 'rekap') {
-        params.push('level=' + encodeURIComponent(document.getElementById('tidak-ditemukan-level-select').value));
-      } else {
-        params.push('tipe=' + encodeURIComponent(mode));
-      }
-      var q = bar.querySelector('[name="q"]').value;
-      var kec = bar.querySelector('[name="kec"]').value;
-      var pmlID = bar.querySelector('[name="pml_id"]').value;
-      var pplID = bar.querySelector('[name="ppl_id"]').value;
-      if (q) params.push('q=' + encodeURIComponent(q));
-      if (kec) params.push('kec=' + encodeURIComponent(kec));
-      if (pmlID) params.push('pml_id=' + pmlID);
-      if (pplID) params.push('ppl_id=' + pplID);
-      return params.length ? ('?' + params.join('&')) : '';
-    }
-
-    function tidakDitemukanPaths() {
-      var mode = document.getElementById('tidak-ditemukan-filter-bar').dataset.mode || 'usaha';
-      return mode === 'rekap'
-        ? { tbl: '/admin/table/tidak-ditemukan-rekap', dl: '/admin/download/tidak-ditemukan-rekap' }
-        : { tbl: '/admin/table/tidak-ditemukan', dl: '/admin/download/tidak-ditemukan' };
-    }
-
-    function reloadTidakDitemukanTable() {
-      var paths = tidakDitemukanPaths();
-      var qs = tidakDitemukanFilterParams();
-      htmx.ajax('GET', paths.tbl + qs, { target: '#tidak-ditemukan-result', swap: 'innerHTML' });
-      document.getElementById('tidak-ditemukan-dl-btn').href = paths.dl + qs;
-    }
-
-    var _tidakDitemukanSearchDebounce = null;
-    function onTidakDitemukanSearch() {
-      clearTimeout(_tidakDitemukanSearchDebounce);
-      _tidakDitemukanSearchDebounce = setTimeout(reloadTidakDitemukanTable, 400);
-    }
-
-    function switchTidakDitemukanSub(btn, mode) {
-      var bar = document.getElementById('tidak-ditemukan-filter-bar');
-      bar.querySelectorAll('.tidak-ditemukan-subtab-btn').forEach(function(b) {
-        b.classList.remove('bg-se', 'text-white');
-        b.classList.add('text-gray-600', 'dark:text-gray-400');
-      });
-      btn.classList.add('bg-se', 'text-white');
-      btn.classList.remove('text-gray-600', 'dark:text-gray-400');
-      bar.dataset.mode = mode;
-      var levelSel = document.getElementById('tidak-ditemukan-level-select');
-      if (mode === 'rekap') {
-        levelSel.classList.remove('hidden');
-      } else {
-        levelSel.classList.add('hidden');
-        bar.querySelector('[name="tipe"]').value = mode;
-      }
-      reloadTidakDitemukanTable();
-    }
-
-    // Update href download Tidak Ditemukan sesuai sub-tab/mode & filter aktif
-    function updateTidakDitemukanDownload() {
-      document.getElementById('tidak-ditemukan-dl-btn').href = tidakDitemukanPaths().dl + tidakDitemukanFilterParams();
-    }
-
     // Update href download SLS sesuai level & q
     function currentMetode() {
       var sel = document.getElementById('global-metode-select');
@@ -884,13 +677,12 @@
         });
       }
 
-      // Tab-tab baru (Anomali, Rekap Progres, KBLI): update href tombol download
+      // Tab-tab baru (Rekap Progres, KBLI): update href tombol download
       // otomatis mengikuti filter yang lagi aktif di filter-bar-nya. Rekap
       // Keberadaan tidak ikut di sini krn path download-nya beda-beda tergantung
       // sub-tab yang aktif (Usaha BKU/Usaha Keluarga/Keluarga) — lihat
       // switchKeberadaanRekapSub & onKeberadaanRekapSearch.
       [
-        {bar: 'anomali-filter-bar', btn: 'anomali-dl-btn', path: '/admin/download/anomali'},
         {bar: 'progres-rekap-filter-bar', btn: 'progresrekap-dl-btn', path: '/admin/download/progres-rekap', extra: '#global-metode-select'},
         {bar: 'kbli-filter-bar', btn: 'kbli-dl-btn', path: '/admin/download/kbli'},
       ].forEach(function(cfg) {
