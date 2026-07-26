@@ -8,6 +8,41 @@ type FilterOption struct {
 	Name string
 }
 
+type PPLUser struct {
+	ID   int
+	Name string
+}
+
+func queryPPLUsers() []PPLUser {
+	rows, err := db.DB.Query(`SELECT u.id, u.name FROM users u JOIN sls s ON s.ppl_id=u.id WHERE u.role='ppl' GROUP BY u.id, u.name ORDER BY u.name`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var list []PPLUser
+	for rows.Next() {
+		var p PPLUser
+		rows.Scan(&p.ID, &p.Name)
+		list = append(list, p)
+	}
+	return list
+}
+
+func queryKecList() []string {
+	rows, err := db.DB.Query(`SELECT DISTINCT nama_kec FROM sls WHERE nama_kec != '' ORDER BY nama_kec`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var list []string
+	for rows.Next() {
+		var kec string
+		rows.Scan(&kec)
+		list = append(list, kec)
+	}
+	return list
+}
+
 // OOBSelect describes a <select> re-rendered out-of-band (via hx-swap-oob) whenever
 // a parent filter (kecamatan/PML/PPL) changes, so its options stay narrowed to what's
 // actually valid under the current filter combination.
@@ -61,6 +96,26 @@ func queryPPLOptionsByFilter(kecs []string, pmlID int) []FilterOption {
 	}
 	q += ` ORDER BY u.name`
 	return queryFilterOptions(q, args...)
+}
+
+type SLSOption struct {
+	ID   int
+	Nama string
+}
+
+func querySLSOptions() []SLSOption {
+	rows, err := db.DB.Query(`SELECT id, nama_sls FROM sls ORDER BY nama_sls`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var list []SLSOption
+	for rows.Next() {
+		var s SLSOption
+		rows.Scan(&s.ID, &s.Nama)
+		list = append(list, s)
+	}
+	return list
 }
 
 // querySLSOptionsByFilter returns SLS, narrowed by kecamatan, PML, and/or PPL.

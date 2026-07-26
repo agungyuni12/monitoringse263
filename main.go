@@ -110,8 +110,6 @@ func main() {
 	ppl.GET("/table", handlers.PPLTable)
 	ppl.GET("/sls/:id/form", handlers.PPLFormModal)
 	ppl.POST("/sls/:id/save", handlers.PPLSaveProgress)
-	ppl.GET("/anomali", handlers.PPLAnomali)
-	ppl.GET("/keberadaan", handlers.PPLKeberadaan)
 
 	// PML routes
 	pmlGrp := e.Group("/pml", mw.RequireAuth, mw.RequireRole("pml"))
@@ -119,8 +117,6 @@ func main() {
 	pmlGrp.GET("/table", handlers.PMLTable)
 	pmlGrp.GET("/sls/:id/verif", handlers.PMLVerifModal)
 	pmlGrp.POST("/sls/:id/save", handlers.PMLSaveVerif)
-	pmlGrp.GET("/anomali", handlers.PMLAnomali)
-	pmlGrp.GET("/keberadaan", handlers.PMLKeberadaan)
 	pmlGrp.GET("/progres-ppl", handlers.PMLProgresPPL)
 
 	// Admin routes
@@ -131,14 +127,11 @@ func main() {
 	adminGrp.GET("/table/sls", handlers.AdminTableSLS)
 	adminGrp.GET("/summary", handlers.AdminSummaryPartial)
 	adminGrp.GET("/table/organik", handlers.AdminTableOrganik)
-	adminGrp.GET("/table/anomali", handlers.AdminAnomaliTable)
 	adminGrp.GET("/table/progres-rekap", handlers.AdminProgresRekapTable)
 	adminGrp.GET("/table/kbli", handlers.AdminKBLITable)
 	adminGrp.GET("/table/keberadaan-bku", handlers.AdminKeberadaanBKUTable)
 	adminGrp.GET("/table/keberadaan-usaha-keluarga", handlers.AdminKeberadaanUsahaKeluargaTable)
 	adminGrp.GET("/table/keberadaan-keluarga", handlers.AdminKeberadaanKeluargaTable)
-	adminGrp.GET("/table/tidak-ditemukan", handlers.AdminTidakDitemukanTable)
-	adminGrp.GET("/table/tidak-ditemukan-rekap", handlers.AdminTidakDitemukanRekapTable)
 	adminGrp.GET("/options/pml-by-kec", handlers.OptionsPMLByKec)
 	adminGrp.GET("/options/ppl-by-filter", handlers.OptionsPPLByFilter)
 	adminGrp.GET("/table/trend/ppl", handlers.AdminTableTrendPPL)
@@ -149,14 +142,11 @@ func main() {
 	adminGrp.GET("/download/ppl", handlers.DownloadPPL)
 	adminGrp.GET("/download/sls", handlers.DownloadSLS)
 	adminGrp.GET("/download/organik", handlers.DownloadOrganik)
-	adminGrp.GET("/download/anomali", handlers.DownloadAnomali)
 	adminGrp.GET("/download/progres-rekap", handlers.DownloadProgresRekap)
 	adminGrp.GET("/download/kbli", handlers.DownloadKBLI)
 	adminGrp.GET("/download/keberadaan-bku", handlers.DownloadKeberadaanBKU)
 	adminGrp.GET("/download/keberadaan-usaha-keluarga", handlers.DownloadKeberadaanUsahaKeluarga)
 	adminGrp.GET("/download/keberadaan-keluarga", handlers.DownloadKeberadaanKeluarga)
-	adminGrp.GET("/download/tidak-ditemukan", handlers.DownloadTidakDitemukan)
-	adminGrp.GET("/download/tidak-ditemukan-rekap", handlers.DownloadTidakDitemukanRekap)
 	adminGrp.POST("/sync/fasih", handlers.AdminSyncFasih)
 
 	// Organik routes

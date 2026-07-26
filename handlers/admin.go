@@ -472,7 +472,6 @@ func AdminDashboard(c echo.Context) error {
 		"PMLUserList": queryPMLUsers(),
 		"PPLUserList": queryPPLUsers(),
 		"KecList":     queryKecList(),
-		"SkalaList":   querySkalaList(),
 		"LastSync":    LastSyncFromDB(),
 		"KebSLSList":  querySLSOptions(),
 	})
