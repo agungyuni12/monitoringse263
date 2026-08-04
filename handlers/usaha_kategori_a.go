@@ -132,7 +132,7 @@ func AdminUsahaKategoriATable(c echo.Context) error {
 		extra += "&ppl_id=" + strconv.Itoa(pplID)
 	}
 
-	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, usahaKategoriASortCols, "s.nama_kec, s.nama_desa, s.nama_sls, t.nama")
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, usahaKategoriASortCols, "s.nama_kec, s.nama_desa, s.nama_sls, t.nama_usaha")
 
 	offset := (page - 1) * models.PerPage
 	pageInfo := models.NewPageInfo(page, total, "/admin/table/usaha-kategori-a", "usaha-kategori-a-result", extra+models.SortQueryString(sortCol, sortDir))
