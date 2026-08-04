@@ -17,6 +17,9 @@ db/se2026_full.sql
 .env
 .env.*
 
+# Checkpoint hasil scrape sync_usaha.py (recovery kalau upsert DB gagal)
+scraper/.checkpoints/
+
 # OS
 .DS_Store
 Thumbs.db

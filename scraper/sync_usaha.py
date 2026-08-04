@@ -122,9 +122,46 @@ LIMIT 1000
 HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
 WITA = timezone(timedelta(hours=8))
 
+# Checkpoint hasil scrape per fase, ditulis SEBELUM upsert ke DB. Kalau upsert
+# gagal (mis. skema tabel belum di-migrate, DB down sesaat), run berikutnya
+# baca dari sini dulu alih2 login+scrape ulang dari nol — scrape per desa
+# lambat (jeda manusiawi tiap desa) dan tiap request nambah risiko kena
+# bot-detection WAF, jadi sayang diulang kalau cuma DB-nya yang bermasalah.
+CHECKPOINT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".checkpoints")
+CHECKPOINT_MAX_AGE = timedelta(hours=6)  # lebih tua dari ini dianggap basi (bukan buat lintas hari)
+
 
 def _now_wita():
     return datetime.now(WITA).replace(tzinfo=None)
+
+
+def _checkpoint_path(label):
+    return os.path.join(CHECKPOINT_DIR, f"{label}_rows.json")
+
+
+def _save_checkpoint(label, rows):
+    os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+    with open(_checkpoint_path(label), "w") as f:
+        json.dump({"scraped_at": _now_wita().isoformat(), "rows": rows}, f)
+
+
+def _load_checkpoint(label):
+    path = _checkpoint_path(label)
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        data = json.load(f)
+    scraped_at = datetime.fromisoformat(data["scraped_at"])
+    if _now_wita() - scraped_at > CHECKPOINT_MAX_AGE:
+        os.remove(path)
+        return None
+    return data["rows"]
+
+
+def _clear_checkpoint(label):
+    path = _checkpoint_path(label)
+    if os.path.exists(path):
+        os.remove(path)
 
 
 def _human_pause(a=0.4, b=1.1):
@@ -414,34 +451,51 @@ def run_once():
     ensure_tables(conn)
     sls_map = load_sls_map(conn)
 
-    with sync_playwright() as pw:
-        browser, ctx = _make_browser(pw)
-        try:
-            page = login(ctx)
-            page.goto(f"{DASH_URL}/superset/sqllab/", wait_until="networkidle", timeout=180_000)
-            _check_bot_wall(page.content(), "buka SQL Lab")
+    usaha_rows = _load_checkpoint("usaha")
+    keluarga_rows = _load_checkpoint("keluarga")
 
-            # Fase 1: usaha tidak ditemukan (bangunan mandiri + roster keluarga)
-            print("\n[FASE 1] Usaha tidak ditemukan...", flush=True)
-            usaha_desa = get_desa_codes(page, USAHA_DESA_LIST_QUERY)
-            print(f"[FASE 1] {len(usaha_desa)} desa, total baris (perkiraan): {sum(n for _, n in usaha_desa)}", flush=True)
-            usaha_rows = scrape_per_desa(page, usaha_desa, USAHA_QUERY_TEMPLATE, "usaha")
-            synced_at = _now_wita().strftime("%Y-%m-%d %H:%M:%S")
-            print(f"[FASE 1] Upsert {len(usaha_rows)} baris usaha ke DB...", flush=True)
-            upsert_usaha(conn, usaha_rows, sls_map, synced_at)
-            print(f"[FASE 1] Selesai: {len(usaha_rows)} baris usaha di-sync.", flush=True)
+    if usaha_rows is None or keluarga_rows is None:
+        with sync_playwright() as pw:
+            browser, ctx = _make_browser(pw)
+            try:
+                page = login(ctx)
+                page.goto(f"{DASH_URL}/superset/sqllab/", wait_until="networkidle", timeout=180_000)
+                _check_bot_wall(page.content(), "buka SQL Lab")
 
-            # Fase 2: keluarga tidak ditemukan
-            print("\n[FASE 2] Keluarga tidak ditemukan...", flush=True)
-            keluarga_desa = get_desa_codes(page, KELUARGA_DESA_LIST_QUERY)
-            print(f"[FASE 2] {len(keluarga_desa)} desa, total baris (perkiraan): {sum(n for _, n in keluarga_desa)}", flush=True)
-            keluarga_rows = scrape_per_desa(page, keluarga_desa, KELUARGA_QUERY_TEMPLATE, "keluarga")
-            synced_at = _now_wita().strftime("%Y-%m-%d %H:%M:%S")
-            print(f"[FASE 2] Upsert {len(keluarga_rows)} baris keluarga ke DB...", flush=True)
-            upsert_keluarga(conn, keluarga_rows, sls_map, synced_at)
-            print(f"[FASE 2] Selesai: {len(keluarga_rows)} baris keluarga di-sync.", flush=True)
-        finally:
-            browser.close()
+                # Fase 1: usaha tidak ditemukan (bangunan mandiri + roster keluarga)
+                if usaha_rows is None:
+                    print("\n[FASE 1] Usaha tidak ditemukan...", flush=True)
+                    usaha_desa = get_desa_codes(page, USAHA_DESA_LIST_QUERY)
+                    print(f"[FASE 1] {len(usaha_desa)} desa, total baris (perkiraan): {sum(n for _, n in usaha_desa)}", flush=True)
+                    usaha_rows = scrape_per_desa(page, usaha_desa, USAHA_QUERY_TEMPLATE, "usaha")
+                    _save_checkpoint("usaha", usaha_rows)
+                else:
+                    print(f"\n[FASE 1] Pakai checkpoint tersimpan ({len(usaha_rows)} baris) — skip scraping ulang.", flush=True)
+
+                # Fase 2: keluarga tidak ditemukan
+                if keluarga_rows is None:
+                    print("\n[FASE 2] Keluarga tidak ditemukan...", flush=True)
+                    keluarga_desa = get_desa_codes(page, KELUARGA_DESA_LIST_QUERY)
+                    print(f"[FASE 2] {len(keluarga_desa)} desa, total baris (perkiraan): {sum(n for _, n in keluarga_desa)}", flush=True)
+                    keluarga_rows = scrape_per_desa(page, keluarga_desa, KELUARGA_QUERY_TEMPLATE, "keluarga")
+                    _save_checkpoint("keluarga", keluarga_rows)
+                else:
+                    print(f"\n[FASE 2] Pakai checkpoint tersimpan ({len(keluarga_rows)} baris) — skip scraping ulang.", flush=True)
+            finally:
+                browser.close()
+    else:
+        print("\n[FASE 1+2] Pakai checkpoint tersimpan untuk usaha & keluarga — skip scraping, langsung upsert.", flush=True)
+
+    synced_at = _now_wita().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"\n[FASE 1] Upsert {len(usaha_rows)} baris usaha ke DB...", flush=True)
+    upsert_usaha(conn, usaha_rows, sls_map, synced_at)
+    _clear_checkpoint("usaha")
+    print(f"[FASE 1] Selesai: {len(usaha_rows)} baris usaha di-sync.", flush=True)
+
+    print(f"\n[FASE 2] Upsert {len(keluarga_rows)} baris keluarga ke DB...", flush=True)
+    upsert_keluarga(conn, keluarga_rows, sls_map, synced_at)
+    _clear_checkpoint("keluarga")
+    print(f"[FASE 2] Selesai: {len(keluarga_rows)} baris keluarga di-sync.", flush=True)
 
     conn.close()
     print(f"\nSelesai semua fase!", flush=True)
