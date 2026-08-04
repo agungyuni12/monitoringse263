@@ -488,6 +488,13 @@
               <option value="">Semua Kecamatan</option>
               {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
             </select>
+            <select name="status" id="tidak-ditemukan-status-select" onchange="reloadTidakDitemukanTable()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Status</option>
+              <option value="Tidak Ditemukan">Tidak Ditemukan</option>
+              <option value="Tutup">Tutup</option>
+              <option value="Ganda">Ganda</option>
+            </select>
             <select name="pml_id" id="tidak-ditemukan-pml-select"
               class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
               <option value="">Semua PML</option>
@@ -767,6 +774,12 @@
       if (kec) params.push('kec=' + encodeURIComponent(kec));
       if (pmlID) params.push('pml_id=' + pmlID);
       if (pplID) params.push('ppl_id=' + pplID);
+      // status (Tidak Ditemukan/Tutup/Ganda) cuma relevan utk mode usaha/usaha_keluarga
+      // — kolom keberadaan_usaha gak ada di tabel tidak_ditemukan_keluarga.
+      if (mode === 'usaha' || mode === 'usaha_keluarga') {
+        var status = bar.querySelector('[name="status"]').value;
+        if (status) params.push('status=' + encodeURIComponent(status));
+      }
       return params.length ? ('?' + params.join('&')) : '';
     }
 
@@ -800,11 +813,19 @@
       btn.classList.remove('text-gray-600', 'dark:text-gray-400');
       bar.dataset.mode = mode;
       var levelSel = document.getElementById('tidak-ditemukan-level-select');
+      var statusSel = document.getElementById('tidak-ditemukan-status-select');
       if (mode === 'rekap') {
         levelSel.classList.remove('hidden');
+        statusSel.classList.add('hidden');
       } else {
         levelSel.classList.add('hidden');
         bar.querySelector('[name="tipe"]').value = mode;
+        if (mode === 'keluarga') {
+          statusSel.classList.add('hidden');
+          statusSel.value = '';
+        } else {
+          statusSel.classList.remove('hidden');
+        }
       }
       reloadTidakDitemukanTable();
     }

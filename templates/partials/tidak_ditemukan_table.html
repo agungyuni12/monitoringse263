@@ -4,7 +4,9 @@
 <div>
   <div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
     Ditemukan <span class="font-semibold text-gray-700 dark:text-gray-300">{{.PageInfo.TotalRow}}</span>
-    {{if eq .Tipe "keluarga"}}keluarga{{else if eq .Tipe "usaha_keluarga"}}usaha dalam keluarga{{else}}usaha{{end}} tidak ditemukan
+    {{if eq .Tipe "keluarga"}}keluarga tidak ditemukan
+    {{else}}{{if eq .Tipe "usaha_keluarga"}}usaha dalam keluarga{{else}}usaha{{end}}{{if .Status}} berstatus "{{.Status}}"{{else}} tidak ditemukan/tutup/ganda{{end}}
+    {{end}}
   </div>
 
   <div class="overflow-x-auto">
@@ -21,6 +23,7 @@
           {{end}}
           {{if ne .Tipe "keluarga"}}
           {{template "sortable_th" dict "Label" "Skala" "Col" "skala" "PageInfo" $.PageInfo}}
+          {{template "sortable_th" dict "Label" "Keberadaan" "Col" "keberadaan" "PageInfo" $.PageInfo}}
           {{end}}
           <th class="px-3 py-2.5 font-medium">Alamat</th>
           {{template "sortable_th" dict "Label" "Status Assignment" "Col" "status" "PageInfo" $.PageInfo}}
@@ -45,6 +48,17 @@
             <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700 dark:text-gray-300 whitespace-nowrap">
               {{if $r.Skala}}{{$r.Skala}}{{else}}-{{end}}
             </span>
+          </td>
+          <td class="px-3 py-2">
+            {{if eq $r.Keberadaan "Tutup"}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700 whitespace-nowrap">{{$r.Keberadaan}}</span>
+            {{else if eq $r.Keberadaan "Ganda"}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700 whitespace-nowrap">{{$r.Keberadaan}}</span>
+            {{else if $r.Keberadaan}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700 whitespace-nowrap">{{$r.Keberadaan}}</span>
+            {{else}}
+            <span class="text-gray-300 dark:text-gray-600">-</span>
+            {{end}}
           </td>
           {{end}}
           <td class="px-3 py-2 max-w-[220px] truncate" title="{{$r.Alamat}}">
@@ -74,7 +88,7 @@
           <td class="px-3 py-2 text-center text-gray-400 dark:text-gray-500 whitespace-nowrap">{{$r.TanggalModified}}</td>
         </tr>
         {{else}}
-        <tr><td colspan="8" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
+        <tr><td colspan="9" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
           <div class="flex flex-col items-center gap-2">
             <svg class="w-8 h-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>

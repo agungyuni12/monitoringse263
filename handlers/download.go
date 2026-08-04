@@ -799,18 +799,20 @@ func DownloadTidakDitemukan(c echo.Context) error {
 		tipe = "usaha"
 	}
 	table, extraWhere := tidakDitemukanSource(tipe)
-	where, args, _, _, _ := tidakDitemukanFilters(c, tipe)
+	where, args, _, _, _, _ := tidakDitemukanFilters(c, tipe)
 	where += extraWhere
 
 	skalaCol := "''"
+	keberadaanCol := "''"
 	if tipe != "keluarga" {
 		skalaCol = "COALESCE(t.skala_usaha,'')"
+		keberadaanCol = "COALESCE(t.keberadaan_usaha,'')"
 	}
 
 	rows, err := db.DB.Query(`
 		SELECT s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
 		       ppl.name, pml.name,
-		       COALESCE(t.nama,''), `+skalaCol+`, COALESCE(t.alamat,''),
+		       COALESCE(t.nama,''), `+skalaCol+`, `+keberadaanCol+`, COALESCE(t.alamat,''),
 		       COALESCE(t.assignment_status,''),
 		       COALESCE(DATE_FORMAT(t.tanggal_modified,'%d/%m/%Y %H:%i'),'')
 		FROM `+table+` t
@@ -824,12 +826,12 @@ func DownloadTidakDitemukan(c echo.Context) error {
 	defer rows.Close()
 
 	type row struct {
-		sls, kec, desa, ppl, pml, nama, skala, alamat, status, tanggal string
+		sls, kec, desa, ppl, pml, nama, skala, keberadaan, alamat, status, tanggal string
 	}
 	var data []row
 	for rows.Next() {
 		var r row
-		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.nama, &r.skala, &r.alamat, &r.status, &r.tanggal)
+		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.nama, &r.skala, &r.keberadaan, &r.alamat, &r.status, &r.tanggal)
 		data = append(data, r)
 	}
 
@@ -838,7 +840,7 @@ func DownloadTidakDitemukan(c echo.Context) error {
 		namaLabel = "Nama KK"
 	}
 	fname := fmt.Sprintf("tidak_ditemukan_%s_%s.xlsx", tipe, time.Now().In(wita).Format("20060102"))
-	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", namaLabel, "Skala", "Alamat", "Status Assignment", "Tanggal Modified"}
+	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", namaLabel, "Skala", "Keberadaan", "Alamat", "Status Assignment", "Tanggal Modified"}
 	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
 		for i, r := range data {
 			n := i + 2
@@ -849,9 +851,10 @@ func DownloadTidakDitemukan(c echo.Context) error {
 			f.SetCellValue(sheet, cell(5, n), r.pml)
 			f.SetCellValue(sheet, cell(6, n), r.nama)
 			f.SetCellValue(sheet, cell(7, n), r.skala)
-			f.SetCellValue(sheet, cell(8, n), r.alamat)
-			f.SetCellValue(sheet, cell(9, n), r.status)
-			f.SetCellValue(sheet, cell(10, n), r.tanggal)
+			f.SetCellValue(sheet, cell(8, n), r.keberadaan)
+			f.SetCellValue(sheet, cell(9, n), r.alamat)
+			f.SetCellValue(sheet, cell(10, n), r.status)
+			f.SetCellValue(sheet, cell(11, n), r.tanggal)
 		}
 	})
 }

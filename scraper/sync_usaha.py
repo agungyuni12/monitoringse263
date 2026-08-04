@@ -1,8 +1,9 @@
 """
-Sync "Usaha Tidak Ditemukan" & "Keluarga Tidak Ditemukan" dari Superset SQL Lab
-FASIH Dashboard → database se2026 (tabel tidak_ditemukan_usaha /
-tidak_ditemukan_keluarga — dipakai LANGSUNG oleh web UI monitoringse, lihat
-handlers/tidak_ditemukan.go, bukan tabel arsip terpisah).
+Sync "Usaha Bermasalah" (Tidak Ditemukan/Tutup/Ganda) & "Keluarga Tidak
+Ditemukan" dari Superset SQL Lab FASIH Dashboard → database se2026 (tabel
+tidak_ditemukan_usaha / tidak_ditemukan_keluarga — dipakai LANGSUNG oleh web
+UI monitoringse, lihat handlers/tidak_ditemukan.go, bukan tabel arsip
+terpisah).
 
 Sumbernya beda dari script sync_* lain di sini: ini bukan FASIH API biasa
 (fasih-sm.bps.go.id) tapi Apache Superset SQL Lab di fasih-dashboard.bps.go.id
@@ -12,7 +13,7 @@ beda sendiri.
 
 Sumber data (ditelusuri manual lewat SQL Lab sebelum nulis ini — lihat
 percakapan, bukan asumsi):
-  - "Usaha tidak ditemukan" AWALNYA dikira cukup dari root_table.ada_bang_usaha_value
+  - "Usaha" AWALNYA dikira cukup dari root_table.ada_bang_usaha_value
     ('0' = usaha bangunan mandiri tidak ditemukan), tapi itu KELEWAT usaha yang
     nempel di roster keluarga (usaha pertanian dari ST2023, disimpan sbg array
     di root_table.nama_usaha_prelist) — dan keliru juga diasumsikan cuma
@@ -21,24 +22,45 @@ percakapan, bukan asumsi):
     10.132 kasus justru begini).
     Solusi: tabel `se2026_nested` sudah berisi SEMUA usaha (bangunan mandiri
     MAUPUN roster keluarga) dalam bentuk ter-unnest satu baris per usaha,
-    lengkap dengan status per-usaha sendiri di kolom keberadaan_usaha_value
-    ('00' = Tidak Ditemukan) — jauh lebih presisi drpd nebak dari jumlah
-    prelist vs ditemukan di level keluarga. JOIN ke root_table.jenis_prelist
-    (via assignment_id) buat tahu itu usaha bangunan mandiri (jenis_prelist
-    != 'keluarga') atau usaha dalam keluarga (jenis_prelist = 'keluarga') —
-    disimpan sbg kolom jenis_prelist di tidak_ditemukan_usaha, TIDAK dipisah
-    jadi query/tabel sendiri2, krn sumber & bentuk query-nya sama persis.
-  - "Keluarga tidak ditemukan": root_table.ada_keluarga_value = '0'.
+    lengkap dengan status per-usaha sendiri di kolom keberadaan_usaha_value —
+    jauh lebih presisi drpd nebak dari jumlah prelist vs ditemukan di level
+    keluarga. Scope-nya BUKAN cuma '00' (Tidak Ditemukan), tapi juga '3'
+    (Tutup) & '4' (Ganda) — dicek manual lewat SQL Lab (GROUP BY
+    keberadaan_usaha_value): '1'=Ditemukan, '2'=Baru, '00'=Tidak Ditemukan,
+    '3'=Tutup, '4'=Ganda, '9'=Non Respon. Ketiganya (Tidak Ditemukan/Tutup/
+    Ganda) sebelumnya cuma keliatan sbg ANGKA agregat di tab "Rekap
+    Keberadaan" (coverage_usaha_keluarga, lihat sync_kbli.py) tanpa detail
+    nama/alamat per usaha — tabel ini isi kekosongan itu, disimpan di kolom
+    keberadaan_usaha (label bersih, prefix angka "N. " dibuang).
+    JOIN ke root_table.jenis_prelist (via assignment_id) buat tahu itu usaha
+    bangunan mandiri (jenis_prelist != 'keluarga') atau usaha dalam keluarga
+    (jenis_prelist = 'keluarga') — disimpan sbg kolom jenis_prelist di
+    tidak_ditemukan_usaha, TIDAK dipisah jadi query/tabel sendiri2, krn
+    sumber & bentuk query-nya sama persis.
+  - "Keluarga tidak ditemukan": root_table.ada_keluarga_value = '0'. TIDAK
+    ada status Tutup/Ganda utk keluarga (dicek juga via GROUP BY
+    ada_keluarga_value: cuma ada Ditemukan/Tidak Ditemukan/Baru/Meninggal/
+    Tidak Eligible/Tidak Dapat Ditemui/Keluarga Khusus) — jadi scope keluarga
+    TETAP cuma Tidak Ditemukan, tidak diperluas.
 
-Superset di server ini membatasi hasil query ke MAKS 1000 baris per eksekusi,
-independen dari nilai dropdown LIMIT di UI. Data diambil PER DESA
-(level_4_full_code, dicek manual max 897/desa utk usaha & 531/desa utk
-keluarga — selalu di bawah cap 1000) supaya gak perlu OFFSET sama sekali.
-LIMIT/OFFSET bertahap sempat dicoba duluan tapi bikin dua masalah: (1) OFFSET
-makin dalam makin lambat, (2) reload halaman buat ambil hasil (workaround
-bot-wall) punya race condition — kalau di-reload sebelum server sempat
-menyimpan tab state query yang baru, hasil yang muncul malah cache query
-SEBELUMNYA (bukan error, jadi kelewat gak ketahuan salah).
+Data diambil PAGINATED langsung se-kabupaten (bukan per desa lagi — lihat
+riwayat sebelumnya di git log kalau butuh alasan kenapa awalnya per desa):
+LIMIT {PAGE_SIZE} OFFSET bertahap, dengan ORDER BY assignment_id supaya
+pagination-nya STABIL (tanpa ORDER BY eksplisit, urutan antar eksekusi query
+tidak terjamin sama — bisa ada baris kelompok/ke-duplikat pas di-OFFSET).
+(Sebelumnya didokumentasikan Superset di server ini membatasi hasil MAKS 1000
+baris/eksekusi independen dari nilai LIMIT — dicek ULANG manual pakai raw
+SELECT tanpa agregat (bukan cuma COUNT(*), yang SELALU balik 1 baris apapun
+LIMIT-nya jadi gak valid buat tes ini) dan ternyata LIMIT 5000 memang balik
+5000 baris utuh. Entah cap lamanya sudah dicabut atau spesifik ke pola query
+lama — yang pasti sekarang PAGE_SIZE 5000 terbukti aman.)
+Percobaan OFFSET bertahap versi awal (sebelum rewrite ini) sempat gagal krn
+implementasi lamanya baca hasil lewat RELOAD halaman (race condition: reload
+sebelum server nyimpen tab state query baru bisa balikin cache query
+SEBELUMNYA). Versi sekarang baca response /execute/ langsung tanpa reload
+(lihat _run_query_and_fetch), jadi masalah itu sudah tidak relevan lagi —
+OFFSET makin dalam tetap bisa makin lambat (karakteristik DB, bukan bug),
+tapi tidak akan salah data.
 
 WAF FASIH (F5, terlihat dari cookie "TS...") sempat membalas halaman "Bot
 Detected" waktu baca response POST /execute/ langsung TANPA nunggu apa pun
@@ -79,44 +101,45 @@ SYNC_HOUR = int(os.getenv("SYNC_HOUR", "22"))  # jam WITA, sekali sehari
 
 DASH_URL = "https://fasih-dashboard.bps.go.id"
 
-DESA_DELAY_MIN = 3   # jeda antar desa (detik) — biar traffic gak seragam
-DESA_DELAY_MAX = 8
+PAGE_SIZE = 5000      # dicek manual via raw SELECT (bukan COUNT) — lihat docstring modul
+PAGE_DELAY_MIN = 3    # jeda antar halaman (detik) — biar traffic gak seragam
+PAGE_DELAY_MAX = 8
 
-# ── Usaha tidak ditemukan (bangunan mandiri + roster keluarga, digabung) ────
+# ── Usaha bermasalah: Tidak Ditemukan ('00') + Tutup ('3') + Ganda ('4') ────
+# (bangunan mandiri + usaha yg nempel roster keluarga, digabung — lihat
+# docstring modul soal kenapa jenis_prelist dipakai buat bedain, bukan tabel
+# terpisah)
 
-USAHA_DESA_LIST_QUERY = (
-    "SELECT level_4_full_code, COUNT(*) AS n FROM se2026_nested "
-    "WHERE keberadaan_usaha_value = '00' "
-    "GROUP BY level_4_full_code ORDER BY n DESC LIMIT 500"
+USAHA_STATUS_VALUES = "'00','3','4'"
+
+USAHA_COUNT_QUERY = (
+    f"SELECT COUNT(*) AS n FROM se2026_nested "
+    f"WHERE keberadaan_usaha_value IN ({USAHA_STATUS_VALUES})"
 )
 
-USAHA_QUERY_TEMPLATE = """
+USAHA_QUERY_TEMPLATE = ("""
 SELECT n.assignment_id, n.index1, n.nama_usaha, n.skala_usaha,
        n.alamat_usaha, n.alamat_usaha_utama, n.level_6_full_code,
        n.assignment_status_alias, n.assignment_date_modified, r.jenis_prelist,
-       r.alamat_prelist, r.alamat_klrg
+       r.alamat_prelist, r.alamat_klrg, n.keberadaan_usaha_label
 FROM se2026_nested n
 INNER JOIN root_table r ON n.assignment_id = r.assignment_id
-WHERE n.keberadaan_usaha_value = '00'
-  AND n.level_4_full_code = '{desa_code}'
-LIMIT 1000
-""".strip()
+WHERE n.keberadaan_usaha_value IN (""" + USAHA_STATUS_VALUES + """)
+ORDER BY n.assignment_id, n.index1
+LIMIT {limit} OFFSET {offset}
+""").strip()
 
-# ── Keluarga tidak ditemukan ─────────────────────────────────────────────────
+# ── Keluarga tidak ditemukan (tetap cuma '0' — gak ada status Tutup/Ganda) ──
 
-KELUARGA_DESA_LIST_QUERY = (
-    "SELECT level_4_full_code, COUNT(*) AS n FROM root_table "
-    "WHERE ada_keluarga_value = '0' "
-    "GROUP BY level_4_full_code ORDER BY n DESC LIMIT 500"
-)
+KELUARGA_COUNT_QUERY = "SELECT COUNT(*) AS n FROM root_table WHERE ada_keluarga_value = '0'"
 
 KELUARGA_QUERY_TEMPLATE = """
 SELECT assignment_id, nama_kk, dtsen_nama_kk, alamat_klrg, alamat_prelist,
        level_6_full_code, assignment_status_alias, assignment_date_modified
 FROM root_table
 WHERE ada_keluarga_value = '0'
-  AND level_4_full_code = '{desa_code}'
-LIMIT 1000
+ORDER BY assignment_id
+LIMIT {limit} OFFSET {offset}
 """.strip()
 
 HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
@@ -180,6 +203,13 @@ def _first(*vals):
         if v:
             return v
     return None
+
+
+def _clean_label(label):
+    """FASIH nyimpen label kayak '3. Tutup' — buang prefix angka+titiknya."""
+    if not label:
+        return None
+    return re.sub(r"^\d+\.\s*", "", label).strip() or None
 
 
 def _check_bot_wall(text, tag):
@@ -301,21 +331,27 @@ def _run_query_and_fetch(page, sql, retries=5):
     raise RuntimeError("Gagal ambil hasil query setelah semua retry")
 
 
-def get_desa_codes(page, list_query):
-    data = _run_query_and_fetch(page, list_query)
-    return [(r["level_4_full_code"], int(r["n"])) for r in data if r.get("level_4_full_code")]
+def get_count(page, count_query):
+    data = _run_query_and_fetch(page, count_query)
+    return int(data[0]["n"]) if data else 0
 
 
-def scrape_per_desa(page, desa_list, query_template, label):
+def scrape_paginated(page, query_template, label, total_hint=None):
+    """Tarik semua baris se-kabupaten pakai LIMIT/OFFSET bertahap (PAGE_SIZE per
+    eksekusi). ORDER BY di query_template WAJIB ada supaya urutan antar
+    eksekusi stabil — lihat docstring modul."""
     all_rows = []
-    for i, (desa_code, expected_n) in enumerate(desa_list, start=1):
-        sql = query_template.format(desa_code=desa_code)
+    offset = 0
+    while True:
+        sql = query_template.format(limit=PAGE_SIZE, offset=offset)
         rows = _run_query_and_fetch(page, sql)
         all_rows.extend(rows)
-        flag = "" if len(rows) == expected_n else f"  [WARN] beda dari hitungan awal ({expected_n})"
-        print(f"  ({label}) [{i}/{len(desa_list)}] desa {desa_code} → {len(rows)} baris (total {len(all_rows)}){flag}", flush=True)
-        if i < len(desa_list):
-            _human_pause(DESA_DELAY_MIN, DESA_DELAY_MAX)
+        hint = f"/{total_hint}" if total_hint is not None else ""
+        print(f"  ({label}) offset {offset} → {len(rows)} baris (total {len(all_rows)}{hint})", flush=True)
+        if len(rows) < PAGE_SIZE:
+            break
+        offset += PAGE_SIZE
+        _human_pause(PAGE_DELAY_MIN, PAGE_DELAY_MAX)
     return all_rows
 
 
@@ -328,6 +364,25 @@ def _connect_db():
     )
 
 
+def _ensure_column(conn, table, column, add_ddl):
+    """Tambah kolom yg belum ada lewat ALTER TABLE — dicek dulu via
+    information_schema (bukan cuma andalin CREATE TABLE IF NOT EXISTS, yang
+    TIDAK nge-alter tabel lama yg sudah ada duluan dgn skema beda — kejadian
+    nyata: kolom jenis_prelist ketinggalan di DB lama, upsert gagal di
+    tengah sync besar yg mahal diulang)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM information_schema.COLUMNS "
+            "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+            (DB_NAME, table, column),
+        )
+        exists = cur.fetchone()["n"] > 0
+        if not exists:
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN {add_ddl}")
+            conn.commit()
+            print(f"[DB] Kolom '{column}' ditambahkan ke {table} (auto-migrate).", flush=True)
+
+
 def ensure_tables(conn):
     with conn.cursor() as cur:
         cur.execute("""
@@ -338,6 +393,7 @@ def ensure_tables(conn):
               nama              VARCHAR(255) DEFAULT NULL,
               skala_usaha       VARCHAR(50) DEFAULT NULL,
               jenis_prelist     VARCHAR(30) DEFAULT NULL,
+              keberadaan_usaha  VARCHAR(50) DEFAULT NULL,
               alamat            VARCHAR(255) DEFAULT NULL,
               assignment_status VARCHAR(50) DEFAULT NULL,
               tanggal_modified  DATETIME DEFAULT NULL,
@@ -366,6 +422,14 @@ def ensure_tables(conn):
         """)
     conn.commit()
 
+    # Auto-migrate kolom buat DB lama yg tabelnya sudah ada duluan dgn skema
+    # sebelum kolom2 ini ditambahkan — CREATE TABLE IF NOT EXISTS di atas gak
+    # nyentuh tabel yg udah ada.
+    _ensure_column(conn, "tidak_ditemukan_usaha", "jenis_prelist",
+                    "jenis_prelist VARCHAR(30) DEFAULT NULL AFTER skala_usaha")
+    _ensure_column(conn, "tidak_ditemukan_usaha", "keberadaan_usaha",
+                    "keberadaan_usaha VARCHAR(50) DEFAULT NULL AFTER jenis_prelist")
+
 
 def load_sls_map(conn):
     with conn.cursor() as cur:
@@ -385,20 +449,21 @@ def upsert_usaha(conn, rows, sls_map, synced_at):
             cur.execute("""
                 INSERT INTO tidak_ditemukan_usaha
                   (sls_id, assignment_id, nama, skala_usaha, jenis_prelist,
-                   alamat, assignment_status, tanggal_modified, imported_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   keberadaan_usaha, alamat, assignment_status, tanggal_modified, imported_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ON DUPLICATE KEY UPDATE
                   sls_id            = VALUES(sls_id),
                   nama              = VALUES(nama),
                   skala_usaha       = VALUES(skala_usaha),
                   jenis_prelist     = VALUES(jenis_prelist),
+                  keberadaan_usaha  = VALUES(keberadaan_usaha),
                   alamat            = VALUES(alamat),
                   assignment_status = VALUES(assignment_status),
                   tanggal_modified  = VALUES(tanggal_modified),
                   imported_at       = VALUES(imported_at)
             """, (
                 sls_id, assignment_id, r.get("nama_usaha"), r.get("skala_usaha"),
-                r.get("jenis_prelist"),
+                r.get("jenis_prelist"), _clean_label(r.get("keberadaan_usaha_label")),
                 # se2026_nested.alamat_usaha* nyaris selalu kosong utk usaha yg
                 # TIDAK DITEMUKAN (petugas belum sempat catat alamat detail di
                 # lapangan) — fallback ke alamat prelisting di root_table:
@@ -442,6 +507,23 @@ def upsert_keluarga(conn, rows, sls_map, synced_at):
         print(f"[DB] keluarga: {skipped} baris tanpa sls_id (kode_sls tidak ketemu di tabel sls)", flush=True)
 
 
+def delete_stale(conn, table, synced_at):
+    """Hapus baris yg gak ke-refresh di run ini (imported_at < synced_at) —
+    artinya usaha/keluarga itu SUDAH TIDAK masuk kriteria manapun lagi di FASIH
+    sekarang (mis. tadinya Tidak Ditemukan, sekarang sudah Ditemukan/Baru).
+    Tanpa ini baris lama numpuk selamanya krn upsert doang gak pernah hapus —
+    nyata kejadian: 20.244 baris basi ketemu tanggal 2026-08-04 dari sync
+    terakhir 2026-07-22, gara2 gak pernah dibersihkan."""
+    with conn.cursor() as cur:
+        cur.execute(
+            f"DELETE FROM {table} WHERE imported_at < %s", (synced_at,)
+        )
+        deleted = cur.rowcount
+    conn.commit()
+    if deleted:
+        print(f"[DB] {table}: {deleted} baris basi dihapus (sudah tidak masuk kriteria lagi).", flush=True)
+
+
 def run_once():
     print("=" * 50, flush=True)
     print(f"SYNC TIDAK DITEMUKAN (FASIH Dashboard SQL Lab) → se2026  [{_now_wita():%Y-%m-%d %H:%M:%S} WITA]", flush=True)
@@ -462,12 +544,13 @@ def run_once():
                 page.goto(f"{DASH_URL}/superset/sqllab/", wait_until="networkidle", timeout=180_000)
                 _check_bot_wall(page.content(), "buka SQL Lab")
 
-                # Fase 1: usaha tidak ditemukan (bangunan mandiri + roster keluarga)
+                # Fase 1: usaha bermasalah (Tidak Ditemukan/Tutup/Ganda; bangunan
+                # mandiri + roster keluarga digabung)
                 if usaha_rows is None:
-                    print("\n[FASE 1] Usaha tidak ditemukan...", flush=True)
-                    usaha_desa = get_desa_codes(page, USAHA_DESA_LIST_QUERY)
-                    print(f"[FASE 1] {len(usaha_desa)} desa, total baris (perkiraan): {sum(n for _, n in usaha_desa)}", flush=True)
-                    usaha_rows = scrape_per_desa(page, usaha_desa, USAHA_QUERY_TEMPLATE, "usaha")
+                    print("\n[FASE 1] Usaha (Tidak Ditemukan/Tutup/Ganda)...", flush=True)
+                    usaha_total = get_count(page, USAHA_COUNT_QUERY)
+                    print(f"[FASE 1] Total baris (perkiraan): {usaha_total}", flush=True)
+                    usaha_rows = scrape_paginated(page, USAHA_QUERY_TEMPLATE, "usaha", usaha_total)
                     _save_checkpoint("usaha", usaha_rows)
                 else:
                     print(f"\n[FASE 1] Pakai checkpoint tersimpan ({len(usaha_rows)} baris) — skip scraping ulang.", flush=True)
@@ -475,9 +558,9 @@ def run_once():
                 # Fase 2: keluarga tidak ditemukan
                 if keluarga_rows is None:
                     print("\n[FASE 2] Keluarga tidak ditemukan...", flush=True)
-                    keluarga_desa = get_desa_codes(page, KELUARGA_DESA_LIST_QUERY)
-                    print(f"[FASE 2] {len(keluarga_desa)} desa, total baris (perkiraan): {sum(n for _, n in keluarga_desa)}", flush=True)
-                    keluarga_rows = scrape_per_desa(page, keluarga_desa, KELUARGA_QUERY_TEMPLATE, "keluarga")
+                    keluarga_total = get_count(page, KELUARGA_COUNT_QUERY)
+                    print(f"[FASE 2] Total baris (perkiraan): {keluarga_total}", flush=True)
+                    keluarga_rows = scrape_paginated(page, KELUARGA_QUERY_TEMPLATE, "keluarga", keluarga_total)
                     _save_checkpoint("keluarga", keluarga_rows)
                 else:
                     print(f"\n[FASE 2] Pakai checkpoint tersimpan ({len(keluarga_rows)} baris) — skip scraping ulang.", flush=True)
@@ -489,11 +572,13 @@ def run_once():
     synced_at = _now_wita().strftime("%Y-%m-%d %H:%M:%S")
     print(f"\n[FASE 1] Upsert {len(usaha_rows)} baris usaha ke DB...", flush=True)
     upsert_usaha(conn, usaha_rows, sls_map, synced_at)
+    delete_stale(conn, "tidak_ditemukan_usaha", synced_at)
     _clear_checkpoint("usaha")
     print(f"[FASE 1] Selesai: {len(usaha_rows)} baris usaha di-sync.", flush=True)
 
     print(f"\n[FASE 2] Upsert {len(keluarga_rows)} baris keluarga ke DB...", flush=True)
     upsert_keluarga(conn, keluarga_rows, sls_map, synced_at)
+    delete_stale(conn, "tidak_ditemukan_keluarga", synced_at)
     _clear_checkpoint("keluarga")
     print(f"[FASE 2] Selesai: {len(keluarga_rows)} baris keluarga di-sync.", flush=True)
 
