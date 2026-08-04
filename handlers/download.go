@@ -1040,3 +1040,69 @@ func DownloadTidakDitemukanRekap(c echo.Context) error {
 		}
 	})
 }
+
+// DownloadUsahaKategoriA — GET /admin/download/usaha-kategori-a
+// Filter sama persis dengan AdminUsahaKategoriATable (lihat handlers/usaha_kategori_a.go).
+func DownloadUsahaKategoriA(c echo.Context) error {
+	where, args, _, _, _ := usahaKategoriAFilters(c)
+
+	rows, err := db.DB.Query(`
+		SELECT s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
+		       ppl.name, pml.name,
+		       COALESCE(t.nama_usaha,''), COALESCE(t.nama_kk,''), COALESCE(t.jenis_prelist,''),
+		       COALESCE(t.kbli_label,''), COALESCE(t.skala_usaha,''),
+		       t.pendapatan, t.pengeluaran, COALESCE(t.alamat,''),
+		       COALESCE(t.assignment_status,''),
+		       COALESCE(DATE_FORMAT(t.tanggal_modified,'%d/%m/%Y %H:%i'),'')
+		FROM usaha_kategori_a t
+		JOIN sls s ON s.id = t.sls_id
+		JOIN users ppl ON ppl.id = s.ppl_id
+		JOIN users pml ON pml.id = s.pml_id`+where+`
+		ORDER BY s.nama_kec, s.nama_desa, s.nama_sls, t.nama_usaha`, args...)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+	defer rows.Close()
+
+	type row struct {
+		sls, kec, desa, ppl, pml, namaUsaha, namaKK, jenisPrelist, kbli, skala, alamat, status, tanggal string
+		pendapatan, pengeluaran                                                                         sql.NullFloat64
+	}
+	var data []row
+	for rows.Next() {
+		var r row
+		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.namaUsaha, &r.namaKK, &r.jenisPrelist, &r.kbli, &r.skala,
+			&r.pendapatan, &r.pengeluaran, &r.alamat, &r.status, &r.tanggal)
+		data = append(data, r)
+	}
+
+	fname := fmt.Sprintf("usaha_kategori_a_%s.xlsx", time.Now().In(wita).Format("20060102"))
+	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Nama Usaha", "Nama KK", "Jenis Prelist", "KBLI", "Skala", "Pendapatan", "Pengeluaran", "Keuntungan", "Alamat", "Status Assignment", "Tanggal Modified"}
+	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
+		for i, r := range data {
+			n := i + 2
+			f.SetCellValue(sheet, cell(1, n), r.sls)
+			f.SetCellValue(sheet, cell(2, n), r.kec)
+			f.SetCellValue(sheet, cell(3, n), r.desa)
+			f.SetCellValue(sheet, cell(4, n), r.ppl)
+			f.SetCellValue(sheet, cell(5, n), r.pml)
+			f.SetCellValue(sheet, cell(6, n), r.namaUsaha)
+			f.SetCellValue(sheet, cell(7, n), r.namaKK)
+			f.SetCellValue(sheet, cell(8, n), r.jenisPrelist)
+			f.SetCellValue(sheet, cell(9, n), r.kbli)
+			f.SetCellValue(sheet, cell(10, n), r.skala)
+			if r.pendapatan.Valid {
+				f.SetCellValue(sheet, cell(11, n), r.pendapatan.Float64)
+			}
+			if r.pengeluaran.Valid {
+				f.SetCellValue(sheet, cell(12, n), r.pengeluaran.Float64)
+			}
+			if r.pendapatan.Valid && r.pengeluaran.Valid {
+				f.SetCellValue(sheet, cell(13, n), r.pendapatan.Float64-r.pengeluaran.Float64)
+			}
+			f.SetCellValue(sheet, cell(14, n), r.alamat)
+			f.SetCellValue(sheet, cell(15, n), r.status)
+			f.SetCellValue(sheet, cell(16, n), r.tanggal)
+		}
+	})
+}

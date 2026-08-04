@@ -131,6 +131,11 @@
               <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" rx="1" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" rx="1" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" rx="1" stroke-width="1.5"/></svg>
               <span class="sidebar-label">KBLI per SLS</span>
             </button>
+            <button onclick="switchTab('usahaKategoriA')" id="tab-usahaKategoriA" title="Usaha Kategori A"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-3 0-5 1.5-5 4s2 4 5 4 5-1.5 5-4-2-4-5-4zm0 0V4m0 16v-2"/></svg>
+              <span class="sidebar-label">Usaha Kategori A</span>
+            </button>
             <button onclick="switchTab('keberadaanRekap')" id="tab-keberadaanRekap" title="Rekap Keberadaan"
               class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
               <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -591,6 +596,46 @@
           <div id="admin-kbli-wrap"
             hx-get="/admin/table/kbli" hx-trigger="load" hx-swap="innerHTML">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data KBLI...</div>
+          </div>
+        </div>
+
+        <!-- TAB: Usaha Kategori A (KBLI kategori A — Pertanian/Kehutanan/Perikanan),
+             pendapatan & pengeluaran per usaha. Sumber: tabel usaha_kategori_a,
+             lihat scraper/sync_kategori_a.py. -->
+        <div id="panel-usahaKategoriA" class="tab-panel">
+          <div id="usaha-kategori-a-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center">
+            <input type="text" name="q"
+              hx-get="/admin/table/usaha-kategori-a" hx-target="#usaha-kategori-a-result" hx-swap="innerHTML"
+              hx-trigger="input changed delay:400ms" hx-include="#usaha-kategori-a-filter-bar"
+              placeholder="Cari nama usaha, nama KK, KBLI, SLS..."
+              class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="kec"
+              hx-get="/admin/table/usaha-kategori-a" hx-target="#usaha-kategori-a-result" hx-swap="innerHTML" hx-include="#usaha-kategori-a-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Kecamatan</option>
+              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
+            </select>
+            <select name="pml_id" id="usaha-kategori-a-pml-select"
+              hx-get="/admin/table/usaha-kategori-a" hx-target="#usaha-kategori-a-result" hx-swap="innerHTML" hx-include="#usaha-kategori-a-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PML</option>
+            </select>
+            <select name="ppl_id" id="usaha-kategori-a-ppl-select"
+              hx-get="/admin/table/usaha-kategori-a" hx-target="#usaha-kategori-a-result" hx-swap="innerHTML" hx-include="#usaha-kategori-a-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PPL</option>
+            </select>
+            <a id="usaha-kategori-a-dl-btn" href="/admin/download/usaha-kategori-a"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="usaha-kategori-a-result"
+            hx-get="/admin/table/usaha-kategori-a" hx-trigger="load" hx-swap="innerHTML">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data usaha kategori A...</div>
           </div>
         </div>
 
