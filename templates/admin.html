@@ -872,11 +872,13 @@
     }
 
     // Opsi dropdown status beda per tipe — keluarga gak punya status Tutup/Ganda
-    // (lihat scraper/sync_usaha.py: cuma usaha yg dapet status itu dari FASIH).
+    // (lihat scraper/sync_usaha.py: cuma usaha yg dapet status itu dari FASIH),
+    // tapi keluarga PUNYA Ditemukan/Baru (usaha gak — tab Usaha khusus usaha
+    // bermasalah, tab Keluarga sekarang nyakup semua status keluarga).
     function updateTidakDitemukanStatusOptions(mode) {
       var statusSel = document.getElementById('tidak-ditemukan-status-select');
       var opts = mode === 'keluarga'
-        ? [['', 'Semua Status'], ['Tidak Ditemukan', 'Tidak Ditemukan'], ['Open', 'Open']]
+        ? [['', 'Semua Status'], ['Tidak Ditemukan', 'Tidak Ditemukan'], ['Ditemukan', 'Ditemukan'], ['Baru', 'Baru'], ['Open', 'Open']]
         : [['', 'Semua Status'], ['Tidak Ditemukan', 'Tidak Ditemukan'], ['Tutup', 'Tutup'], ['Ganda', 'Ganda'], ['Open', 'Open']];
       statusSel.innerHTML = opts.map(function(o) {
         return '<option value="' + o[0] + '">' + o[1] + '</option>';

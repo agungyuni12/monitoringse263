@@ -26,10 +26,34 @@ type TidakDitemukanRow struct {
 	NamaPML          string
 	Nama             string
 	Skala            string // kosong utk tipe keluarga
-	Keberadaan       string // usaha: Tidak Ditemukan/Tutup/Ganda/Open — keluarga: Tidak Ditemukan/Open
+	Keberadaan       string // usaha: Tidak Ditemukan/Tutup/Ganda/Open — keluarga: Tidak Ditemukan/Ditemukan/Baru/Open
+	NomorKKPrelist   string // kosong utk tipe usaha
+	NomorKKSekarang  string // kosong utk tipe usaha
 	Alamat           string
 	AssignmentStatus string
 	TanggalModified  string
+	FasihLink        string // link langsung ke assignment di fasih-sm.bps.go.id
+}
+
+// fasihSMPeriodID — UUID periode SE2026 di fasih-sm.bps.go.id, konstan utk
+// semua assignment (lihat scraper/reject_anomali.py yg sudah pakai pola URL
+// ini duluan: /app/assignment/{periode}/{assignment_id}).
+const fasihSMPeriodID = "fd68e454-ba45-4b85-8205-f3bf777ded24"
+
+// fasihSMLink bangun URL assignment di fasih-sm.bps.go.id. assignment_id di
+// tidak_ditemukan_usaha kadang disimpan komposit "{uuid}#{index1}" (usaha
+// dlm keluarga bisa lebih dari satu per assignment_id yg sama — lihat
+// scraper/sync_usaha.py) — ambil bagian sebelum "#" aja, itu assignment_id
+// asli yg dikenali FASIH. tidak_ditemukan_keluarga gak ada suffix ini.
+func fasihSMLink(assignmentID string) string {
+	if assignmentID == "" {
+		return ""
+	}
+	raw := assignmentID
+	if i := strings.IndexByte(raw, '#'); i >= 0 {
+		raw = raw[:i]
+	}
+	return "https://fasih-sm.bps.go.id/app/assignment/" + fasihSMPeriodID + "/" + raw
 }
 
 var tidakDitemukanSortCols = map[string]string{
@@ -177,18 +201,24 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 
 	skalaCol := "''"
 	keberadaanCol := "COALESCE(t.keberadaan_keluarga,'')"
+	nomorKKPrelistCol := "COALESCE(t.nomor_kk_prelist,'')"
+	nomorKKSekarangCol := "COALESCE(t.nomor_kk_sekarang,'')"
 	if tipe != "keluarga" {
 		skalaCol = "COALESCE(t.skala_usaha,'')"
 		keberadaanCol = "COALESCE(t.keberadaan_usaha,'')"
+		nomorKKPrelistCol = "''"
+		nomorKKSekarangCol = "''"
 	}
 
 	queryArgs := append(append([]interface{}{}, args...), models.PerPage, offset)
 	rows, err := db.DB.Query(`
 		SELECT t.id, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
 		       ppl.name, pml.name,
-		       COALESCE(t.nama,''), `+skalaCol+`, `+keberadaanCol+`, COALESCE(t.alamat,''),
+		       COALESCE(t.nama,''), `+skalaCol+`, `+keberadaanCol+`, `+nomorKKPrelistCol+`, `+nomorKKSekarangCol+`,
+		       COALESCE(t.alamat,''),
 		       COALESCE(t.assignment_status,''),
-		       COALESCE(DATE_FORMAT(t.tanggal_modified,'%d/%m/%Y %H:%i'),'')
+		       COALESCE(DATE_FORMAT(t.tanggal_modified,'%d/%m/%Y %H:%i'),''),
+		       t.assignment_id
 		FROM `+table+` t
 		JOIN sls s ON s.id = t.sls_id
 		JOIN users ppl ON ppl.id = s.ppl_id
@@ -201,8 +231,11 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 		defer rows.Close()
 		for rows.Next() {
 			var r TidakDitemukanRow
+			var assignmentID string
 			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML,
-				&r.Nama, &r.Skala, &r.Keberadaan, &r.Alamat, &r.AssignmentStatus, &r.TanggalModified)
+				&r.Nama, &r.Skala, &r.Keberadaan, &r.NomorKKPrelist, &r.NomorKKSekarang,
+				&r.Alamat, &r.AssignmentStatus, &r.TanggalModified, &assignmentID)
+			r.FasihLink = fasihSMLink(assignmentID)
 			list = append(list, r)
 		}
 	}
@@ -245,7 +278,7 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 // cuma Tidak Ditemukan + Open (gak ada status Tutup/Ganda utk keluarga).
 // Dipakai isi dropdown filter status di sub-tab Usaha/Usaha dalam Keluarga/Keluarga.
 var keberadaanUsahaStatuses = []string{"Tidak Ditemukan", "Tutup", "Ganda", "Open"}
-var keberadaanKeluargaStatuses = []string{"Tidak Ditemukan", "Open"}
+var keberadaanKeluargaStatuses = []string{"Tidak Ditemukan", "Ditemukan", "Baru", "Open"}
 
 // TidakDitemukanRekapRow adalah satu baris di sub-menu Rekap (di samping Usaha/
 // Keluarga) — rekap jumlah usaha & keluarga tidak ditemukan per SLS, atau

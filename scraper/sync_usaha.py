@@ -134,18 +134,32 @@ ORDER BY n.assignment_id, n.index1
 LIMIT {limit} OFFSET {offset}
 """).strip()
 
-# ── Keluarga tidak ditemukan (tetap cuma '0' — gak ada status Tutup/Ganda) ──
+# ── Keluarga: Tidak Ditemukan + Ditemukan + Baru ────────────────────────────
+# ('3'/'4'/'5'/'6' — Meninggal/Tidak Eligible/Tidak Dapat Ditemui/Keluarga
+# Khusus — sengaja BELUM diikutkan, gak diminta & jumlahnya kecil ~1.300).
+# root_table.no_kk vs dtsen_no_kk: dicek manual (GROUP BY ada_keluarga_value)
+# — no_kk SELALU ada dari awal (termasuk 100% di kasus Tidak Ditemukan, jadi
+# ini nomor KK PRELIST), dtsen_no_kk baru keisi kalau ada proses pemutakhiran/
+# verifikasi DTSEN (0% di Tidak Ditemukan, ~100% di Ditemukan/Baru — nomor KK
+# SEKARANG/hasil pemutakhiran). Keduanya identik kalau dua2nya ada (0 baris
+# beda), konsisten sama teori ini: pemutakhiran cuma "mengkonfirmasi ulang"
+# nomor yg sama, bukan ganti nomor baru.
 
-KELUARGA_COUNT_QUERY = "SELECT COUNT(*) AS n FROM root_table WHERE ada_keluarga_value = '0'"
+KELUARGA_STATUS_VALUES = "'0','1','2'"
 
-KELUARGA_QUERY_TEMPLATE = """
+KELUARGA_COUNT_QUERY = (
+    f"SELECT COUNT(*) AS n FROM root_table WHERE ada_keluarga_value IN ({KELUARGA_STATUS_VALUES})"
+)
+
+KELUARGA_QUERY_TEMPLATE = ("""
 SELECT assignment_id, nama_kk, dtsen_nama_kk, alamat_klrg, alamat_prelist,
-       level_6_full_code, assignment_status_alias, assignment_date_modified
+       level_6_full_code, assignment_status_alias, assignment_date_modified,
+       ada_keluarga_label, no_kk, dtsen_no_kk
 FROM root_table
-WHERE ada_keluarga_value = '0'
+WHERE ada_keluarga_value IN (""" + KELUARGA_STATUS_VALUES + """)
 ORDER BY assignment_id
 LIMIT {limit} OFFSET {offset}
-""".strip()
+""").strip()
 
 # ── "Open" (assignment belum pernah disentuh sama sekali) ───────────────────
 # BEDA SUMBER dari dua di atas: se2026_nested/root_table cuma berisi baris yg
@@ -258,10 +272,14 @@ def _first(*vals):
 
 
 def _clean_label(label):
-    """FASIH nyimpen label kayak '3. Tutup' — buang prefix angka+titiknya."""
+    """FASIH nyimpen label kayak '3. Tutup' atau '0. Tidak Ditemukan (STOP)' —
+    buang prefix angka+titik DAN suffix "(STOP)" (root_table.ada_keluarga_label
+    khusus utk status 0 pakai suffix ini, gak konsisten sama label lain)."""
     if not label:
         return None
-    return re.sub(r"^\d+\.\s*", "", label).strip() or None
+    cleaned = re.sub(r"^\d+\.\s*", "", label)
+    cleaned = re.sub(r"\s*\(STOP\)\s*$", "", cleaned)
+    return cleaned.strip() or None
 
 
 def _check_bot_wall(text, tag):
@@ -463,6 +481,8 @@ def ensure_tables(conn):
               assignment_id       VARCHAR(64) NOT NULL,
               nama                VARCHAR(255) DEFAULT NULL,
               keberadaan_keluarga VARCHAR(50) DEFAULT NULL,
+              nomor_kk_prelist    VARCHAR(20) DEFAULT NULL,
+              nomor_kk_sekarang   VARCHAR(20) DEFAULT NULL,
               alamat              VARCHAR(255) DEFAULT NULL,
               assignment_status   VARCHAR(50) DEFAULT NULL,
               tanggal_modified    DATETIME DEFAULT NULL,
@@ -484,6 +504,10 @@ def ensure_tables(conn):
                     "keberadaan_usaha VARCHAR(50) DEFAULT NULL AFTER jenis_prelist")
     _ensure_column(conn, "tidak_ditemukan_keluarga", "keberadaan_keluarga",
                     "keberadaan_keluarga VARCHAR(50) DEFAULT NULL AFTER nama")
+    _ensure_column(conn, "tidak_ditemukan_keluarga", "nomor_kk_prelist",
+                    "nomor_kk_prelist VARCHAR(20) DEFAULT NULL AFTER keberadaan_keluarga")
+    _ensure_column(conn, "tidak_ditemukan_keluarga", "nomor_kk_sekarang",
+                    "nomor_kk_sekarang VARCHAR(20) DEFAULT NULL AFTER nomor_kk_prelist")
 
 
 def load_sls_map(conn):
@@ -543,12 +567,15 @@ def upsert_keluarga(conn, rows, sls_map, synced_at):
                 continue
             cur.execute("""
                 INSERT INTO tidak_ditemukan_keluarga
-                  (sls_id, assignment_id, nama, keberadaan_keluarga, alamat, assignment_status, tanggal_modified, imported_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                  (sls_id, assignment_id, nama, keberadaan_keluarga, nomor_kk_prelist, nomor_kk_sekarang,
+                   alamat, assignment_status, tanggal_modified, imported_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ON DUPLICATE KEY UPDATE
                   sls_id               = VALUES(sls_id),
                   nama                 = VALUES(nama),
                   keberadaan_keluarga  = VALUES(keberadaan_keluarga),
+                  nomor_kk_prelist     = VALUES(nomor_kk_prelist),
+                  nomor_kk_sekarang    = VALUES(nomor_kk_sekarang),
                   alamat               = VALUES(alamat),
                   assignment_status    = VALUES(assignment_status),
                   tanggal_modified     = VALUES(tanggal_modified),
@@ -556,6 +583,7 @@ def upsert_keluarga(conn, rows, sls_map, synced_at):
             """, (
                 sls_id, r.get("assignment_id"), _first(r.get("nama_kk"), r.get("dtsen_nama_kk")),
                 r.get("keberadaan_keluarga", "Tidak Ditemukan"),
+                r.get("no_kk"), r.get("dtsen_no_kk"),
                 _first(r.get("alamat_klrg"), r.get("alamat_prelist")),
                 r.get("assignment_status_alias"), r.get("assignment_date_modified"), synced_at,
             ))
@@ -622,14 +650,14 @@ def run_once():
                 else:
                     print(f"\n[FASE 1] Pakai checkpoint tersimpan ({len(usaha_rows)} baris) — skip scraping ulang.", flush=True)
 
-                # Fase 2: keluarga tidak ditemukan + keluarga Open (belum disentuh)
+                # Fase 2: keluarga Tidak Ditemukan/Ditemukan/Baru + keluarga Open (belum disentuh)
                 if keluarga_rows is None:
-                    print("\n[FASE 2] Keluarga tidak ditemukan...", flush=True)
+                    print("\n[FASE 2] Keluarga (Tidak Ditemukan/Ditemukan/Baru)...", flush=True)
                     keluarga_total = get_count(page, KELUARGA_COUNT_QUERY)
                     print(f"[FASE 2] Total baris (perkiraan): {keluarga_total}", flush=True)
                     keluarga_rows = scrape_paginated(page, KELUARGA_QUERY_TEMPLATE, "keluarga", keluarga_total)
                     for r in keluarga_rows:
-                        r["keberadaan_keluarga"] = "Tidak Ditemukan"
+                        r["keberadaan_keluarga"] = _clean_label(r.get("ada_keluarga_label")) or "Tidak Ditemukan"
 
                     print("\n[FASE 2b] Keluarga Open (belum disentuh)...", flush=True)
                     open_keluarga_total = get_count(page, OPEN_KELUARGA_COUNT_QUERY)

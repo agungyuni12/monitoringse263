@@ -4,7 +4,7 @@
 <div>
   <div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
     Ditemukan <span class="font-semibold text-gray-700 dark:text-gray-300">{{.PageInfo.TotalRow}}</span>
-    {{if eq .Tipe "keluarga"}}keluarga{{if .Status}} berstatus "{{.Status}}"{{else}} tidak ditemukan/open{{end}}
+    {{if eq .Tipe "keluarga"}}keluarga{{if .Status}} berstatus "{{.Status}}"{{else}} tidak ditemukan/ditemukan/baru/open{{end}}
     {{else}}{{if eq .Tipe "usaha_keluarga"}}usaha dalam keluarga{{else}}usaha{{end}}{{if .Status}} berstatus "{{.Status}}"{{else}} tidak ditemukan/tutup/ganda/open{{end}}
     {{end}}
   </div>
@@ -25,9 +25,14 @@
           {{template "sortable_th" dict "Label" "Skala" "Col" "skala" "PageInfo" $.PageInfo}}
           {{end}}
           {{template "sortable_th" dict "Label" "Keberadaan" "Col" "keberadaan" "PageInfo" $.PageInfo}}
+          {{if eq .Tipe "keluarga"}}
+          <th class="px-3 py-2.5 font-medium">Nomor KK Prelist</th>
+          <th class="px-3 py-2.5 font-medium">Nomor KK Sekarang</th>
+          {{end}}
           <th class="px-3 py-2.5 font-medium">Alamat</th>
           {{template "sortable_th" dict "Label" "Status Assignment" "Col" "status" "PageInfo" $.PageInfo}}
           {{template "sortable_th" dict "Label" "Tanggal Modified" "Col" "tanggal" "PageInfo" $.PageInfo "Center" true}}
+          <th class="px-3 py-2.5 font-medium text-center">FASIH</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -57,12 +62,24 @@
             <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700 whitespace-nowrap">{{$r.Keberadaan}}</span>
             {{else if eq $r.Keberadaan "Open"}}
             <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600 whitespace-nowrap">{{$r.Keberadaan}}</span>
+            {{else if eq $r.Keberadaan "Ditemukan"}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700 whitespace-nowrap">{{$r.Keberadaan}}</span>
+            {{else if eq $r.Keberadaan "Baru"}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700 whitespace-nowrap">{{$r.Keberadaan}}</span>
             {{else if $r.Keberadaan}}
             <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700 whitespace-nowrap">{{$r.Keberadaan}}</span>
             {{else}}
             <span class="text-gray-300 dark:text-gray-600">-</span>
             {{end}}
           </td>
+          {{if eq $.Tipe "keluarga"}}
+          <td class="px-3 py-2 whitespace-nowrap font-mono text-gray-600 dark:text-gray-400">
+            {{if $r.NomorKKPrelist}}{{$r.NomorKKPrelist}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
+          </td>
+          <td class="px-3 py-2 whitespace-nowrap font-mono text-gray-600 dark:text-gray-400">
+            {{if $r.NomorKKSekarang}}{{$r.NomorKKSekarang}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
+          </td>
+          {{end}}
           <td class="px-3 py-2 max-w-[220px] truncate" title="{{$r.Alamat}}">
             {{if $r.Alamat}}{{$r.Alamat}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
           </td>
@@ -88,9 +105,22 @@
             {{end}}
           </td>
           <td class="px-3 py-2 text-center text-gray-400 dark:text-gray-500 whitespace-nowrap">{{$r.TanggalModified}}</td>
+          <td class="px-3 py-2 text-center">
+            {{if $r.FasihLink}}
+            <a href="{{$r.FasihLink}}" target="_blank" rel="noopener noreferrer"
+              class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-se hover:bg-orange-50 dark:hover:bg-gray-800 transition-colors"
+              title="Buka assignment di FASIH">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+              </svg>
+            </a>
+            {{else}}
+            <span class="text-gray-300 dark:text-gray-600">-</span>
+            {{end}}
+          </td>
         </tr>
         {{else}}
-        <tr><td colspan="9" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
+        <tr><td colspan="12" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
           <div class="flex flex-col items-center gap-2">
             <svg class="w-8 h-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
