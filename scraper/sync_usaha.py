@@ -40,8 +40,13 @@ percakapan, bukan asumsi):
   - "Keluarga tidak ditemukan": root_table.ada_keluarga_value = '0'. TIDAK
     ada status Tutup/Ganda utk keluarga (dicek juga via GROUP BY
     ada_keluarga_value: cuma ada Ditemukan/Tidak Ditemukan/Baru/Meninggal/
-    Tidak Eligible/Tidak Dapat Ditemui/Keluarga Khusus) — jadi scope keluarga
-    TETAP cuma Tidak Ditemukan, tidak diperluas.
+    Tidak Eligible/Tidak Dapat Ditemui/Keluarga Khusus).
+  - "Open" (usaha & keluarga yg assignment-nya belum pernah disentuh SAMA
+    SEKALI): sumbernya beda lagi, base_table_assignment (bukan se2026_nested/
+    root_table, yg TIDAK punya baris utk assignment yg belum ada progres apa
+    pun) — lihat komentar di deket OPEN_USAHA_QUERY_TEMPLATE. Statusnya
+    disimpan di kolom yg sama (keberadaan_usaha utk usaha, keberadaan_keluarga
+    utk keluarga) sbg nilai "Open", digabung ke tabel yg sama jg.
 
 Data diambil PAGINATED langsung se-kabupaten (bukan per desa lagi — lihat
 riwayat sebelumnya di git log kalau butuh alasan kenapa awalnya per desa):
@@ -138,6 +143,53 @@ SELECT assignment_id, nama_kk, dtsen_nama_kk, alamat_klrg, alamat_prelist,
        level_6_full_code, assignment_status_alias, assignment_date_modified
 FROM root_table
 WHERE ada_keluarga_value = '0'
+ORDER BY assignment_id
+LIMIT {limit} OFFSET {offset}
+""".strip()
+
+# ── "Open" (assignment belum pernah disentuh sama sekali) ───────────────────
+# BEDA SUMBER dari dua di atas: se2026_nested/root_table cuma berisi baris yg
+# SUDAH ada progres (minimal submit sekali) — assignment yg beneran belum
+# disentuh (status OPEN) TIDAK muncul di situ sama sekali (dicek manual: 0
+# baris WHERE assignment_status_alias IS NULL di kedua tabel itu). Sumber yg
+# benar: base_table_assignment (roster mentah SEMUA assignment, termasuk yg
+# belum jalan). Tabel ini gak punya nama_usaha/kbli/jenis_prelist — cuma
+# data1 (nama, apa adanya dari prelist) & data2 (alamat prelist), krn belum
+# ada kunjungan lapangan. code_identity formatnya
+# "{kode_sls} - {TIPE} - {no}" — dicek manual (GROUP BY tipe di baris OPEN):
+# DTSEN = keluarga, UMK/UM/UB = usaha (3 skala usaha, gabung sbg satu scope
+# "usaha open" spt sync_kbli.py gabungin usaha BKU per skala). "DUMMY" (64
+# baris) sengaja DIBUANG — bukan assignment usaha/keluarga asli.
+# jenis_prelist dibiarkan NULL (dianggap bangunan mandiri): usaha yg nempel
+# roster KELUARGA baru "ada" sbg assignment terpisah SETELAH keluarganya
+# dikunjungi, jadi gak mungkin usaha-dalam-keluarga berstatus OPEN sendirian.
+
+OPEN_USAHA_TIPE = "'UMK','UM','UB'"
+
+OPEN_USAHA_COUNT_QUERY = (
+    "SELECT COUNT(*) AS n FROM base_table_assignment "
+    f"WHERE assignment_status_alias='OPEN' AND SUBSTRING_INDEX(SUBSTRING_INDEX(code_identity,' - ',2),' - ',-1) IN ({OPEN_USAHA_TIPE})"
+)
+
+OPEN_USAHA_QUERY_TEMPLATE = ("""
+SELECT assignment_id, data1 AS nama_usaha, data2 AS alamat_usaha,
+       level_6_full_code, assignment_status_alias, assignment_date_modified
+FROM base_table_assignment
+WHERE assignment_status_alias='OPEN' AND SUBSTRING_INDEX(SUBSTRING_INDEX(code_identity,' - ',2),' - ',-1) IN (""" + OPEN_USAHA_TIPE + """)
+ORDER BY assignment_id
+LIMIT {limit} OFFSET {offset}
+""").strip()
+
+OPEN_KELUARGA_COUNT_QUERY = (
+    "SELECT COUNT(*) AS n FROM base_table_assignment "
+    "WHERE assignment_status_alias='OPEN' AND SUBSTRING_INDEX(SUBSTRING_INDEX(code_identity,' - ',2),' - ',-1) = 'DTSEN'"
+)
+
+OPEN_KELUARGA_QUERY_TEMPLATE = """
+SELECT assignment_id, data1 AS nama_kk, data2 AS alamat_klrg,
+       level_6_full_code, assignment_status_alias, assignment_date_modified
+FROM base_table_assignment
+WHERE assignment_status_alias='OPEN' AND SUBSTRING_INDEX(SUBSTRING_INDEX(code_identity,' - ',2),' - ',-1) = 'DTSEN'
 ORDER BY assignment_id
 LIMIT {limit} OFFSET {offset}
 """.strip()
@@ -406,14 +458,15 @@ def ensure_tables(conn):
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS tidak_ditemukan_keluarga (
-              id                INT NOT NULL AUTO_INCREMENT,
-              sls_id            INT NOT NULL,
-              assignment_id     VARCHAR(64) NOT NULL,
-              nama              VARCHAR(255) DEFAULT NULL,
-              alamat            VARCHAR(255) DEFAULT NULL,
-              assignment_status VARCHAR(50) DEFAULT NULL,
-              tanggal_modified  DATETIME DEFAULT NULL,
-              imported_at       DATETIME DEFAULT NULL,
+              id                  INT NOT NULL AUTO_INCREMENT,
+              sls_id              INT NOT NULL,
+              assignment_id       VARCHAR(64) NOT NULL,
+              nama                VARCHAR(255) DEFAULT NULL,
+              keberadaan_keluarga VARCHAR(50) DEFAULT NULL,
+              alamat              VARCHAR(255) DEFAULT NULL,
+              assignment_status   VARCHAR(50) DEFAULT NULL,
+              tanggal_modified    DATETIME DEFAULT NULL,
+              imported_at         DATETIME DEFAULT NULL,
               PRIMARY KEY (id),
               UNIQUE KEY uq_tdk_assignment (assignment_id),
               KEY idx_tdk_sls (sls_id),
@@ -429,6 +482,8 @@ def ensure_tables(conn):
                     "jenis_prelist VARCHAR(30) DEFAULT NULL AFTER skala_usaha")
     _ensure_column(conn, "tidak_ditemukan_usaha", "keberadaan_usaha",
                     "keberadaan_usaha VARCHAR(50) DEFAULT NULL AFTER jenis_prelist")
+    _ensure_column(conn, "tidak_ditemukan_keluarga", "keberadaan_keluarga",
+                    "keberadaan_keluarga VARCHAR(50) DEFAULT NULL AFTER nama")
 
 
 def load_sls_map(conn):
@@ -488,17 +543,19 @@ def upsert_keluarga(conn, rows, sls_map, synced_at):
                 continue
             cur.execute("""
                 INSERT INTO tidak_ditemukan_keluarga
-                  (sls_id, assignment_id, nama, alamat, assignment_status, tanggal_modified, imported_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                  (sls_id, assignment_id, nama, keberadaan_keluarga, alamat, assignment_status, tanggal_modified, imported_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
                 ON DUPLICATE KEY UPDATE
-                  sls_id            = VALUES(sls_id),
-                  nama              = VALUES(nama),
-                  alamat            = VALUES(alamat),
-                  assignment_status = VALUES(assignment_status),
-                  tanggal_modified  = VALUES(tanggal_modified),
-                  imported_at       = VALUES(imported_at)
+                  sls_id               = VALUES(sls_id),
+                  nama                 = VALUES(nama),
+                  keberadaan_keluarga  = VALUES(keberadaan_keluarga),
+                  alamat               = VALUES(alamat),
+                  assignment_status    = VALUES(assignment_status),
+                  tanggal_modified     = VALUES(tanggal_modified),
+                  imported_at          = VALUES(imported_at)
             """, (
                 sls_id, r.get("assignment_id"), _first(r.get("nama_kk"), r.get("dtsen_nama_kk")),
+                r.get("keberadaan_keluarga", "Tidak Ditemukan"),
                 _first(r.get("alamat_klrg"), r.get("alamat_prelist")),
                 r.get("assignment_status_alias"), r.get("assignment_date_modified"), synced_at,
             ))
@@ -545,22 +602,43 @@ def run_once():
                 _check_bot_wall(page.content(), "buka SQL Lab")
 
                 # Fase 1: usaha bermasalah (Tidak Ditemukan/Tutup/Ganda; bangunan
-                # mandiri + roster keluarga digabung)
+                # mandiri + roster keluarga digabung) + usaha Open (belum disentuh)
                 if usaha_rows is None:
                     print("\n[FASE 1] Usaha (Tidak Ditemukan/Tutup/Ganda)...", flush=True)
                     usaha_total = get_count(page, USAHA_COUNT_QUERY)
                     print(f"[FASE 1] Total baris (perkiraan): {usaha_total}", flush=True)
                     usaha_rows = scrape_paginated(page, USAHA_QUERY_TEMPLATE, "usaha", usaha_total)
+
+                    print("\n[FASE 1b] Usaha Open (belum disentuh)...", flush=True)
+                    open_usaha_total = get_count(page, OPEN_USAHA_COUNT_QUERY)
+                    print(f"[FASE 1b] Total baris (perkiraan): {open_usaha_total}", flush=True)
+                    open_usaha_rows = scrape_paginated(page, OPEN_USAHA_QUERY_TEMPLATE, "usaha-open", open_usaha_total)
+                    for r in open_usaha_rows:
+                        r["index1"] = "open"
+                        r["keberadaan_usaha_label"] = "Open"
+                    usaha_rows = usaha_rows + open_usaha_rows
+
                     _save_checkpoint("usaha", usaha_rows)
                 else:
                     print(f"\n[FASE 1] Pakai checkpoint tersimpan ({len(usaha_rows)} baris) — skip scraping ulang.", flush=True)
 
-                # Fase 2: keluarga tidak ditemukan
+                # Fase 2: keluarga tidak ditemukan + keluarga Open (belum disentuh)
                 if keluarga_rows is None:
                     print("\n[FASE 2] Keluarga tidak ditemukan...", flush=True)
                     keluarga_total = get_count(page, KELUARGA_COUNT_QUERY)
                     print(f"[FASE 2] Total baris (perkiraan): {keluarga_total}", flush=True)
                     keluarga_rows = scrape_paginated(page, KELUARGA_QUERY_TEMPLATE, "keluarga", keluarga_total)
+                    for r in keluarga_rows:
+                        r["keberadaan_keluarga"] = "Tidak Ditemukan"
+
+                    print("\n[FASE 2b] Keluarga Open (belum disentuh)...", flush=True)
+                    open_keluarga_total = get_count(page, OPEN_KELUARGA_COUNT_QUERY)
+                    print(f"[FASE 2b] Total baris (perkiraan): {open_keluarga_total}", flush=True)
+                    open_keluarga_rows = scrape_paginated(page, OPEN_KELUARGA_QUERY_TEMPLATE, "keluarga-open", open_keluarga_total)
+                    for r in open_keluarga_rows:
+                        r["keberadaan_keluarga"] = "Open"
+                    keluarga_rows = keluarga_rows + open_keluarga_rows
+
                     _save_checkpoint("keluarga", keluarga_rows)
                 else:
                     print(f"\n[FASE 2] Pakai checkpoint tersimpan ({len(keluarga_rows)} baris) — skip scraping ulang.", flush=True)

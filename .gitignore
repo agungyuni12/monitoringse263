@@ -20,6 +20,10 @@ db/se2026_full.sql
 # Checkpoint hasil scrape sync_usaha.py (recovery kalau upsert DB gagal)
 scraper/.checkpoints/
 
+# Python bytecode cache
+__pycache__/
+*.pyc
+
 # OS
 .DS_Store
 Thumbs.db

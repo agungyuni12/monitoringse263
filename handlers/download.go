@@ -803,7 +803,7 @@ func DownloadTidakDitemukan(c echo.Context) error {
 	where += extraWhere
 
 	skalaCol := "''"
-	keberadaanCol := "''"
+	keberadaanCol := "COALESCE(t.keberadaan_keluarga,'')"
 	if tipe != "keluarga" {
 		skalaCol = "COALESCE(t.skala_usaha,'')"
 		keberadaanCol = "COALESCE(t.keberadaan_usaha,'')"

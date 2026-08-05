@@ -26,7 +26,7 @@ type TidakDitemukanRow struct {
 	NamaPML          string
 	Nama             string
 	Skala            string // kosong utk tipe keluarga
-	Keberadaan       string // Tidak Ditemukan/Tutup/Ganda, kosong utk tipe keluarga (gak ada status ini)
+	Keberadaan       string // usaha: Tidak Ditemukan/Tutup/Ganda/Open — keluarga: Tidak Ditemukan/Open
 	Alamat           string
 	AssignmentStatus string
 	TanggalModified  string
@@ -38,6 +38,15 @@ var tidakDitemukanSortCols = map[string]string{
 	"nama":       "t.nama",
 	"skala":      "t.skala_usaha",
 	"keberadaan": "t.keberadaan_usaha",
+	"status":     "t.assignment_status",
+	"tanggal":    "t.tanggal_modified",
+}
+
+var tidakDitemukanKeluargaSortCols = map[string]string{
+	"lokasi":     "s.nama_kec, s.nama_desa, s.nama_sls",
+	"petugas":    "ppl.name",
+	"nama":       "t.nama",
+	"keberadaan": "t.keberadaan_keluarga",
 	"status":     "t.assignment_status",
 	"tanggal":    "t.tanggal_modified",
 }
@@ -75,9 +84,9 @@ func nonEmptyStrings(vals []string) []string {
 
 // tidakDitemukanFilters membaca & membangun klausa WHERE yang dipakai bareng oleh
 // tabel (paginated) dan download (semua baris) — supaya filter selalu konsisten.
-// status cuma berlaku utk tipe usaha/usaha_keluarga (kolom keberadaan_usaha
-// gak ada di tidak_ditemukan_keluarga) — kosong berarti semua status (Tidak
-// Ditemukan + Tutup + Ganda, gak difilter).
+// status berlaku utk semua tipe, tapi kolomnya beda: keberadaan_usaha utk
+// usaha/usaha_keluarga, keberadaan_keluarga utk keluarga — kosong berarti
+// semua status (gak difilter).
 func tidakDitemukanFilters(c echo.Context, tipe string) (where string, args []interface{}, kecs []string, pmlID, pplID int, status string) {
 	q := c.QueryParam("q")
 	kecs = nonEmptyStrings(c.QueryParams()["kec"])
@@ -101,12 +110,14 @@ func tidakDitemukanFilters(c echo.Context, tipe string) (where string, args []in
 		where += ` AND s.ppl_id = ?`
 		args = append(args, pplID)
 	}
-	if tipe != "keluarga" {
-		status = c.QueryParam("status")
-		if status != "" {
-			where += ` AND t.keberadaan_usaha = ?`
-			args = append(args, status)
+	status = c.QueryParam("status")
+	if status != "" {
+		keberadaanCol := "t.keberadaan_usaha"
+		if tipe == "keluarga" {
+			keberadaanCol = "t.keberadaan_keluarga"
 		}
+		where += ` AND ` + keberadaanCol + ` = ?`
+		args = append(args, status)
 	}
 	return
 }
@@ -152,7 +163,11 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 		extra += "&status=" + status
 	}
 
-	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, tidakDitemukanSortCols, "s.nama_kec, s.nama_desa, s.nama_sls, t.nama")
+	sortCols := tidakDitemukanSortCols
+	if tipe == "keluarga" {
+		sortCols = tidakDitemukanKeluargaSortCols
+	}
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "s.nama_kec, s.nama_desa, s.nama_sls, t.nama")
 
 	offset := (page - 1) * models.PerPage
 	pageInfo := models.NewPageInfo(page, total, "/admin/table/tidak-ditemukan", "tidak-ditemukan-result", extra+models.SortQueryString(sortCol, sortDir))
@@ -161,7 +176,7 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 	pageInfo.FilterExtra = extra
 
 	skalaCol := "''"
-	keberadaanCol := "''"
+	keberadaanCol := "COALESCE(t.keberadaan_keluarga,'')"
 	if tipe != "keluarga" {
 		skalaCol = "COALESCE(t.skala_usaha,'')"
 		keberadaanCol = "COALESCE(t.keberadaan_usaha,'')"
@@ -203,6 +218,11 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 		HxGet: "/admin/table/tidak-ditemukan", HxTarget: "#tidak-ditemukan-result", HxInclude: "#tidak-ditemukan-filter-bar",
 	}
 
+	statusOptions := keberadaanUsahaStatuses
+	if tipe == "keluarga" {
+		statusOptions = keberadaanKeluargaStatuses
+	}
+
 	return c.Render(http.StatusOK, "tidak_ditemukan_table.html", map[string]interface{}{
 		"Rows":          list,
 		"PageInfo":      pageInfo,
@@ -212,17 +232,20 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 		"PmlID":         pmlID,
 		"PplID":         pplID,
 		"Status":        status,
-		"StatusOptions": keberadaanUsahaStatuses,
+		"StatusOptions": statusOptions,
 		"PMLSelect":     pmlSelect,
 		"PPLSelect":     pplSelect,
 	})
 }
 
-// keberadaanUsahaStatuses — nilai kolom keberadaan_usaha yg mungkin (lihat
-// scraper/sync_usaha.py: '00'/'3'/'4' → label bersih Tidak Ditemukan/Tutup/
-// Ganda). Dipakai isi dropdown filter status di sub-tab Usaha/Usaha dalam
-// Keluarga.
-var keberadaanUsahaStatuses = []string{"Tidak Ditemukan", "Tutup", "Ganda"}
+// keberadaanUsahaStatuses/keberadaanKeluargaStatuses — nilai kolom
+// keberadaan_usaha/keberadaan_keluarga yg mungkin (lihat scraper/sync_usaha.py):
+// usaha dari '00'/'3'/'4' (Tidak Ditemukan/Tutup/Ganda) + "Open" (assignment
+// blm disentuh, sumbernya base_table_assignment bukan se2026_nested); keluarga
+// cuma Tidak Ditemukan + Open (gak ada status Tutup/Ganda utk keluarga).
+// Dipakai isi dropdown filter status di sub-tab Usaha/Usaha dalam Keluarga/Keluarga.
+var keberadaanUsahaStatuses = []string{"Tidak Ditemukan", "Tutup", "Ganda", "Open"}
+var keberadaanKeluargaStatuses = []string{"Tidak Ditemukan", "Open"}
 
 // TidakDitemukanRekapRow adalah satu baris di sub-menu Rekap (di samping Usaha/
 // Keluarga) — rekap jumlah usaha & keluarga tidak ditemukan per SLS, atau

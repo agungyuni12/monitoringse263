@@ -499,6 +499,7 @@
               <option value="Tidak Ditemukan">Tidak Ditemukan</option>
               <option value="Tutup">Tutup</option>
               <option value="Ganda">Ganda</option>
+              <option value="Open">Open</option>
             </select>
             <select name="pml_id" id="tidak-ditemukan-pml-select"
               class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
@@ -819,9 +820,8 @@
       if (kec) params.push('kec=' + encodeURIComponent(kec));
       if (pmlID) params.push('pml_id=' + pmlID);
       if (pplID) params.push('ppl_id=' + pplID);
-      // status (Tidak Ditemukan/Tutup/Ganda) cuma relevan utk mode usaha/usaha_keluarga
-      // — kolom keberadaan_usaha gak ada di tabel tidak_ditemukan_keluarga.
-      if (mode === 'usaha' || mode === 'usaha_keluarga') {
+      // status gak relevan di mode rekap (itu rekap angka, bukan daftar per baris)
+      if (mode !== 'rekap') {
         var status = bar.querySelector('[name="status"]').value;
         if (status) params.push('status=' + encodeURIComponent(status));
       }
@@ -865,14 +865,22 @@
       } else {
         levelSel.classList.add('hidden');
         bar.querySelector('[name="tipe"]').value = mode;
-        if (mode === 'keluarga') {
-          statusSel.classList.add('hidden');
-          statusSel.value = '';
-        } else {
-          statusSel.classList.remove('hidden');
-        }
+        statusSel.classList.remove('hidden');
+        updateTidakDitemukanStatusOptions(mode);
       }
       reloadTidakDitemukanTable();
+    }
+
+    // Opsi dropdown status beda per tipe — keluarga gak punya status Tutup/Ganda
+    // (lihat scraper/sync_usaha.py: cuma usaha yg dapet status itu dari FASIH).
+    function updateTidakDitemukanStatusOptions(mode) {
+      var statusSel = document.getElementById('tidak-ditemukan-status-select');
+      var opts = mode === 'keluarga'
+        ? [['', 'Semua Status'], ['Tidak Ditemukan', 'Tidak Ditemukan'], ['Open', 'Open']]
+        : [['', 'Semua Status'], ['Tidak Ditemukan', 'Tidak Ditemukan'], ['Tutup', 'Tutup'], ['Ganda', 'Ganda'], ['Open', 'Open']];
+      statusSel.innerHTML = opts.map(function(o) {
+        return '<option value="' + o[0] + '">' + o[1] + '</option>';
+      }).join('');
     }
 
     // Update href download Tidak Ditemukan sesuai sub-tab/mode & filter aktif
