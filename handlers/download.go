@@ -803,11 +803,13 @@ func DownloadTidakDitemukan(c echo.Context) error {
 	where += extraWhere
 
 	skalaCol := "''"
+	kbliKategoriCol := "''"
 	keberadaanCol := "COALESCE(t.keberadaan_keluarga,'')"
 	nomorKKPrelistCol := "COALESCE(t.nomor_kk_prelist,'')"
 	nomorKKSekarangCol := "COALESCE(t.nomor_kk_sekarang,'')"
 	if tipe != "keluarga" {
 		skalaCol = "COALESCE(t.skala_usaha,'')"
+		kbliKategoriCol = "COALESCE(t.kbli_kategori_prelist,'')"
 		keberadaanCol = "COALESCE(t.keberadaan_usaha,'')"
 		nomorKKPrelistCol = "''"
 		nomorKKSekarangCol = "''"
@@ -816,7 +818,7 @@ func DownloadTidakDitemukan(c echo.Context) error {
 	rows, err := db.DB.Query(`
 		SELECT s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
 		       ppl.name, pml.name,
-		       COALESCE(t.nama,''), `+skalaCol+`, `+keberadaanCol+`, `+nomorKKPrelistCol+`, `+nomorKKSekarangCol+`,
+		       COALESCE(t.nama,''), `+skalaCol+`, `+keberadaanCol+`, `+kbliKategoriCol+`, `+nomorKKPrelistCol+`, `+nomorKKSekarangCol+`,
 		       COALESCE(t.alamat,''),
 		       COALESCE(t.assignment_status,''),
 		       COALESCE(DATE_FORMAT(t.tanggal_modified,'%d/%m/%Y %H:%i'),''),
@@ -832,12 +834,12 @@ func DownloadTidakDitemukan(c echo.Context) error {
 	defer rows.Close()
 
 	type row struct {
-		sls, kec, desa, ppl, pml, nama, skala, keberadaan, nomorKKPrelist, nomorKKSekarang, alamat, status, tanggal, assignmentID string
+		sls, kec, desa, ppl, pml, nama, skala, keberadaan, kbliKategori, nomorKKPrelist, nomorKKSekarang, alamat, status, tanggal, assignmentID string
 	}
 	var data []row
 	for rows.Next() {
 		var r row
-		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.nama, &r.skala, &r.keberadaan,
+		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.nama, &r.skala, &r.keberadaan, &r.kbliKategori,
 			&r.nomorKKPrelist, &r.nomorKKSekarang, &r.alamat, &r.status, &r.tanggal, &r.assignmentID)
 		data = append(data, r)
 	}
@@ -847,7 +849,7 @@ func DownloadTidakDitemukan(c echo.Context) error {
 		namaLabel = "Nama KK"
 	}
 	fname := fmt.Sprintf("tidak_ditemukan_%s_%s.xlsx", tipe, time.Now().In(wita).Format("20060102"))
-	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", namaLabel, "Skala", "Keberadaan", "Nomor KK Prelist", "Nomor KK Sekarang", "Alamat", "Status Assignment", "Tanggal Modified", "Link FASIH"}
+	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", namaLabel, "Skala", "Keberadaan", "KBLI Kategori (Prelist)", "Nomor KK Prelist", "Nomor KK Sekarang", "Alamat", "Status Assignment", "Tanggal Modified", "Link FASIH"}
 	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
 		for i, r := range data {
 			n := i + 2
@@ -859,12 +861,13 @@ func DownloadTidakDitemukan(c echo.Context) error {
 			f.SetCellValue(sheet, cell(6, n), r.nama)
 			f.SetCellValue(sheet, cell(7, n), r.skala)
 			f.SetCellValue(sheet, cell(8, n), r.keberadaan)
-			f.SetCellValue(sheet, cell(9, n), r.nomorKKPrelist)
-			f.SetCellValue(sheet, cell(10, n), r.nomorKKSekarang)
-			f.SetCellValue(sheet, cell(11, n), r.alamat)
-			f.SetCellValue(sheet, cell(12, n), r.status)
-			f.SetCellValue(sheet, cell(13, n), r.tanggal)
-			f.SetCellValue(sheet, cell(14, n), fasihSMLink(r.assignmentID))
+			f.SetCellValue(sheet, cell(9, n), r.kbliKategori)
+			f.SetCellValue(sheet, cell(10, n), r.nomorKKPrelist)
+			f.SetCellValue(sheet, cell(11, n), r.nomorKKSekarang)
+			f.SetCellValue(sheet, cell(12, n), r.alamat)
+			f.SetCellValue(sheet, cell(13, n), r.status)
+			f.SetCellValue(sheet, cell(14, n), r.tanggal)
+			f.SetCellValue(sheet, cell(15, n), fasihSMLink(r.assignmentID))
 		}
 	})
 }

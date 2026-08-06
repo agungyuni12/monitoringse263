@@ -27,6 +27,7 @@ type TidakDitemukanRow struct {
 	Nama             string
 	Skala            string // kosong utk tipe keluarga
 	Keberadaan       string // usaha: Tidak Ditemukan/Tutup/Ganda/Open — keluarga: Tidak Ditemukan/Ditemukan/Baru/Open
+	KBLIKategori     string // kosong utk tipe keluarga — kategori 1-huruf dari kategori_2025 (carry-over ST2023/prelist)
 	NomorKKPrelist   string // kosong utk tipe usaha
 	NomorKKSekarang  string // kosong utk tipe usaha
 	Alamat           string
@@ -62,6 +63,7 @@ var tidakDitemukanSortCols = map[string]string{
 	"nama":       "t.nama",
 	"skala":      "t.skala_usaha",
 	"keberadaan": "t.keberadaan_usaha",
+	"kbli":       "t.kbli_kategori_prelist",
 	"status":     "t.assignment_status",
 	"tanggal":    "t.tanggal_modified",
 }
@@ -200,11 +202,13 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 	pageInfo.FilterExtra = extra
 
 	skalaCol := "''"
+	kbliKategoriCol := "''"
 	keberadaanCol := "COALESCE(t.keberadaan_keluarga,'')"
 	nomorKKPrelistCol := "COALESCE(t.nomor_kk_prelist,'')"
 	nomorKKSekarangCol := "COALESCE(t.nomor_kk_sekarang,'')"
 	if tipe != "keluarga" {
 		skalaCol = "COALESCE(t.skala_usaha,'')"
+		kbliKategoriCol = "COALESCE(t.kbli_kategori_prelist,'')"
 		keberadaanCol = "COALESCE(t.keberadaan_usaha,'')"
 		nomorKKPrelistCol = "''"
 		nomorKKSekarangCol = "''"
@@ -214,7 +218,7 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 	rows, err := db.DB.Query(`
 		SELECT t.id, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
 		       ppl.name, pml.name,
-		       COALESCE(t.nama,''), `+skalaCol+`, `+keberadaanCol+`, `+nomorKKPrelistCol+`, `+nomorKKSekarangCol+`,
+		       COALESCE(t.nama,''), `+skalaCol+`, `+keberadaanCol+`, `+kbliKategoriCol+`, `+nomorKKPrelistCol+`, `+nomorKKSekarangCol+`,
 		       COALESCE(t.alamat,''),
 		       COALESCE(t.assignment_status,''),
 		       COALESCE(DATE_FORMAT(t.tanggal_modified,'%d/%m/%Y %H:%i'),''),
@@ -233,7 +237,7 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 			var r TidakDitemukanRow
 			var assignmentID string
 			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML,
-				&r.Nama, &r.Skala, &r.Keberadaan, &r.NomorKKPrelist, &r.NomorKKSekarang,
+				&r.Nama, &r.Skala, &r.Keberadaan, &r.KBLIKategori, &r.NomorKKPrelist, &r.NomorKKSekarang,
 				&r.Alamat, &r.AssignmentStatus, &r.TanggalModified, &assignmentID)
 			r.FasihLink = fasihSMLink(assignmentID)
 			list = append(list, r)

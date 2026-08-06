@@ -25,6 +25,9 @@
           {{template "sortable_th" dict "Label" "Skala" "Col" "skala" "PageInfo" $.PageInfo}}
           {{end}}
           {{template "sortable_th" dict "Label" "Keberadaan" "Col" "keberadaan" "PageInfo" $.PageInfo}}
+          {{if ne .Tipe "keluarga"}}
+          {{template "sortable_th" dict "Label" "KBLI (Prelist)" "Col" "kbli" "PageInfo" $.PageInfo "Center" true}}
+          {{end}}
           {{if eq .Tipe "keluarga"}}
           <th class="px-3 py-2.5 font-medium">Nomor KK Prelist</th>
           <th class="px-3 py-2.5 font-medium">Nomor KK Sekarang</th>
@@ -72,6 +75,15 @@
             <span class="text-gray-300 dark:text-gray-600">-</span>
             {{end}}
           </td>
+          {{if ne $.Tipe "keluarga"}}
+          <td class="px-3 py-2 text-center">
+            {{if $r.KBLIKategori}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-teal-100 text-teal-700 whitespace-nowrap" title="Kategori KBLI dari klasifikasi tahun lalu (2025), belum tentu masih berlaku">{{$r.KBLIKategori}}</span>
+            {{else}}
+            <span class="text-gray-300 dark:text-gray-600">-</span>
+            {{end}}
+          </td>
+          {{end}}
           {{if eq $.Tipe "keluarga"}}
           <td class="px-3 py-2 whitespace-nowrap font-mono text-gray-600 dark:text-gray-400">
             {{if $r.NomorKKPrelist}}{{$r.NomorKKPrelist}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
@@ -120,7 +132,7 @@
           </td>
         </tr>
         {{else}}
-        <tr><td colspan="12" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
+        <tr><td colspan="13" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
           <div class="flex flex-col items-center gap-2">
             <svg class="w-8 h-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
