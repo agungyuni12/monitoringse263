@@ -395,9 +395,10 @@ def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at, fetch
     berhasil) — kalau fetch gagal/timeout, items jadi kosong padahal bukan berarti
     anomalinya hilang, jadi baris lama TIDAK disentuh supaya sekali gagal fetch
     tidak menghapus data secara salah.
-    (Dulu ada heuristik sudah_ditindaklanjuti_sigempar yang menandai—bukan
-    menghapus—baris yang hilang dari fetch; ternyata heuristik itu salah karena
-    fetch selalu menyertakan sudah_indikator. Kolom itu sudah tidak dipakai lagi.)
+    (Dulu ada kolom sudah_ditindaklanjuti_sigempar — heuristik yang menandai,
+    bukan menghapus, baris yang hilang dari fetch — dan is_resolved_fasih —
+    boolean dari field is_resolved API yang tidak bisa bedakan status "sesuai".
+    Keduanya sudah dihapus, lihat db/anomali_drop_unused_status_cols_migration.sql.)
 
     first_detected_at diisi SEKALI waktu baris pertama kali di-INSERT dan sengaja
     TIDAK disentuh lagi di ON DUPLICATE KEY UPDATE — itu yang jadi "kapan anomali
@@ -413,15 +414,14 @@ def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at, fetch
     SQL = """
         INSERT INTO anomali
           (sls_id, assignment_id, nama, jenis, rule_key, rule_msg, rule_type,
-           first_detected_at, synced_at, is_resolved_fasih, status_fasih)
-        VALUES (%s, %s, %s, %s, %s, %s, 1, %s, %s, %s, %s)
+           first_detected_at, synced_at, status_fasih)
+        VALUES (%s, %s, %s, %s, %s, %s, 1, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
           sls_id    = VALUES(sls_id),
           nama      = IF(VALUES(nama) != '' AND VALUES(nama) IS NOT NULL, VALUES(nama), nama),
           jenis     = VALUES(jenis),
           rule_msg  = VALUES(rule_msg),
           synced_at = VALUES(synced_at),
-          is_resolved_fasih = VALUES(is_resolved_fasih),
           status_fasih = VALUES(status_fasih)
     """
 
@@ -447,14 +447,13 @@ def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at, fetch
         status_fasih = str(item.get("case_status") or "belum").strip().lower()
         if status_fasih not in ("belum", "sudah", "sesuai"):
             status_fasih = "belum"
-        is_resolved_fasih = 0 if status_fasih == "belum" else 1
-        if is_resolved_fasih:
+        if status_fasih != "belum":
             resolved += 1
 
         try:
             cur.execute(SQL, (
                 sls_id, assignment_id, nama, short_label,
-                rule_key, rule_msg, synced_at, synced_at, is_resolved_fasih, status_fasih,
+                rule_key, rule_msg, synced_at, synced_at, status_fasih,
             ))
             upserted += 1
         except Exception as e:
