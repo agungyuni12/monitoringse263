@@ -1,0 +1,9 @@
+{{define "status_fasih_badge"}}
+{{if eq . "sudah"}}
+<span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">✅ Sudah Ditindaklanjuti dengan Perbaikan</span>
+{{else if eq . "sesuai"}}
+<span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">✅ Sudah Ditindaklanjuti dengan Penjelasan (Sesuai Kondisi Lapangan)</span>
+{{else}}
+<span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">⏳ Belum Ditindaklanjuti</span>
+{{end}}
+{{end}}

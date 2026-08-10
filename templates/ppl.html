@@ -129,21 +129,14 @@
             {{range .JenisList}}<option value="{{.}}">{{.}}</option>{{end}}
           </select>
           {{end}}
-          <select name="status"
-            hx-get="/ppl/anomali" hx-target="#ppl-anomali-result" hx-swap="innerHTML"
-            hx-trigger="change" hx-include="#ppl-anomali-filter-bar"
-            class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100">
-            <option value="">Semua Status SIGEMPAR</option>
-            <option value="belum">⏳ Belum Ditindaklanjuti (SIGEMPAR)</option>
-            <option value="sudah">✅ Sudah Ditindaklanjuti (SIGEMPAR)</option>
-          </select>
           <select name="fasih"
             hx-get="/ppl/anomali" hx-target="#ppl-anomali-result" hx-swap="innerHTML"
             hx-trigger="change" hx-include="#ppl-anomali-filter-bar"
             class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100">
-            <option value="">Semua Status FASIH</option>
-            <option value="belum">⏳ Belum Ditindaklanjuti (FASIH)</option>
-            <option value="sudah">✅ Sudah Ditindaklanjuti (FASIH)</option>
+            <option value="">Semua Status Tindak Lanjut</option>
+            <option value="belum">⏳ Belum Ditindaklanjuti</option>
+            <option value="sudah">✅ Sudah Ditindaklanjuti dengan Perbaikan</option>
+            <option value="sesuai">✅ Sudah Ditindaklanjuti dengan Penjelasan (Sesuai Kondisi Lapangan)</option>
           </select>
         </div>
         <div id="ppl-anomali-result"

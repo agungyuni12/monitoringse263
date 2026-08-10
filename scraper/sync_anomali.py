@@ -7,7 +7,13 @@ Endpoint: GET /api/mikro/anomali-case-kab
     nama_tercantum  : nama usaha / kepala rumah tangga
     anomali_title   : deskripsi anomali lengkap
     kode_wilayah    : 16-digit kode SLS (kode_desa + kode_sls + sub_sls)
-    is_resolved     : bool, apakah sudah ditindaklanjuti
+    case_status     : "belum" | "sudah" | "sesuai" — status tindak lanjut asli
+                      dari dashboard, disimpan apa adanya ke kolom status_fasih.
+                      "sudah"  = sudah ditindaklanjuti dengan perbaikan data
+                      "sesuai" = sudah ditindaklanjuti dengan penjelasan
+                                 (sesuai kondisi lapangan)
+    is_resolved     : bool — JANGAN dipakai sebagai sumber status tindak lanjut,
+                      nilainya false untuk case_status "belum" MAUPUN "sesuai"
     source_type     : "usaha" atau "keluarga"
     id_indikator    : kode belum (128-135 usaha, 136+ keluarga)
 
@@ -49,26 +55,29 @@ DELAY = 1.0  # detik jeda antar request
 
 # Fallback statis jika /api/admin/config gagal
 # `no` = anomali_no yang dipakai sbg param API (dari config.no, bukan formula belumKode)
+# sudahKode/sesuaiKode diambil langsung dari /api/admin/config (2026-08-10) — sebelumnya
+# fallback ini tidak punya sesuaiKode sama sekali, jadi status "sesuai" tidak pernah
+# ke-fetch kalau fallback ini yang dipakai.
 _USAHA_STATIC = [
-    {"rule_key": "128", "no": 1, "belumKode": "128", "sudahKode": "40",  "short_label": "Biaya Produksi Dominan"},
-    {"rule_key": "129", "no": 2, "belumKode": "129", "sudahKode": "41",  "short_label": "Keuntungan Usaha"},
-    {"rule_key": "130", "no": 3, "belumKode": "130", "sudahKode": "42",  "short_label": "Penyertaan Modal Korporasi"},
-    {"rule_key": "131", "no": 4, "belumKode": "131", "sudahKode": "43",  "short_label": "Data Keuangan MBG"},
-    {"rule_key": "132", "no": 5, "belumKode": "132", "sudahKode": "44",  "short_label": "Hubungan Aset Pekerja Produksi"},
-    {"rule_key": "133", "no": 6, "belumKode": "133", "sudahKode": "45",  "short_label": "Internet Usaha Menengah Besar"},
-    {"rule_key": "134", "no": 7, "belumKode": "134", "sudahKode": "46",  "short_label": "Laporan Keuangan Usaha Menengah"},
-    {"rule_key": "135", "no": 8, "belumKode": "135", "sudahKode": None,  "short_label": "Perbedaan KBLI 2 Digit"},
+    {"rule_key": "128", "no": 1, "belumKode": "128", "sudahKode": "40",  "sesuaiKode": "11488", "short_label": "Biaya Produksi Dominan"},
+    {"rule_key": "129", "no": 2, "belumKode": "129", "sudahKode": "41",  "sesuaiKode": "11489", "short_label": "Keuntungan Usaha"},
+    {"rule_key": "130", "no": 3, "belumKode": "130", "sudahKode": "42",  "sesuaiKode": "11490", "short_label": "Penyertaan Modal Korporasi"},
+    {"rule_key": "131", "no": 4, "belumKode": "131", "sudahKode": "43",  "sesuaiKode": "11491", "short_label": "Data Keuangan MBG"},
+    {"rule_key": "132", "no": 5, "belumKode": "132", "sudahKode": "44",  "sesuaiKode": "11492", "short_label": "Hubungan Aset, Pekerja, dan Produksi Usaha"},
+    {"rule_key": "133", "no": 6, "belumKode": "133", "sudahKode": "45",  "sesuaiKode": "11493", "short_label": "Penggunaan Internet Pada Usaha Menengah dan Besar"},
+    {"rule_key": "134", "no": 7, "belumKode": "134", "sudahKode": "46",  "sesuaiKode": "11494", "short_label": "Kepemilikan Laporan Keuangan Pada Usaha Menengah dan Besar"},
+    {"rule_key": "135", "no": 8, "belumKode": "135", "sudahKode": "102", "sesuaiKode": "11495", "short_label": "Perbedaan KBLI 2 Digit Pendataan dan SBR"},
 ]
 
 # no = config.no (bukan belumKode-135) — ada gap di sequence belumKode (138 dan 143 skip)
 _KELUARGA_STATIC = [
-    {"rule_key": "136", "no": 1, "belumKode": "136", "sudahKode": "47",  "short_label": "Status Cerai / Belum Kawin"},
-    {"rule_key": "137", "no": 2, "belumKode": "137", "sudahKode": "48",  "short_label": "KK < 10 Th di Rumah Sendiri"},
-    {"rule_key": "139", "no": 3, "belumKode": "139", "sudahKode": "50",  "short_label": "Semua AK Disabilitas"},
-    {"rule_key": "140", "no": 4, "belumKode": "140", "sudahKode": "51",  "short_label": "Luas Lantai Ekstrem"},
-    {"rule_key": "141", "no": 5, "belumKode": "141", "sudahKode": "52",  "short_label": "Selisih Pendapatan Negatif"},
-    {"rule_key": "142", "no": 6, "belumKode": "142", "sudahKode": "53",  "short_label": "Listrik Rendah Ada Barang Mewah"},
-    {"rule_key": "144", "no": 7, "belumKode": "144", "sudahKode": None,  "short_label": "Jumlah AK Ekstrem"},
+    {"rule_key": "136", "no": 1, "belumKode": "136", "sudahKode": "47",  "sesuaiKode": "11496", "short_label": "Status Cerai / Belum Kawin"},
+    {"rule_key": "137", "no": 2, "belumKode": "137", "sudahKode": "48",  "sesuaiKode": "11497", "short_label": "KK < 10 Th di Rumah Sendiri"},
+    {"rule_key": "139", "no": 3, "belumKode": "139", "sudahKode": "50",  "sesuaiKode": "11498", "short_label": "Semua AK Disabilitas"},
+    {"rule_key": "140", "no": 4, "belumKode": "140", "sudahKode": "51",  "sesuaiKode": "11499", "short_label": "Luas Lantai Ekstrem"},
+    {"rule_key": "141", "no": 5, "belumKode": "141", "sudahKode": "52",  "sesuaiKode": "11500", "short_label": "Selisih Pendapatan Negatif"},
+    {"rule_key": "142", "no": 6, "belumKode": "142", "sudahKode": "53",  "sesuaiKode": "11501", "short_label": "Listrik Rendah Ada Barang Mewah"},
+    {"rule_key": "144", "no": 7, "belumKode": "144", "sudahKode": "103", "sesuaiKode": "11502", "short_label": "Jumlah AK Ekstrem"},
 ]
 
 
@@ -130,8 +139,14 @@ def login_dashboard(ctx):
 def fetch_anomali_config(ctx):
     """
     Ambil anomali_config dari /api/admin/config.
-    Return (usaha_list, keluarga_list) — list of {rule_key, belumKode, sudahKode, short_label}.
+    Return (usaha_list, keluarga_list) — list of
+    {rule_key, belumKode, sudahKode, sesuaiKode, short_label}.
     Gunakan static fallback jika gagal.
+
+    sesuaiKode WAJIB diikutkan — itu kode untuk status "Sudah Ditindaklanjuti
+    dengan Penjelasan (Sesuai Kondisi Lapangan)" di dashboard, beda dari sudahKode
+    ("Sudah Ditindaklanjuti dengan Perbaikan"). Dulu field ini tidak pernah dibaca,
+    jadi seluruh kasus status "sesuai" tidak ikut ke-fetch oleh sync_anomali.py.
     """
     try:
         r = ctx.request.get(f"{DASH_URL}/api/admin/config", timeout=30_000)
@@ -147,6 +162,7 @@ def fetch_anomali_config(ctx):
                         "no":          item.get("no", 0),
                         "belumKode":   str(item.get("belumKode", "")),
                         "sudahKode":   str(item.get("sudahKode", "")) if item.get("sudahKode") else None,
+                        "sesuaiKode":  str(item.get("sesuaiKode", "")) if item.get("sesuaiKode") else None,
                         "short_label": item.get("short_label", ""),
                     }
                     for item in items
@@ -199,10 +215,13 @@ def fetch_dashboard_synced_at(ctx, kode_kab):
 
 # ── Fetch anomali ─────────────────────────────────────────────────────────────
 
-def fetch_anomali(ctx, kode_kab, belum_kode, sudah_kode, anomali_type, anomali_no, retries=3):
+def fetch_anomali(ctx, kode_kab, belum_kode, sudah_kode, sesuai_kode, anomali_type, anomali_no, retries=3):
     """
     Fetch JSON per-assignment anomali dari /api/mikro/anomali-case-kab.
     anomali_no = config.no (bukan belumKode-base, karena keluarga punya gaps).
+    Menyertakan sudah_indikator DAN sesuai_indikator supaya ketiga status
+    ("belum", "sudah", "sesuai") ikut kebawa dalam satu response — item punya
+    field case_status yang menandai masing-masing.
     Return list of raw JSON items. List kosong jika gagal.
     """
     params = {
@@ -213,6 +232,8 @@ def fetch_anomali(ctx, kode_kab, belum_kode, sudah_kode, anomali_type, anomali_n
     }
     if sudah_kode:
         params["sudah_indikator"] = sudah_kode
+    if sesuai_kode:
+        params["sesuai_indikator"] = sesuai_kode
 
     url = f"{DASH_URL}/api/mikro/anomali-case-kab?{urlencode(params)}"
 
@@ -348,45 +369,54 @@ def load_sls_map(conn):
 def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at):
     """
     Upsert items anomali ke tabel anomali. Baris lama untuk rule_key yang sama tapi
-    assignment_id-nya sudah tidak ada di daftar terbaru dari FASIH TIDAK dihapus —
-    cuma ditandai lewat kolom sudah_ditindaklanjuti_sigempar (baris tetap ada, jadi
-    reject_anomali.py yang masih baca semua baris dari tabel anomali tidak kehilangan
-    assignment_id apapun; histori juga tetap kesimpan).
-    Kalau assignment yang sama muncul lagi di fetch berikutnya, sudah_ditindaklanjuti_sigempar
-    otomatis di-reset ke NULL lagi (dianggap aktif kembali).
+    assignment_id-nya sudah tidak ada di daftar terbaru dari FASIH TIDAK dihapus,
+    supaya reject_anomali.py (yang baca semua baris dari tabel anomali) tidak
+    kehilangan assignment_id apapun, dan histori tetap kesimpan.
     UNIQUE KEY adalah (assignment_id, rule_key) — satu baris per (assignment, tipe anomali).
+
+    Status tindak lanjut diambil LANGSUNG dari field case_status milik API
+    dashboard (kolom status_fasih: 'belum' | 'sudah' | 'sesuai') — jadi selalu
+    sama persis dengan status yang ditampilkan di Dashboard SE2026, bukan hasil
+    simpulan sendiri. PENTING: field is_resolved API TIDAK bisa dipakai untuk ini
+    — is_resolved bernilai false baik untuk case_status "belum" MAUPUN "sesuai",
+    jadi kalau cuma pegang is_resolved, status "sesuai" (sudah ditindaklanjuti
+    dengan penjelasan) akan salah dikira belum ditindaklanjuti.
+    (Dulu ada juga heuristik sudah_ditindaklanjuti_sigempar yang menyimpulkan
+    "sudah ditindaklanjuti" dari assignment yang hilang dari hasil fetch —
+    ternyata salah karena fetch selalu menyertakan sudah_indikator. Kolom itu
+    sudah tidak dipakai lagi.)
 
     first_detected_at diisi SEKALI waktu baris pertama kali di-INSERT dan sengaja
     TIDAK disentuh lagi di ON DUPLICATE KEY UPDATE — itu yang jadi "kapan anomali
     ini pertama kali muncul", beda dari synced_at yang selalu ke-refresh tiap kali
     anomali yang sama masih terdeteksi aktif.
 
-    Return (n_upserted, n_skipped, n_resolved).
+    Return (n_upserted, n_skipped, n_resolved) — n_resolved = jumlah item pada
+    batch ini yang case_status-nya bukan "belum" (sudah ditindaklanjuti, baik
+    dengan perbaikan maupun dengan penjelasan sesuai kondisi lapangan).
     """
     cur = conn.cursor()
 
     SQL = """
         INSERT INTO anomali
           (sls_id, assignment_id, nama, jenis, rule_key, rule_msg, rule_type,
-           first_detected_at, synced_at, sudah_ditindaklanjuti_sigempar, is_resolved_fasih)
-        VALUES (%s, %s, %s, %s, %s, %s, 1, %s, %s, NULL, %s)
+           first_detected_at, synced_at, is_resolved_fasih, status_fasih)
+        VALUES (%s, %s, %s, %s, %s, %s, 1, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
           sls_id    = VALUES(sls_id),
           nama      = IF(VALUES(nama) != '' AND VALUES(nama) IS NOT NULL, VALUES(nama), nama),
           jenis     = VALUES(jenis),
           rule_msg  = VALUES(rule_msg),
           synced_at = VALUES(synced_at),
-          sudah_ditindaklanjuti_sigempar = NULL,
-          is_resolved_fasih = VALUES(is_resolved_fasih)
+          is_resolved_fasih = VALUES(is_resolved_fasih),
+          status_fasih = VALUES(status_fasih)
     """
 
-    upserted = skipped = 0
-    current_ids = set()
+    upserted = skipped = resolved = 0
     for item in items:
         assignment_id = str(item.get("assignment_id") or "").strip()
         if not assignment_id or len(assignment_id) != 36:
             continue
-        current_ids.add(assignment_id)
 
         # kode_wilayah sudah 16-digit SLS code
         kode16 = str(item.get("kode_wilayah") or item.get("level_6_code") or "").strip()
@@ -397,31 +427,21 @@ def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at):
 
         nama     = str(item.get("nama_tercantum") or "").strip()[:255]
         rule_msg = str(item.get("anomali_title") or "").strip()
-        is_resolved_fasih = 1 if item.get("is_resolved") else 0
+        status_fasih = str(item.get("case_status") or "belum").strip().lower()
+        if status_fasih not in ("belum", "sudah", "sesuai"):
+            status_fasih = "belum"
+        is_resolved_fasih = 0 if status_fasih == "belum" else 1
+        if is_resolved_fasih:
+            resolved += 1
 
         try:
             cur.execute(SQL, (
                 sls_id, assignment_id, nama, short_label,
-                rule_key, rule_msg, synced_at, synced_at, is_resolved_fasih,
+                rule_key, rule_msg, synced_at, synced_at, is_resolved_fasih, status_fasih,
             ))
             upserted += 1
         except Exception as e:
             print(f"      [DB ERROR] {e}", flush=True)
-
-    # Tandai (bukan hapus) anomali lama untuk rule_key ini yang sudah tidak muncul lagi.
-    # Cuma tandai yang belum pernah ditandai (WHERE ... IS NULL) supaya timestamp
-    # resolved pertama kali tidak ke-overwrite tiap sync berikutnya.
-    mark_sql = """
-        UPDATE anomali
-        SET sudah_ditindaklanjuti_sigempar = %s
-        WHERE rule_key = %s AND sudah_ditindaklanjuti_sigempar IS NULL
-    """
-    if current_ids:
-        placeholders = ",".join(["%s"] * len(current_ids))
-        cur.execute(mark_sql + f" AND assignment_id NOT IN ({placeholders})", (synced_at, rule_key, *current_ids))
-    else:
-        cur.execute(mark_sql, (synced_at, rule_key))
-    resolved = cur.rowcount
 
     conn.commit()
     cur.close()
@@ -451,32 +471,32 @@ def run_once():
             # Sync anomali usaha
             print(f"\n[USAHA] {len(usaha_list)} tipe...", flush=True)
             for item in usaha_list:
-                rows = fetch_anomali(ctx, KODE_KAB, item["belumKode"], item["sudahKode"], "usaha", item["no"])
+                rows = fetch_anomali(ctx, KODE_KAB, item["belumKode"], item["sudahKode"], item.get("sesuaiKode"), "usaha", item["no"])
                 n, skip, resolved = upsert_anomali(conn, sls_map, rows, item["rule_key"], item["short_label"], synced_at)
                 total += n
                 total_res += resolved
                 if skip:
                     print(f"      {skip} skip (SLS tidak ada di DB)", flush=True)
                 if resolved:
-                    print(f"      {resolved} ditandai sudah ditindaklanjuti (sigempar)", flush=True)
+                    print(f"      {resolved} sudah ditindaklanjuti (sesuai dashboard)", flush=True)
                 time.sleep(DELAY)
 
             # Sync anomali keluarga
             print(f"\n[KELUARGA] {len(kel_list)} tipe...", flush=True)
             for item in kel_list:
-                rows = fetch_anomali(ctx, KODE_KAB, item["belumKode"], item["sudahKode"], "keluarga", item["no"])
+                rows = fetch_anomali(ctx, KODE_KAB, item["belumKode"], item["sudahKode"], item.get("sesuaiKode"), "keluarga", item["no"])
                 n, skip, resolved = upsert_anomali(conn, sls_map, rows, item["rule_key"], item["short_label"], synced_at)
                 total += n
                 total_res += resolved
                 if skip:
                     print(f"      {skip} skip (SLS tidak ada di DB)", flush=True)
                 if resolved:
-                    print(f"      {resolved} ditandai sudah ditindaklanjuti (sigempar)", flush=True)
+                    print(f"      {resolved} sudah ditindaklanjuti (sesuai dashboard)", flush=True)
                 time.sleep(DELAY)
 
             fill_nama_by_sls(conn, pw)
             conn.close()
-            print(f"\nSelesai! {total} baris anomali diupsert, {total_res} ditandai sudah ditindaklanjuti (sigempar).", flush=True)
+            print(f"\nSelesai! {total} baris anomali diupsert, {total_res} sudah ditindaklanjuti (sesuai dashboard).", flush=True)
 
         finally:
             browser.close()

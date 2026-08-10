@@ -513,7 +513,6 @@ func cell(col, row int) string {
 func DownloadAnomali(c echo.Context) error {
 	q := c.QueryParam("q")
 	kec := c.QueryParam("kec")
-	status := c.QueryParam("status")
 	fasih := c.QueryParam("fasih")
 	tglSampai := c.QueryParam("tgl")
 	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
@@ -534,15 +533,12 @@ func DownloadAnomali(c echo.Context) error {
 		where += " AND s.ppl_id = ?"
 		args = append(args, pplID)
 	}
-	if status == "belum" {
-		where += " AND a.sudah_ditindaklanjuti_sigempar IS NULL"
-	} else if status == "sudah" {
-		where += " AND a.sudah_ditindaklanjuti_sigempar IS NOT NULL"
-	}
 	if fasih == "belum" {
-		where += " AND a.is_resolved_fasih = 0"
+		where += " AND a.status_fasih = 'belum'"
 	} else if fasih == "sudah" {
-		where += " AND a.is_resolved_fasih = 1"
+		where += " AND a.status_fasih = 'sudah'"
+	} else if fasih == "sesuai" {
+		where += " AND a.status_fasih = 'sesuai'"
 	}
 	if tglSampai != "" {
 		where += " AND DATE(a.first_detected_at) <= ?"
@@ -555,8 +551,7 @@ func DownloadAnomali(c echo.Context) error {
 		       a.nama, a.jenis, COALESCE(a.rule_msg,''),
 		       COALESCE(DATE_FORMAT(a.first_detected_at,'%d/%m/%Y %H:%i'),''),
 		       COALESCE(DATE_FORMAT(a.synced_at,'%d/%m/%Y %H:%i'),''),
-		       COALESCE(DATE_FORMAT(a.sudah_ditindaklanjuti_sigempar,'%d/%m/%Y %H:%i'),''),
-		       a.is_resolved_fasih
+		       a.status_fasih
 		FROM anomali a
 		JOIN sls s ON s.id = a.sls_id
 		JOIN users ppl ON ppl.id = s.ppl_id
@@ -568,18 +563,18 @@ func DownloadAnomali(c echo.Context) error {
 	defer rows.Close()
 
 	type row struct {
-		sls, kec, desa, ppl, pml, nama, jenis, msg, firstDetectedAt, syncedAt, sigemparAt string
-		resolvedFasih                                                                     bool
+		sls, kec, desa, ppl, pml, nama, jenis, msg, firstDetectedAt, syncedAt string
+		statusFasih                                                          string
 	}
 	var data []row
 	for rows.Next() {
 		var r row
-		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.nama, &r.jenis, &r.msg, &r.firstDetectedAt, &r.syncedAt, &r.sigemparAt, &r.resolvedFasih)
+		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.nama, &r.jenis, &r.msg, &r.firstDetectedAt, &r.syncedAt, &r.statusFasih)
 		data = append(data, r)
 	}
 
 	fname := fmt.Sprintf("monitoring_anomali_%s.xlsx", time.Now().In(wita).Format("20060102"))
-	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Nama Responden", "Jenis Anomali", "Keterangan", "Pertama Muncul", "Terakhir Aktif", "Sudah Ditindaklanjuti SIGEMPAR", "Status FASIH"}
+	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Nama Responden", "Jenis Anomali", "Keterangan", "Pertama Muncul", "Terakhir Aktif", "Status Tindak Lanjut"}
 	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
 		for i, r := range data {
 			n := i + 2
@@ -593,8 +588,7 @@ func DownloadAnomali(c echo.Context) error {
 			f.SetCellValue(sheet, cell(8, n), r.msg)
 			f.SetCellValue(sheet, cell(9, n), r.firstDetectedAt)
 			f.SetCellValue(sheet, cell(10, n), r.syncedAt)
-			f.SetCellValue(sheet, cell(11, n), r.sigemparAt)
-			f.SetCellValue(sheet, cell(12, n), boolLabel(r.resolvedFasih, "Sudah", "Belum"))
+			f.SetCellValue(sheet, cell(11, n), statusFasihLabel(r.statusFasih))
 		}
 	})
 }
@@ -604,6 +598,17 @@ func boolLabel(b bool, yes, no string) string {
 		return yes
 	}
 	return no
+}
+
+func statusFasihLabel(status string) string {
+	switch status {
+	case "sudah":
+		return "Sudah Ditindaklanjuti dengan Perbaikan"
+	case "sesuai":
+		return "Sudah Ditindaklanjuti dengan Penjelasan (Sesuai Kondisi Lapangan)"
+	default:
+		return "Belum Ditindaklanjuti"
+	}
 }
 
 // DownloadProgresRekap — GET /admin/download/progres-rekap (filter sama seperti tab Rekap Progres)
