@@ -11,6 +11,19 @@ sync_fasih_verify_stale.py). Verifikasi ground-truth dijalankan terpisah,
 manual, lewat sync_fasih_verify_stale.py — hasilnya tidak lagi otomatis
 diterapkan balik ke sini.
 
+Checkpoint per petugas: tiap 1 halaman kelar di-scrape, hasilnya langsung
+di-aggregate + diupload ke DB + dicatat ke .checkpoints/fasih_progress.json
+(seen_user_ids + sls_agg), bukan ditunggu sampai semua halaman kelar dulu.
+Checkpoint di-key pakai userId (bukan nomor halaman) krn urutan pencacah di
+endpoint ini bisa geser kalau ada approval Pengawas yang live selagi
+di-scrape — nomor halaman gak bisa dipakai acuan resume, identitas petugas
+tetap valid. Kalau proses mati di tengah (WAF block/ECONNRESET stlh retry
+_click_and_capture habis), scheduler coba lagi 5 menit kemudian (lihat
+__main__) & petugas yang sudah tercatat di checkpoint dilewati (lihat
+process_page_content), gak dihitung dobel. Checkpoint dianggap basi &
+dibuang kalau lebih tua dari CHECKPOINT_MAX_AGE, dan selalu dihapus begitu
+satu siklus scrape selesai TUNTAS (lihat _clear_checkpoint di run_once).
+
 Env vars:
   FASIH_USER    (default: agung.yuniarta)
   FASIH_PASS    (default: kelayu1998)
@@ -70,7 +83,7 @@ SUBMIT_STATUSES = frozenset({
 # Konsekuensinya scrape jadi lebih lambat (sequential, gak bisa diparalel —
 # satu Playwright page cuma bisa diklik dari satu alur) & data (yang live
 # berubah krn approval Pengawas) bisa geser urutan/reorder di tengah —
-# makanya ada dedup seen_user_ids di aggregate().
+# makanya ada dedup seen_user_ids di process_page_content().
 
 
 HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
@@ -202,7 +215,7 @@ def _click_and_capture(page, action, retries=5):
     raise RuntimeError("Gagal ambil halaman setelah semua retry")
 
 
-def scrape_all(page):
+def scrape_and_aggregate(page, seen_user_ids, sls_agg, unknown_statuses):
     """Scrape role Pencacah lewat Dasbor survei → tombol 'Rekap Petugas' →
     sub-tab 'Pencacah' → paginasi tombol 'Next', SEMUA lewat klik UI asli
     (lihat _click_and_capture). Server otomatis scope hasil ke Dompu
@@ -211,10 +224,17 @@ def scrape_all(page):
     payload null) — gak perlu isi DOMPU_REGION2_ID manual lagi spt versi
     ctx.request lama.
 
+    Beda dari versi lama (scrape_all): tiap 1 halaman kelar, langsung
+    di-aggregate ke sls_agg + di-checkpoint (_save_checkpoint) + diupload ke
+    DB — bukan dikumpulkan dulu semua baru diproses di akhir. Jadi kalau
+    proses mati di tengah (WAF block/ECONNRESET stlh retry _click_and_capture
+    habis), progress yang sudah didapat gak hilang & attempt berikutnya gak
+    ngitung ulang petugas yang sudah tercatat (lihat process_page_content).
+
     Scrape SEKALI (bukan multi-pass/multi-role) — gap yang tersisa (kelewat
     krn reorder live, ATAU assignment lagi di tangan Pengawas, ATAU index
     ringkasan telat sync) ditutup lewat fallback per-SLS di
-    fill_missing_sls() — dipanggil dari run_once() stlh aggregate()."""
+    fill_missing_sls() — dipanggil dari run_once() stlh scrape_and_aggregate()."""
     page.goto(f"{BASE_URL}/app/surveys/{SURVEY_ID}/{PERIOD_ID}", wait_until="networkidle", timeout=90_000)
     _check_bot_wall(page, "buka dasbor survei")
 
@@ -230,10 +250,12 @@ def scrape_all(page):
     body = _click_and_capture(page, lambda: page.click('button:has-text("Pencacah")'))
 
     inner = body["data"]
-    all_content = list(inner["content"])
     total = inner["totalElements"]
     last = inner["last"]
-    print(f"[SCRAPE] Total: {total}", flush=True)
+    dup_count = process_page_content(inner["content"], seen_user_ids, sls_agg, unknown_statuses)
+    _save_checkpoint(seen_user_ids, sls_agg, unknown_statuses)
+    upload(apply_non_sls_override(sls_agg))
+    print(f"[SCRAPE] Total: {total}. Halaman 0 selesai & checkpoint disimpan ({len(seen_user_ids)}/{total} petugas)", flush=True)
 
     pg = 0
     while not last:
@@ -243,12 +265,18 @@ def scrape_all(page):
             page, lambda: page.get_by_role("link", name="Go to next page").click()
         )
         inner = body["data"]
-        all_content.extend(inner["content"])
+        dup_count += process_page_content(inner["content"], seen_user_ids, sls_agg, unknown_statuses)
         last = inner["last"]
-        print(f"  Halaman {pg} selesai (total diambil {len(all_content)}/{total})", flush=True)
+        _save_checkpoint(seen_user_ids, sls_agg, unknown_statuses)
+        upload(apply_non_sls_override(sls_agg))
+        print(f"  Halaman {pg} selesai & checkpoint disimpan ({len(seen_user_ids)}/{total} petugas)", flush=True)
 
-    print(f"[SCRAPE] Total diambil: {len(all_content)}", flush=True)
-    return all_content
+    if dup_count:
+        print(f"[AGGREGATE] {dup_count} pencacah duplikat (muncul di >1 halaman, atau dari checkpoint attempt sebelumnya) dilewati", flush=True)
+    print(f"[AGGREGATE] SLS unik: {len(sls_agg)}", flush=True)
+    if unknown_statuses:
+        print(f"[AGGREGATE] PERINGATAN: status belum dikenali (tidak masuk hitungan submit/approved): {dict(unknown_statuses)}", flush=True)
+    return sls_agg
 
 
 def get_all_kode_sls():
@@ -359,7 +387,7 @@ def _new_sls_agg():
 
 def apply_status(a, status, cnt, unknown_statuses=None):
     """Tambahkan `cnt` assignment berstatus `status` ke bucket agregat SLS `a`.
-    Dipakai baik oleh aggregate() (dari statusBreakdown per pencacah) di sini
+    Dipakai baik oleh process_page_content() (dari statusBreakdown per pencacah) di sini
     maupun verify_stale_sls() di sync_fasih_verify_stale.py (dari status
     per-assignment hasil verifikasi ground truth) supaya logika
     klasifikasinya konsisten di kedua jalur — makanya fungsi ini disalin,
@@ -432,24 +460,27 @@ def apply_status(a, status, cnt, unknown_statuses=None):
         unknown_statuses[status] += cnt
 
 
-def aggregate(all_content):
-    """Aggregate status per kode_sls (16-digit regionCode).
+def process_page_content(content, seen_user_ids, sls_agg, unknown_statuses):
+    """Aggregate status per kode_sls (16-digit regionCode) utk SATU halaman
+    hasil scrape, mutasi in-place ke sls_agg/seen_user_ids/unknown_statuses.
+    Dipanggil tiap halaman kelar (lihat scrape_and_aggregate) supaya bisa
+    di-checkpoint & diupload incremental, bukan nunggu semua halaman kelar.
 
     seen_user_ids mencegah satu pencacah dihitung dua kali — endpoint
     report-progress-by-responsibility ini tidak selalu stabil urutannya,
-    jadi kalau ada aktivitas live (mis. Pengawas approve) selagi puluhan
-    halaman ini di-scrape, satu pencacah bisa "geser" posisi dan muncul lagi
-    di halaman lain, bikin regionSummary-nya (dan SLS yang dia pegang)
-    ke-agregat dobel. Dikonfirmasi nyata: dibandingkan 2 dump DB berjarak
-    ~20 jam, 313 dari 1659 SLS punya fasih_total persis 2x lipat — terlalu
-    presisi buat pertumbuhan data asli.
-    """
-    sls_agg = defaultdict(_new_sls_agg)
-    unknown_statuses = defaultdict(int)
-    seen_user_ids = set()
-    dup_count = 0
+    jadi kalau ada aktivitas live (mis. Pengawas approve) selagi halaman ini
+    di-scrape, satu pencacah bisa "geser" posisi dan muncul lagi di halaman
+    lain, bikin regionSummary-nya (dan SLS yang dia pegang) ke-agregat
+    dobel. Dikonfirmasi nyata: dibandingkan 2 dump DB berjarak ~20 jam, 313
+    dari 1659 SLS punya fasih_total persis 2x lipat — terlalu presisi buat
+    pertumbuhan data asli. seen_user_ids juga yang bikin checkpoint valid
+    lintas-attempt: petugas dari checkpoint attempt sebelumnya otomatis
+    kehitung dobel/dilewati di sini kalau muncul lagi.
 
-    for pencacah in all_content:
+    Return jumlah pencacah duplikat di halaman ini.
+    """
+    dup_count = 0
+    for pencacah in content:
         user_id = pencacah.get("userId")
         if user_id:
             if user_id in seen_user_ids:
@@ -465,13 +496,65 @@ def aggregate(all_content):
                 status = sb.get("status", "")
                 cnt    = int(sb.get("count", 0))
                 apply_status(a, status, cnt, unknown_statuses)
+    return dup_count
 
-    if dup_count:
-        print(f"[AGGREGATE] {dup_count} pencacah duplikat (muncul di >1 halaman) dilewati", flush=True)
-    print(f"[AGGREGATE] SLS unik: {len(sls_agg)}", flush=True)
-    if unknown_statuses:
-        print(f"[AGGREGATE] PERINGATAN: status belum dikenali (tidak masuk hitungan submit/approved): {dict(unknown_statuses)}", flush=True)
-    return sls_agg
+
+# Checkpoint per PETUGAS (userId), pola sama seperti CHECKPOINT_DIR di
+# sync_usaha.py — ditulis SEBELUM upload ke DB, tiap 1 halaman kelar
+# di-scrape. Di-key pakai userId, BUKAN nomor halaman, krn urutan pencacah
+# di endpoint FASIH bisa geser antar attempt (lihat docstring
+# process_page_content) sedangkan userId identitasnya stabil.
+CHECKPOINT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".checkpoints")
+CHECKPOINT_PATH = os.path.join(CHECKPOINT_DIR, "fasih_progress.json")
+# Retry stlh gagal jadi 5 menit (bukan nunggu siklus _next_run() spt biasa,
+# lihat __main__) selama checkpoint masih ada — tapi kalau restart-nya lebih
+# lambat dari itu (mis. container down lama), checkpoint yang lebih tua dari
+# ini dibuang & scrape mulai fresh drpd numpuk data OPEN/DRAFT yang sudah basi.
+CHECKPOINT_MAX_AGE = timedelta(hours=2)
+CHECKPOINT_RETRY_DELAY = timedelta(minutes=5)
+
+
+def _load_checkpoint():
+    try:
+        with open(CHECKPOINT_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        updated_at = datetime.fromisoformat(data["updated_at"])
+        if _now_wita() - updated_at > CHECKPOINT_MAX_AGE:
+            print(f"[CHECKPOINT] Checkpoint ditemukan tapi sudah basi (>{CHECKPOINT_MAX_AGE}) — mulai scrape fresh.", flush=True)
+            os.remove(CHECKPOINT_PATH)
+            return set(), defaultdict(_new_sls_agg), defaultdict(int)
+        seen_user_ids = set(data.get("seen_user_ids", []))
+        sls_agg = defaultdict(_new_sls_agg, data.get("sls_agg", {}))
+        unknown_statuses = defaultdict(int, data.get("unknown_statuses", {}))
+        print(f"[CHECKPOINT] Resume dari checkpoint {updated_at:%H:%M:%S WITA}: {len(seen_user_ids)} petugas, {len(sls_agg)} SLS sudah tercatat.", flush=True)
+        return seen_user_ids, sls_agg, unknown_statuses
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, ValueError):
+        return set(), defaultdict(_new_sls_agg), defaultdict(int)
+
+
+def _save_checkpoint(seen_user_ids, sls_agg, unknown_statuses):
+    """Ditulis atomik (tmp + os.replace) tiap 1 halaman selesai di-scrape,
+    supaya kalau proses mati di tengah, progress yang sudah didapat gak
+    hilang & attempt berikutnya bisa lewati petugas yang sudah tercatat."""
+    os.makedirs(CHECKPOINT_DIR, exist_ok=True)
+    tmp = CHECKPOINT_PATH + ".tmp"
+    data = {
+        "updated_at": _now_wita().isoformat(),
+        "seen_user_ids": sorted(seen_user_ids),
+        "sls_agg": dict(sls_agg),
+        "unknown_statuses": dict(unknown_statuses),
+    }
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f)
+    os.replace(tmp, CHECKPOINT_PATH)
+
+
+def _clear_checkpoint():
+    """Dipanggil setelah scrape selesai TUNTAS (semua halaman sampai `last`)
+    — checkpoint dihapus supaya siklus berikutnya mulai fresh, bukan numpuk
+    data OPEN/DRAFT yang sudah berubah dari siklus sebelumnya."""
+    if os.path.exists(CHECKPOINT_PATH):
+        os.remove(CHECKPOINT_PATH)
 
 
 def apply_non_sls_override(sls_agg):
@@ -637,20 +720,19 @@ def run_once():
     print(f"SYNC FASIH → se2026  [{_now_wita():%Y-%m-%d %H:%M:%S} WITA]")
     print("="*50)
 
+    seen_user_ids, sls_agg, unknown_statuses = _load_checkpoint()
+
     with sync_playwright() as pw:
         browser, ctx = _make_browser(pw)
         try:
             page, xsrf = login(ctx)
-            print("\n[STEP 1] Scrape FASIH...")
-            all_content = scrape_all(page)
-
-            print("\n[STEP 2] Aggregate per SLS...")
-            sls_agg = aggregate(all_content)
+            print("\n[STEP 1] Scrape + aggregate + checkpoint per petugas...")
+            sls_agg = scrape_and_aggregate(page, seen_user_ids, sls_agg, unknown_statuses)
 
             # fill_missing_sls (fallback per-SLS via datatable-all-user-survey-periode)
             # dimatikan sementara — masih lewat ctx.request yg belum ikut
-            # divalidasi ulang stlh WAF ternyata makin ketat (lihat scrape_all).
-            # Cukup satu jalur (scrape_all) dulu spy hasilnya jelas asalnya
+            # divalidasi ulang stlh WAF ternyata makin ketat (lihat scrape_and_aggregate).
+            # Cukup satu jalur (scrape_and_aggregate) dulu spy hasilnya jelas asalnya
             # dari mana kalau ada yg aneh.
         finally:
             browser.close()
@@ -658,18 +740,32 @@ def run_once():
     sls_agg = apply_non_sls_override(sls_agg)
     summary(sls_agg)
 
-    print("[STEP 3] Upload ke database...")
+    print("[STEP 2] Upload final ke database...")
     n = upload(sls_agg)
     print(f"\nSelesai! {n} SLS diupdate.")
+
+    # Siklus tuntas sampai halaman terakhir — checkpoint gak perlu lagi,
+    # buang supaya siklus berikutnya mulai fresh (data OPEN/DRAFT bisa
+    # sudah berubah, jangan numpuk state lama).
+    _clear_checkpoint()
 
 if __name__ == "__main__":
     while True:
         try:
             run_once()
+            nxt = _next_run()
         except Exception as e:
             print(f"[ERROR] Sync gagal: {e}", flush=True)
+            if os.path.exists(CHECKPOINT_PATH):
+                # Masih ada progress tersimpan dari attempt yang gagal —
+                # coba lagi lebih cepat drpd nunggu siklus _next_run() penuh
+                # (bisa ~2 jam), krn attempt berikutnya bakal lewati petugas
+                # yang sudah tercatat (lihat process_page_content), gak
+                # ngulang scan semua pencacah dari nol.
+                nxt = _now_wita() + CHECKPOINT_RETRY_DELAY
+            else:
+                nxt = _next_run()
 
-        nxt = _next_run()
         secs = max(0, (nxt - _now_wita()).total_seconds())
         print(f"[SCHEDULER] Sync berikutnya: {nxt.strftime('%d/%m/%Y %H:%M WITA')} ({int(secs//60)} menit)", flush=True)
         time.sleep(secs)
