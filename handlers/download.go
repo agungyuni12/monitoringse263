@@ -1059,20 +1059,26 @@ func DownloadTidakDitemukanRekap(c echo.Context) error {
 	})
 }
 
-// DownloadUsahaKategoriA — GET /admin/download/usaha-kategori-a
-// Filter sama persis dengan AdminUsahaKategoriATable (lihat handlers/usaha_kategori_a.go).
-func DownloadUsahaKategoriA(c echo.Context) error {
-	where, args, _, _, _ := usahaKategoriAFilters(c)
+// DownloadUsahaEkonomi — GET /admin/download/usaha-ekonomi
+// Filter sama persis dengan AdminUsahaEkonomiTable (lihat handlers/usaha_ekonomi.go).
+// Beda dari tampilan tabel di dashboard (yg cuma nunjukin subset kolom biar
+// gak kepenuhan): download Excel ini nyertain SEMUA kolom yg ada di tabel
+// usaha_ekonomi.
+func DownloadUsahaEkonomi(c echo.Context) error {
+	where, args, _, _, _ := usahaEkonomiFilters(c)
 
 	rows, err := db.DB.Query(`
 		SELECT s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
 		       ppl.name, pml.name,
 		       COALESCE(t.nama_usaha,''), COALESCE(t.nama_kk,''), COALESCE(t.jenis_prelist,''),
-		       COALESCE(t.kbli_label,''), COALESCE(t.skala_usaha,''),
-		       t.pendapatan, t.pengeluaran, COALESCE(t.alamat,''),
+		       COALESCE(t.kategori,''), COALESCE(t.kbli_label,''),
+		       t.pendapatan, t.pendapatan_bln, t.pengeluaran, t.pengeluaran_bln,
+		       t.biaya_produksi, t.biaya_produksi_bln, t.gaji, t.gaji_bln,
+		       t.operasional, t.operasional_bln, t.non_operasional, t.non_operasional_bln,
+		       t.tk_dibayar, COALESCE(t.keg_utama,''),
 		       COALESCE(t.assignment_status,''),
 		       COALESCE(DATE_FORMAT(t.tanggal_modified,'%d/%m/%Y %H:%i'),'')
-		FROM usaha_kategori_a t
+		FROM usaha_ekonomi t
 		JOIN sls s ON s.id = t.sls_id
 		JOIN users ppl ON ppl.id = s.ppl_id
 		JOIN users pml ON pml.id = s.pml_id`+where+`
@@ -1083,20 +1089,37 @@ func DownloadUsahaKategoriA(c echo.Context) error {
 	defer rows.Close()
 
 	type row struct {
-		sls, kec, desa, ppl, pml, namaUsaha, namaKK, jenisPrelist, kbli, skala, alamat, status, tanggal string
-		pendapatan, pengeluaran                                                                         sql.NullFloat64
+		sls, kec, desa, ppl, pml, namaUsaha, namaKK, jenisPrelist, kategori, kbli, kegUtama, status, tanggal string
+		pendapatan, pendapatanBln, pengeluaran, pengeluaranBln                                               sql.NullFloat64
+		biayaProduksi, biayaProduksiBln, gaji, gajiBln, operasional, operasionalBln                          sql.NullFloat64
+		nonOperasional, nonOperasionalBln                                                                    sql.NullFloat64
+		tkDibayar                                                                                             sql.NullInt64
 	}
 	var data []row
 	for rows.Next() {
 		var r row
-		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.namaUsaha, &r.namaKK, &r.jenisPrelist, &r.kbli, &r.skala,
-			&r.pendapatan, &r.pengeluaran, &r.alamat, &r.status, &r.tanggal)
+		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.namaUsaha, &r.namaKK, &r.jenisPrelist, &r.kategori, &r.kbli,
+			&r.pendapatan, &r.pendapatanBln, &r.pengeluaran, &r.pengeluaranBln,
+			&r.biayaProduksi, &r.biayaProduksiBln, &r.gaji, &r.gajiBln,
+			&r.operasional, &r.operasionalBln, &r.nonOperasional, &r.nonOperasionalBln,
+			&r.tkDibayar, &r.kegUtama, &r.status, &r.tanggal)
 		data = append(data, r)
 	}
 
-	fname := fmt.Sprintf("usaha_kategori_a_%s.xlsx", time.Now().In(wita).Format("20060102"))
-	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Nama Usaha", "Nama KK", "Jenis Prelist", "KBLI", "Skala", "Pendapatan", "Pengeluaran", "Keuntungan", "Alamat", "Status Assignment", "Tanggal Modified"}
+	fname := fmt.Sprintf("usaha_ekonomi_%s.xlsx", time.Now().In(wita).Format("20060102"))
+	headers := []string{
+		"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Nama Usaha", "Nama KK", "Jenis Prelist",
+		"Kategori", "KBLI", "Pendapatan", "Pendapatan/Bln", "Pengeluaran", "Pengeluaran/Bln",
+		"Biaya Produksi", "Biaya Produksi/Bln", "Gaji", "Gaji/Bln", "Operasional", "Operasional/Bln",
+		"Non Operasional", "Non Operasional/Bln", "TK Dibayar", "Kegiatan Utama",
+		"Status Assignment", "Tanggal Modified",
+	}
 	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
+		setFloat := func(col, n int, v sql.NullFloat64) {
+			if v.Valid {
+				f.SetCellValue(sheet, cell(col, n), v.Float64)
+			}
+		}
 		for i, r := range data {
 			n := i + 2
 			f.SetCellValue(sheet, cell(1, n), r.sls)
@@ -1107,20 +1130,26 @@ func DownloadUsahaKategoriA(c echo.Context) error {
 			f.SetCellValue(sheet, cell(6, n), r.namaUsaha)
 			f.SetCellValue(sheet, cell(7, n), r.namaKK)
 			f.SetCellValue(sheet, cell(8, n), r.jenisPrelist)
-			f.SetCellValue(sheet, cell(9, n), r.kbli)
-			f.SetCellValue(sheet, cell(10, n), r.skala)
-			if r.pendapatan.Valid {
-				f.SetCellValue(sheet, cell(11, n), r.pendapatan.Float64)
+			f.SetCellValue(sheet, cell(9, n), r.kategori)
+			f.SetCellValue(sheet, cell(10, n), r.kbli)
+			setFloat(11, n, r.pendapatan)
+			setFloat(12, n, r.pendapatanBln)
+			setFloat(13, n, r.pengeluaran)
+			setFloat(14, n, r.pengeluaranBln)
+			setFloat(15, n, r.biayaProduksi)
+			setFloat(16, n, r.biayaProduksiBln)
+			setFloat(17, n, r.gaji)
+			setFloat(18, n, r.gajiBln)
+			setFloat(19, n, r.operasional)
+			setFloat(20, n, r.operasionalBln)
+			setFloat(21, n, r.nonOperasional)
+			setFloat(22, n, r.nonOperasionalBln)
+			if r.tkDibayar.Valid {
+				f.SetCellValue(sheet, cell(23, n), r.tkDibayar.Int64)
 			}
-			if r.pengeluaran.Valid {
-				f.SetCellValue(sheet, cell(12, n), r.pengeluaran.Float64)
-			}
-			if r.pendapatan.Valid && r.pengeluaran.Valid {
-				f.SetCellValue(sheet, cell(13, n), r.pendapatan.Float64-r.pengeluaran.Float64)
-			}
-			f.SetCellValue(sheet, cell(14, n), r.alamat)
-			f.SetCellValue(sheet, cell(15, n), r.status)
-			f.SetCellValue(sheet, cell(16, n), r.tanggal)
+			f.SetCellValue(sheet, cell(24, n), r.kegUtama)
+			f.SetCellValue(sheet, cell(25, n), r.status)
+			f.SetCellValue(sheet, cell(26, n), r.tanggal)
 		}
 	})
 }

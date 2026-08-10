@@ -137,7 +137,7 @@ func main() {
 	adminGrp.GET("/table/keberadaan-keluarga", handlers.AdminKeberadaanKeluargaTable)
 	adminGrp.GET("/table/tidak-ditemukan", handlers.AdminTidakDitemukanTable)
 	adminGrp.GET("/table/tidak-ditemukan-rekap", handlers.AdminTidakDitemukanRekapTable)
-	adminGrp.GET("/table/usaha-kategori-a", handlers.AdminUsahaKategoriATable)
+	adminGrp.GET("/table/usaha-ekonomi", handlers.AdminUsahaEkonomiTable)
 	adminGrp.GET("/options/pml-by-kec", handlers.OptionsPMLByKec)
 	adminGrp.GET("/options/ppl-by-filter", handlers.OptionsPPLByFilter)
 	adminGrp.GET("/table/trend/ppl", handlers.AdminTableTrendPPL)
@@ -156,7 +156,7 @@ func main() {
 	adminGrp.GET("/download/keberadaan-keluarga", handlers.DownloadKeberadaanKeluarga)
 	adminGrp.GET("/download/tidak-ditemukan", handlers.DownloadTidakDitemukan)
 	adminGrp.GET("/download/tidak-ditemukan-rekap", handlers.DownloadTidakDitemukanRekap)
-	adminGrp.GET("/download/usaha-kategori-a", handlers.DownloadUsahaKategoriA)
+	adminGrp.GET("/download/usaha-ekonomi", handlers.DownloadUsahaEkonomi)
 	adminGrp.POST("/sync/fasih", handlers.AdminSyncFasih)
 
 	// Organik routes

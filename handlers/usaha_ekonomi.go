@@ -28,20 +28,16 @@ type UsahaEkonomiRow struct {
 	JenisPrelist     string // "keluarga" = usaha dalam keluarga, selain itu = bangunan mandiri
 	Kategori         string // kategori KBLI 1-huruf (A-U)
 	KBLILabel        string
-	Skala            string
 	Pendapatan       string // format "Rp N.NNN.NNN", "-" kalau NULL
 	PendapatanBln    string
 	Pengeluaran      string
 	PengeluaranBln   string
-	BiayaPembelian   string
 	BiayaProduksi    string
 	Gaji             string
 	Operasional      string
 	NonOperasional   string
-	TkDibayar        string // "L/P" mis. "3/2", "-" kalau keduanya NULL
-	TkTdkDibayar     string
+	TkDibayar        string
 	KegUtama         string
-	Alamat           string
 	AssignmentStatus string
 	TanggalModified  string
 	FasihLink        string
@@ -53,7 +49,6 @@ var usahaEkonomiSortCols = map[string]string{
 	"nama":        "t.nama_usaha",
 	"kategori":    "t.kategori",
 	"kbli":        "t.kbli_label",
-	"skala":       "t.skala_usaha",
 	"pendapatan":  "t.pendapatan",
 	"pengeluaran": "t.pengeluaran",
 	"status":      "t.assignment_status",
@@ -86,20 +81,6 @@ func formatRupiah(v sql.NullFloat64) string {
 		return "-"
 	}
 	return "Rp " + formatRibuan(int64(v.Float64))
-}
-
-func formatTk(laki, pr sql.NullInt64) string {
-	if !laki.Valid && !pr.Valid {
-		return "-"
-	}
-	l, p := int64(0), int64(0)
-	if laki.Valid {
-		l = laki.Int64
-	}
-	if pr.Valid {
-		p = pr.Int64
-	}
-	return strconv.FormatInt(l, 10) + "/" + strconv.FormatInt(p, 10)
 }
 
 func formatInt(v sql.NullInt64) string {
@@ -187,11 +168,11 @@ func AdminUsahaEkonomiTable(c echo.Context) error {
 		SELECT t.id, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
 		       ppl.name, pml.name,
 		       COALESCE(t.nama_usaha,''), COALESCE(t.nama_kk,''), COALESCE(t.jenis_prelist,''),
-		       COALESCE(t.kategori,''), COALESCE(t.kbli_label,''), COALESCE(t.skala_usaha,''),
+		       COALESCE(t.kategori,''), COALESCE(t.kbli_label,''),
 		       t.pendapatan, t.pendapatan_bln, t.pengeluaran, t.pengeluaran_bln,
-		       t.biaya_pembelian, t.biaya_produksi, t.gaji, t.operasional, t.non_operasional,
-		       t.tk_laki, t.tk_pr, t.tk_tdk_dibayar,
-		       COALESCE(t.keg_utama,''), COALESCE(t.alamat,''),
+		       t.biaya_produksi, t.gaji, t.operasional, t.non_operasional,
+		       t.tk_dibayar,
+		       COALESCE(t.keg_utama,''),
 		       COALESCE(t.assignment_status,''),
 		       COALESCE(DATE_FORMAT(t.tanggal_modified,'%d/%m/%Y %H:%i'),''),
 		       t.assignment_id
@@ -208,26 +189,24 @@ func AdminUsahaEkonomiTable(c echo.Context) error {
 		for rows.Next() {
 			var r UsahaEkonomiRow
 			var pendapatan, pendapatanBln, pengeluaran, pengeluaranBln sql.NullFloat64
-			var biayaPembelian, biayaProduksi, gaji, operasional, nonOperasional sql.NullFloat64
-			var tkLaki, tkPr, tkTdkDibayar sql.NullInt64
+			var biayaProduksi, gaji, operasional, nonOperasional sql.NullFloat64
+			var tkDibayar sql.NullInt64
 			var assignmentID string
 			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML,
-				&r.NamaUsaha, &r.NamaKK, &r.JenisPrelist, &r.Kategori, &r.KBLILabel, &r.Skala,
+				&r.NamaUsaha, &r.NamaKK, &r.JenisPrelist, &r.Kategori, &r.KBLILabel,
 				&pendapatan, &pendapatanBln, &pengeluaran, &pengeluaranBln,
-				&biayaPembelian, &biayaProduksi, &gaji, &operasional, &nonOperasional,
-				&tkLaki, &tkPr, &tkTdkDibayar,
-				&r.KegUtama, &r.Alamat, &r.AssignmentStatus, &r.TanggalModified, &assignmentID)
+				&biayaProduksi, &gaji, &operasional, &nonOperasional,
+				&tkDibayar,
+				&r.KegUtama, &r.AssignmentStatus, &r.TanggalModified, &assignmentID)
 			r.Pendapatan = formatRupiah(pendapatan)
 			r.PendapatanBln = formatRupiah(pendapatanBln)
 			r.Pengeluaran = formatRupiah(pengeluaran)
 			r.PengeluaranBln = formatRupiah(pengeluaranBln)
-			r.BiayaPembelian = formatRupiah(biayaPembelian)
 			r.BiayaProduksi = formatRupiah(biayaProduksi)
 			r.Gaji = formatRupiah(gaji)
 			r.Operasional = formatRupiah(operasional)
 			r.NonOperasional = formatRupiah(nonOperasional)
-			r.TkDibayar = formatTk(tkLaki, tkPr)
-			r.TkTdkDibayar = formatInt(tkTdkDibayar)
+			r.TkDibayar = formatInt(tkDibayar)
 			r.FasihLink = fasihSMLink(assignmentID)
 			list = append(list, r)
 		}

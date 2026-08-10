@@ -16,20 +16,16 @@
           {{template "sortable_th" dict "Label" "Usaha" "Col" "nama" "PageInfo" $.PageInfo}}
           {{template "sortable_th" dict "Label" "Kategori" "Col" "kategori" "PageInfo" $.PageInfo}}
           {{template "sortable_th" dict "Label" "KBLI" "Col" "kbli" "PageInfo" $.PageInfo}}
-          {{template "sortable_th" dict "Label" "Skala" "Col" "skala" "PageInfo" $.PageInfo}}
           <th class="px-3 py-2.5 font-medium">Kegiatan Utama</th>
           {{template "sortable_th" dict "Label" "Pendapatan" "Col" "pendapatan" "PageInfo" $.PageInfo "Center" true}}
           <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">Pendapatan/Bln</th>
           {{template "sortable_th" dict "Label" "Pengeluaran" "Col" "pengeluaran" "PageInfo" $.PageInfo "Center" true}}
           <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">Pengeluaran/Bln</th>
-          <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">Biaya Pembelian</th>
           <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">Biaya Produksi</th>
           <th class="px-3 py-2.5 font-medium text-right">Gaji</th>
           <th class="px-3 py-2.5 font-medium text-right">Operasional</th>
           <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">Non Operasional</th>
-          <th class="px-3 py-2.5 font-medium text-center whitespace-nowrap">TK Dibayar (L/P)</th>
-          <th class="px-3 py-2.5 font-medium text-center whitespace-nowrap">TK Tdk Dibayar</th>
-          <th class="px-3 py-2.5 font-medium">Alamat</th>
+          <th class="px-3 py-2.5 font-medium text-center whitespace-nowrap">TK Dibayar</th>
           {{template "sortable_th" dict "Label" "Status Assignment" "Col" "status" "PageInfo" $.PageInfo}}
           {{template "sortable_th" dict "Label" "Tanggal Modified" "Col" "tanggal" "PageInfo" $.PageInfo "Center" true}}
           <th class="px-3 py-2.5 font-medium text-center">FASIH</th>
@@ -61,11 +57,6 @@
           <td class="px-3 py-2 max-w-[220px] truncate" title="{{$r.KBLILabel}}">
             {{if $r.KBLILabel}}{{$r.KBLILabel}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
           </td>
-          <td class="px-3 py-2">
-            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700 dark:text-gray-300 whitespace-nowrap">
-              {{if $r.Skala}}{{$r.Skala}}{{else}}-{{end}}
-            </span>
-          </td>
           <td class="px-3 py-2 max-w-[200px] truncate" title="{{$r.KegUtama}}">
             {{if $r.KegUtama}}{{$r.KegUtama}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
           </td>
@@ -73,16 +64,11 @@
           <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.PendapatanBln}}</td>
           <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.Pengeluaran}}</td>
           <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.PengeluaranBln}}</td>
-          <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.BiayaPembelian}}</td>
           <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.BiayaProduksi}}</td>
           <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.Gaji}}</td>
           <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.Operasional}}</td>
           <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.NonOperasional}}</td>
           <td class="px-3 py-2 text-center whitespace-nowrap">{{$r.TkDibayar}}</td>
-          <td class="px-3 py-2 text-center whitespace-nowrap">{{$r.TkTdkDibayar}}</td>
-          <td class="px-3 py-2 max-w-[220px] truncate" title="{{$r.Alamat}}">
-            {{if $r.Alamat}}{{$r.Alamat}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
-          </td>
           <td class="px-3 py-2">
             {{if $r.AssignmentStatus}}
               {{if containsCI $r.AssignmentStatus "approved"}}
@@ -120,7 +106,7 @@
           </td>
         </tr>
         {{else}}
-        <tr><td colspan="21" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
+        <tr><td colspan="19" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
           <div class="flex flex-col items-center gap-2">
             <svg class="w-8 h-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
