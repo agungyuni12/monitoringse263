@@ -222,7 +222,13 @@ def fetch_anomali(ctx, kode_kab, belum_kode, sudah_kode, sesuai_kode, anomali_ty
     Menyertakan sudah_indikator DAN sesuai_indikator supaya ketiga status
     ("belum", "sudah", "sesuai") ikut kebawa dalam satu response — item punya
     field case_status yang menandai masing-masing.
-    Return list of raw JSON items. List kosong jika gagal.
+
+    Return list of raw JSON items kalau BERHASIL (list kosong = memang tidak ada
+    kasus untuk indikator ini). Return None kalau fetch gagal (HTTP error, response
+    bukan list, atau exception sampai retry habis) — caller HARUS membedakan ini
+    dari "list kosong yang valid", karena dipakai buat memutuskan aman/tidaknya
+    menghapus baris lama (baris tidak boleh dihapus kalau kita tidak yakin
+    daftar terbaru dari dashboard benar-benar lengkap).
     """
     params = {
         "kode_kabupaten": kode_kab,
@@ -242,17 +248,19 @@ def fetch_anomali(ctx, kode_kab, belum_kode, sudah_kode, sesuai_kode, anomali_ty
             r = ctx.request.get(url, timeout=90_000)
             if r.status != 200:
                 print(f"    [WARN] HTTP {r.status} untuk indikator={belum_kode}", flush=True)
-                return []
+                return None
             items = r.json()
             if not isinstance(items, list):
                 print(f"    [WARN] Response bukan list untuk indikator={belum_kode}", flush=True)
-                return []
+                return None
             print(f"    indikator={belum_kode} ({anomali_type}): {len(items)} kasus", flush=True)
             return items
         except Exception as e:
             print(f"    [RETRY {attempt}/{retries}] indikator={belum_kode}: {e}", flush=True)
             if attempt < retries:
                 time.sleep(5 * attempt)
+
+    return None
 
     return []
 
@@ -366,12 +374,9 @@ def load_sls_map(conn):
     return result
 
 
-def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at):
+def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at, fetch_ok=True):
     """
-    Upsert items anomali ke tabel anomali. Baris lama untuk rule_key yang sama tapi
-    assignment_id-nya sudah tidak ada di daftar terbaru dari FASIH TIDAK dihapus,
-    supaya reject_anomali.py (yang baca semua baris dari tabel anomali) tidak
-    kehilangan assignment_id apapun, dan histori tetap kesimpan.
+    Upsert items anomali ke tabel anomali.
     UNIQUE KEY adalah (assignment_id, rule_key) — satu baris per (assignment, tipe anomali).
 
     Status tindak lanjut diambil LANGSUNG dari field case_status milik API
@@ -381,19 +386,27 @@ def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at):
     — is_resolved bernilai false baik untuk case_status "belum" MAUPUN "sesuai",
     jadi kalau cuma pegang is_resolved, status "sesuai" (sudah ditindaklanjuti
     dengan penjelasan) akan salah dikira belum ditindaklanjuti.
-    (Dulu ada juga heuristik sudah_ditindaklanjuti_sigempar yang menyimpulkan
-    "sudah ditindaklanjuti" dari assignment yang hilang dari hasil fetch —
-    ternyata salah karena fetch selalu menyertakan sudah_indikator. Kolom itu
-    sudah tidak dipakai lagi.)
+
+    Baris lama untuk rule_key yang sama, yang assignment_id-nya BENAR-BENAR sudah
+    tidak muncul lagi di ketiga status (belum/sudah/sesuai) sekaligus, DIHAPUS —
+    itu artinya kondisi anomalinya sudah tidak terpenuhi lagi di dashboard (beda
+    dari sekadar "ditindaklanjuti", yang tetap muncul di salah satu status sudah/
+    sesuai). Penghapusan CUMA jalan kalau fetch_ok=True (fetch ke dashboard
+    berhasil) — kalau fetch gagal/timeout, items jadi kosong padahal bukan berarti
+    anomalinya hilang, jadi baris lama TIDAK disentuh supaya sekali gagal fetch
+    tidak menghapus data secara salah.
+    (Dulu ada heuristik sudah_ditindaklanjuti_sigempar yang menandai—bukan
+    menghapus—baris yang hilang dari fetch; ternyata heuristik itu salah karena
+    fetch selalu menyertakan sudah_indikator. Kolom itu sudah tidak dipakai lagi.)
 
     first_detected_at diisi SEKALI waktu baris pertama kali di-INSERT dan sengaja
     TIDAK disentuh lagi di ON DUPLICATE KEY UPDATE — itu yang jadi "kapan anomali
     ini pertama kali muncul", beda dari synced_at yang selalu ke-refresh tiap kali
     anomali yang sama masih terdeteksi aktif.
 
-    Return (n_upserted, n_skipped, n_resolved) — n_resolved = jumlah item pada
-    batch ini yang case_status-nya bukan "belum" (sudah ditindaklanjuti, baik
-    dengan perbaikan maupun dengan penjelasan sesuai kondisi lapangan).
+    Return (n_upserted, n_skipped, n_resolved, n_deleted) — n_resolved = jumlah
+    item pada batch ini yang case_status-nya bukan "belum" (sudah ditindaklanjuti,
+    baik dengan perbaikan maupun dengan penjelasan sesuai kondisi lapangan).
     """
     cur = conn.cursor()
 
@@ -413,10 +426,14 @@ def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at):
     """
 
     upserted = skipped = resolved = 0
+    current_ids = set()
     for item in items:
         assignment_id = str(item.get("assignment_id") or "").strip()
         if not assignment_id or len(assignment_id) != 36:
             continue
+        # Assignment masih relevan di dashboard (di salah satu status), meski
+        # nanti di-skip karena sls_id tidak ketemu — jangan sampai dihapus.
+        current_ids.add(assignment_id)
 
         # kode_wilayah sudah 16-digit SLS code
         kode16 = str(item.get("kode_wilayah") or item.get("level_6_code") or "").strip()
@@ -443,9 +460,21 @@ def upsert_anomali(conn, sls_map, items, rule_key, short_label, synced_at):
         except Exception as e:
             print(f"      [DB ERROR] {e}", flush=True)
 
+    deleted = 0
+    if fetch_ok:
+        if current_ids:
+            placeholders = ",".join(["%s"] * len(current_ids))
+            cur.execute(
+                f"DELETE FROM anomali WHERE rule_key = %s AND assignment_id NOT IN ({placeholders})",
+                (rule_key, *current_ids),
+            )
+        else:
+            cur.execute("DELETE FROM anomali WHERE rule_key = %s", (rule_key,))
+        deleted = cur.rowcount
+
     conn.commit()
     cur.close()
-    return upserted, skipped, resolved
+    return upserted, skipped, resolved, deleted
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -467,36 +496,49 @@ def run_once():
             synced_at = fetch_dashboard_synced_at(ctx, KODE_KAB)
             total     = 0
             total_res = 0
+            total_del = 0
 
             # Sync anomali usaha
             print(f"\n[USAHA] {len(usaha_list)} tipe...", flush=True)
             for item in usaha_list:
                 rows = fetch_anomali(ctx, KODE_KAB, item["belumKode"], item["sudahKode"], item.get("sesuaiKode"), "usaha", item["no"])
-                n, skip, resolved = upsert_anomali(conn, sls_map, rows, item["rule_key"], item["short_label"], synced_at)
+                fetch_ok = rows is not None
+                n, skip, resolved, deleted = upsert_anomali(conn, sls_map, rows or [], item["rule_key"], item["short_label"], synced_at, fetch_ok)
                 total += n
                 total_res += resolved
+                total_del += deleted
+                if not fetch_ok:
+                    print(f"      [SKIP DELETE] fetch gagal, baris lama untuk rule {item['rule_key']} tidak disentuh", flush=True)
                 if skip:
                     print(f"      {skip} skip (SLS tidak ada di DB)", flush=True)
                 if resolved:
                     print(f"      {resolved} sudah ditindaklanjuti (sesuai dashboard)", flush=True)
+                if deleted:
+                    print(f"      {deleted} baris dihapus (anomali sudah tidak muncul sama sekali di dashboard)", flush=True)
                 time.sleep(DELAY)
 
             # Sync anomali keluarga
             print(f"\n[KELUARGA] {len(kel_list)} tipe...", flush=True)
             for item in kel_list:
                 rows = fetch_anomali(ctx, KODE_KAB, item["belumKode"], item["sudahKode"], item.get("sesuaiKode"), "keluarga", item["no"])
-                n, skip, resolved = upsert_anomali(conn, sls_map, rows, item["rule_key"], item["short_label"], synced_at)
+                fetch_ok = rows is not None
+                n, skip, resolved, deleted = upsert_anomali(conn, sls_map, rows or [], item["rule_key"], item["short_label"], synced_at, fetch_ok)
                 total += n
                 total_res += resolved
+                total_del += deleted
+                if not fetch_ok:
+                    print(f"      [SKIP DELETE] fetch gagal, baris lama untuk rule {item['rule_key']} tidak disentuh", flush=True)
                 if skip:
                     print(f"      {skip} skip (SLS tidak ada di DB)", flush=True)
                 if resolved:
                     print(f"      {resolved} sudah ditindaklanjuti (sesuai dashboard)", flush=True)
+                if deleted:
+                    print(f"      {deleted} baris dihapus (anomali sudah tidak muncul sama sekali di dashboard)", flush=True)
                 time.sleep(DELAY)
 
             fill_nama_by_sls(conn, pw)
             conn.close()
-            print(f"\nSelesai! {total} baris anomali diupsert, {total_res} sudah ditindaklanjuti (sesuai dashboard).", flush=True)
+            print(f"\nSelesai! {total} baris anomali diupsert, {total_res} sudah ditindaklanjuti (sesuai dashboard), {total_del} baris dihapus (sudah tidak relevan).", flush=True)
 
         finally:
             browser.close()
