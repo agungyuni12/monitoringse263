@@ -16,7 +16,14 @@ sync_usaha.py) krn topiknya beda: bukan status keberadaan, tapi klasifikasi
 KBLI + data ekonomi usaha.
 
 Sumber data (ditelusuri manual lewat SQL Lab — lihat percakapan):
-  - Scope: SEMUA baris se2026_nested (106.117 usaha), TANPA filter kategori.
+  - Scope: se2026_nested TANPA filter kategori, TAPI difilter
+    keberadaan_usaha_value IN ('1','2') — cuma usaha yg Ditemukan ('1') atau
+    Baru ('2'). Usaha yg Tidak Ditemukan/Tutup/Ganda ('00'/'3'/'4', sudah
+    ditrack terpisah di tabel tidak_ditemukan_usaha via sync_usaha.py — lihat
+    docstring modul itu soal kode keberadaan_usaha_value lengkap) atau Non
+    Respon ('9') gak mungkin punya data ekonomi krn emang gak ada yg
+    disurvei — DIBUANG dari scope tabel ini, bukan trap/bug, supaya usaha yg
+    sengaja gak punya isian ekonomi gak numpuk jadi baris kosong.
   - Superset SQL Lab di FASIH Dashboard MEMBATASI hasil query maksimal 25
     kolom/query — query di bawah dipangkas biar pas di limit itu (lihat
     percakapan soal kolom mana yg dibuang & alasannya):
@@ -39,19 +46,24 @@ Sumber data (ditelusuri manual lewat SQL Lab — lihat percakapan):
         tk_laki/tk_pr/tk_tdk_dibayar (breakdown gender & status bayar pekerja
         — tk_dibayar tetap disimpan sbg angka tenaga kerja utama).
       - jenis_kegiatan — DICOBA, 0% terisi (field gak kepake), DIBUANG.
-  - Data ekonomi yg TETAP (semua DOUBLE kecuali tk_dibayar yg INTEGER, dicek
-    manual coverage-nya thd 106.117 total usaha):
+  - Data ekonomi yg TETAP (semua DOUBLE kecuali tk_dibayar yg INTEGER;
+    ~57-59% coverage-nya DICEK SEBELUM filter keberadaan_usaha_value
+    ditambahkan, thd 106.117 total usaha TANPA filter — jadi angka itu
+    ketinggian pesimis, coverage sebenarnya thd scope Ditemukan/Baru yg
+    dipakai SEKARANG harusnya lebih tinggi krn baris yg emang gak mungkin
+    keisi (Tutup/Tidak Ditemukan/Ganda) udah dibuang duluan):
       total_pendapatan/total_pendapatan_bln, total_pengeluaran/
         total_pengeluaran_bln — versi bulanan (_bln) TETAP disimpan meski
         jarang terisi krn kepake khusus usaha baru yg lapor per bulan (bukan
         per periode survei).
       biaya_produksi/biaya_produksi_bln, gaji/gaji_bln, operasional/
-        operasional_bln, non_operasional/non_operasional_bln — semua ~57%
-        (konsisten, satu blok kuesioner ekonomi yg sama).
-      tk_dibayar (tenaga kerja dibayar, INTEGER) — ~59%, blok yg sama jg.
-      keg_utama (deskripsi kegiatan utama usaha) — ~59%.
-    Coverage ~57-59% ini WAJAR (bukan trap kayak no_kk_prelist/kbli_prelist
-    dulu) — blok ekonomi kuesioner emang belum semua usaha selesai diisi
+        operasional_bln, non_operasional/non_operasional_bln — satu blok
+        kuesioner ekonomi yg sama.
+      tk_dibayar (tenaga kerja dibayar, INTEGER) — blok yg sama jg.
+      keg_utama (deskripsi kegiatan utama usaha).
+    Sisa kekosongan (di luar Tutup/Tidak Ditemukan/Ganda yg udah difilter)
+    WAJAR (bukan trap kayak no_kk_prelist/kbli_prelist dulu) — blok ekonomi
+    kuesioner emang belum semua usaha Ditemukan/Baru selesai diisi
     petugas, bukan field yg salah/gak kepake.
   - jenis_prelist (root_table, via JOIN assignment_id — sama pola dgn
     sync_usaha.py): bedain usaha bangunan mandiri (!= 'keluarga') vs usaha yg
@@ -108,7 +120,17 @@ PAGE_SIZE = 5000      # dicek manual via raw SELECT (bukan COUNT) — lihat sync
 PAGE_DELAY_MIN = 3    # jeda antar halaman (detik) — biar traffic gak seragam
 PAGE_DELAY_MAX = 8
 
-USAHA_EKONOMI_COUNT_QUERY = "SELECT COUNT(*) AS n FROM se2026_nested"
+# Scope cuma keberadaan_usaha_value '1' (Ditemukan) & '2' (Baru) — usaha yg
+# Tidak Ditemukan/Tutup/Ganda ('00'/'3'/'4', sudah ditrack terpisah di tabel
+# tidak_ditemukan_usaha, lihat sync_usaha.py) atau Non Respon ('9') gak
+# mungkin punya data ekonomi (gak ada yg disurvei), jadi cuma bikin baris
+# kosong nambahin noise ke tabel ini kalau ikut ditarik.
+USAHA_EKONOMI_STATUS_VALUES = "'1','2'"
+
+USAHA_EKONOMI_COUNT_QUERY = (
+    "SELECT COUNT(*) AS n FROM se2026_nested "
+    f"WHERE keberadaan_usaha_value IN ({USAHA_EKONOMI_STATUS_VALUES})"
+)
 
 USAHA_EKONOMI_QUERY_TEMPLATE = """
 SELECT n.assignment_id, n.index1, n.nama_usaha,
@@ -124,6 +146,7 @@ SELECT n.assignment_id, n.index1, n.nama_usaha,
        CASE WHEN r.jenis_prelist = 'keluarga' THEN COALESCE(r.nama_kk, r.dtsen_nama_kk) ELSE NULL END AS nama_kk
 FROM se2026_nested n
 INNER JOIN root_table r ON n.assignment_id = r.assignment_id
+WHERE n.keberadaan_usaha_value IN (""" + USAHA_EKONOMI_STATUS_VALUES + """)
 ORDER BY n.assignment_id, n.index1
 LIMIT {limit} OFFSET {offset}
 """.strip()
