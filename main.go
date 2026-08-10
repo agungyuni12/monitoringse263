@@ -77,6 +77,7 @@ func main() {
 			}
 			return d, nil
 		},
+		"list": func(values ...interface{}) []interface{} { return values },
 	}
 
 	tmpl := template.New("").Funcs(funcMap)
