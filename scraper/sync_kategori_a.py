@@ -25,8 +25,14 @@ Sumber data (ditelusuri manual lewat SQL Lab — lihat percakapan):
     kemungkinan cuma kepake utk usaha yg lapor per bulan; keduanya tetap
     disimpan apa adanya).
   - kbli_label: label 5-digit KBLI lengkap dari FASIH (mis.
-    "[A][01111]Pertanian Jagung"), NULL kalau usaha baru diklasifikasi
-    kategori-nya doang (blm sampai ke KBLI 5 digit).
+    "[A][01111]Pertanian Jagung") — TAPI cuma 26,4% terisi (klasifikasi
+    manual, blm semua usaha sempat diklasifikasi petugas). Dicek manual:
+    se2026_nested PUNYA jalur klasifikasi KEDUA, kbli_genai_label (hasil
+    GenAI/AI otomatis, format "[A] 01111 Pertanian Jagung" — beda gaya
+    tulis dr kbli_label tapi isi sama), yg TERISI PERSIS di semua baris yg
+    kbli_label-nya kosong (komplementer, 0 tumpang tindih) — digabung pakai
+    COALESCE(kbli_label, kbli_genai_label) jadi 100% coverage. Prioritas
+    kbli_label (klasifikasi manusia) dulu baru fallback ke GenAI.
   - jenis_prelist (root_table, via JOIN assignment_id — sama pola dgn
     sync_usaha.py): bedain usaha bangunan mandiri (!= 'keluarga') vs usaha yg
     nempel roster keluarga ('keluarga'). nama_usaha & nama_kk DIPISAH jadi
@@ -80,7 +86,7 @@ PAGE_DELAY_MAX = 8
 KATEGORI_A_COUNT_QUERY = "SELECT COUNT(*) AS n FROM se2026_nested WHERE kategori = 'A'"
 
 KATEGORI_A_QUERY_TEMPLATE = """
-SELECT n.assignment_id, n.index1, n.nama_usaha, n.kbli_label, n.skala_usaha,
+SELECT n.assignment_id, n.index1, n.nama_usaha, n.kbli_label, n.kbli_genai_label, n.skala_usaha,
        n.total_pendapatan, n.total_pendapatan_bln, n.total_pengeluaran, n.total_pengeluaran_bln,
        n.alamat_usaha, n.alamat_usaha_utama, n.level_6_full_code,
        n.assignment_status_alias, n.assignment_date_modified,
@@ -383,7 +389,13 @@ def upsert_kategori_a(conn, rows, sls_map, synced_at):
                 # (jenis_prelist='keluarga') — biarin NULL kalau usaha bangunan
                 # mandiri, jangan dipaksa isi dari field yg gak relevan.
                 _first(r.get("nama_kk"), r.get("dtsen_nama_kk")) if r.get("jenis_prelist") == "keluarga" else None,
-                r.get("jenis_prelist"), r.get("kbli_label"), r.get("skala_usaha"),
+                r.get("jenis_prelist"),
+                # kbli_label (klasifikasi manual) diprioritaskan, fallback ke
+                # kbli_genai_label (GenAI) kalau usaha belum sempat
+                # diklasifikasi manual — lihat docstring modul, komplementer
+                # 100% (gak ada baris yg dua2nya kosong sekaligus).
+                _first(r.get("kbli_label"), r.get("kbli_genai_label")),
+                r.get("skala_usaha"),
                 r.get("total_pendapatan"), r.get("total_pendapatan_bln"),
                 r.get("total_pengeluaran"), r.get("total_pengeluaran_bln"),
                 # sama kayak sync_usaha.py: alamat_usaha* di se2026_nested sering
