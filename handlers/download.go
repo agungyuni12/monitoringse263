@@ -551,7 +551,7 @@ func DownloadAnomali(c echo.Context) error {
 		       a.nama, a.jenis, COALESCE(a.rule_msg,''),
 		       COALESCE(DATE_FORMAT(a.first_detected_at,'%d/%m/%Y %H:%i'),''),
 		       COALESCE(DATE_FORMAT(a.synced_at,'%d/%m/%Y %H:%i'),''),
-		       a.status_fasih
+		       a.status_fasih, a.assignment_id
 		FROM anomali a
 		JOIN sls s ON s.id = a.sls_id
 		JOIN users ppl ON ppl.id = s.ppl_id
@@ -564,17 +564,17 @@ func DownloadAnomali(c echo.Context) error {
 
 	type row struct {
 		sls, kec, desa, ppl, pml, nama, jenis, msg, firstDetectedAt, syncedAt string
-		statusFasih                                                          string
+		statusFasih, assignmentID                                             string
 	}
 	var data []row
 	for rows.Next() {
 		var r row
-		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.nama, &r.jenis, &r.msg, &r.firstDetectedAt, &r.syncedAt, &r.statusFasih)
+		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml, &r.nama, &r.jenis, &r.msg, &r.firstDetectedAt, &r.syncedAt, &r.statusFasih, &r.assignmentID)
 		data = append(data, r)
 	}
 
 	fname := fmt.Sprintf("monitoring_anomali_%s.xlsx", time.Now().In(wita).Format("20060102"))
-	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Nama Responden", "Jenis Anomali", "Keterangan", "Pertama Muncul", "Terakhir Aktif", "Status Tindak Lanjut"}
+	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Nama Responden", "Jenis Anomali", "Keterangan", "Pertama Muncul", "Terakhir Aktif", "Status Tindak Lanjut", "Link FASIH"}
 	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
 		for i, r := range data {
 			n := i + 2
@@ -589,6 +589,7 @@ func DownloadAnomali(c echo.Context) error {
 			f.SetCellValue(sheet, cell(9, n), r.firstDetectedAt)
 			f.SetCellValue(sheet, cell(10, n), r.syncedAt)
 			f.SetCellValue(sheet, cell(11, n), statusFasihLabel(r.statusFasih))
+			f.SetCellValue(sheet, cell(12, n), fasihSMLink(r.assignmentID))
 		}
 	})
 }
@@ -1093,7 +1094,7 @@ func DownloadUsahaEkonomi(c echo.Context) error {
 		pendapatan, pendapatanBln, pengeluaran, pengeluaranBln                                               sql.NullFloat64
 		biayaProduksi, biayaProduksiBln, gaji, gajiBln, operasional, operasionalBln                          sql.NullFloat64
 		nonOperasional, nonOperasionalBln                                                                    sql.NullFloat64
-		tkDibayar                                                                                             sql.NullInt64
+		tkDibayar                                                                                            sql.NullInt64
 	}
 	var data []row
 	for rows.Next() {

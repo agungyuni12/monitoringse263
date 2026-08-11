@@ -26,6 +26,7 @@ type AnomaliRow struct {
 	FirstDetectedAt string // kapan anomali ini PERTAMA KALI terdeteksi (tidak berubah lagi setelahnya)
 	SyncedAt        string // kapan TERAKHIR KALI masih terdeteksi aktif (di-refresh tiap sync)
 	StatusFasih     string // 'belum' | 'sudah' | 'sesuai' — case_status asli dari API dashboard
+	FasihLink       string // link langsung ke assignment di fasih-sm.bps.go.id
 }
 
 var anomaliSortCols = map[string]string{
@@ -112,7 +113,7 @@ func queryAnomaili(page int, q, kec, fasih, tglSampai, sort, dir string, pmlID, 
 		       a.nama, a.jenis, a.rule_key, COALESCE(a.rule_msg,''),
 		       COALESCE(DATE_FORMAT(a.first_detected_at,'%d/%m/%Y %H:%i'),''),
 		       COALESCE(DATE_FORMAT(a.synced_at,'%d/%m/%Y %H:%i'),''),
-		       a.status_fasih
+		       a.status_fasih, a.assignment_id
 		FROM anomali a
 		JOIN sls s ON s.id = a.sls_id
 		JOIN users ppl ON ppl.id = s.ppl_id
@@ -133,9 +134,11 @@ func queryAnomaili(page int, q, kec, fasih, tglSampai, sort, dir string, pmlID, 
 	var list []AnomaliRow
 	for rows.Next() {
 		var r AnomaliRow
+		var assignmentID string
 		rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa,
 			&r.NamaPPL, &r.NamaPML,
-			&r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.FirstDetectedAt, &r.SyncedAt, &r.StatusFasih)
+			&r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.FirstDetectedAt, &r.SyncedAt, &r.StatusFasih, &assignmentID)
+		r.FasihLink = fasihSMLink(assignmentID)
 		list = append(list, r)
 	}
 	return list, pageInfo
@@ -254,27 +257,30 @@ func PPLAnomali(c echo.Context) error {
 		SELECT a.id, s.nama_sls, a.nama, a.jenis, a.rule_key,
 		       COALESCE(a.rule_msg,''),
 		       COALESCE(DATE_FORMAT(a.synced_at,'%d/%m/%Y %H:%i'),''),
-		       a.status_fasih
+		       a.status_fasih, a.assignment_id
 		FROM anomali a JOIN sls s ON s.id=a.sls_id `+where+`
 		`+orderBy+`
 		LIMIT ? OFFSET ?`, queryArgs...)
 
 	type Row struct {
-		ID            int
-		NamaSLS       string
-		Nama          string
-		Jenis         string
-		RuleKey       string
-		RuleMsg       string
-		SyncedAt      string
+		ID          int
+		NamaSLS     string
+		Nama        string
+		Jenis       string
+		RuleKey     string
+		RuleMsg     string
+		SyncedAt    string
 		StatusFasih string
+		FasihLink   string
 	}
 	var list []Row
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
 			var r Row
-			rows.Scan(&r.ID, &r.NamaSLS, &r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.SyncedAt, &r.StatusFasih)
+			var assignmentID string
+			rows.Scan(&r.ID, &r.NamaSLS, &r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.SyncedAt, &r.StatusFasih, &assignmentID)
+			r.FasihLink = fasihSMLink(assignmentID)
 			list = append(list, r)
 		}
 	}
@@ -357,7 +363,7 @@ func PMLAnomali(c echo.Context) error {
 		       a.nama, a.jenis, a.rule_key,
 		       COALESCE(a.rule_msg,''),
 		       COALESCE(DATE_FORMAT(a.synced_at,'%d/%m/%Y %H:%i'),''),
-		       a.status_fasih
+		       a.status_fasih, a.assignment_id
 		FROM anomali a
 		JOIN sls s ON s.id=a.sls_id
 		JOIN users ppl ON ppl.id=s.ppl_id `+where+`
@@ -365,22 +371,25 @@ func PMLAnomali(c echo.Context) error {
 		LIMIT ? OFFSET ?`, queryArgs...)
 
 	type PMLAnomaliRow struct {
-		ID            int
-		NamaSLS       string
-		NamaPPL       string
-		Nama          string
-		Jenis         string
-		RuleKey       string
-		RuleMsg       string
-		SyncedAt      string
+		ID          int
+		NamaSLS     string
+		NamaPPL     string
+		Nama        string
+		Jenis       string
+		RuleKey     string
+		RuleMsg     string
+		SyncedAt    string
 		StatusFasih string
+		FasihLink   string
 	}
 	var list []PMLAnomaliRow
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
 			var r PMLAnomaliRow
-			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaPPL, &r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.SyncedAt, &r.StatusFasih)
+			var assignmentID string
+			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaPPL, &r.Nama, &r.Jenis, &r.RuleKey, &r.RuleMsg, &r.SyncedAt, &r.StatusFasih, &assignmentID)
+			r.FasihLink = fasihSMLink(assignmentID)
 			list = append(list, r)
 		}
 	}

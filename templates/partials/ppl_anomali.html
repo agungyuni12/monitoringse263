@@ -16,6 +16,7 @@
           {{template "sortable_th" dict "Label" "Keterangan" "Col" "keterangan" "PageInfo" $.PageInfo "Class" "px-4 py-3 font-medium"}}
           {{template "sortable_th" dict "Label" "Sync" "Col" "sync" "PageInfo" $.PageInfo "Class" "px-4 py-3 font-medium" "Center" true}}
           {{template "sortable_th" dict "Label" "Status Tindak Lanjut" "Col" "fasih" "PageInfo" $.PageInfo "Class" "px-4 py-3 font-medium" "Center" true}}
+          <th class="px-4 py-3 font-medium text-center">FASIH</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -23,7 +24,7 @@
         {{range $i, $r := .Rows}}
         {{if and (eq $.PageInfo.Sort "") (ne $r.NamaSLS $prev)}}
         <tr class="bg-orange-50/60 dark:bg-gray-800/60">
-          <td colspan="7" class="px-4 py-1.5 text-xs font-semibold text-se">{{$r.NamaSLS}}</td>
+          <td colspan="8" class="px-4 py-1.5 text-xs font-semibold text-se">{{$r.NamaSLS}}</td>
         </tr>
         {{end}}
         {{$prev = $r.NamaSLS}}
@@ -51,9 +52,12 @@
           <td class="px-4 py-2.5 text-center whitespace-nowrap">
             {{template "status_fasih_badge" $r.StatusFasih}}
           </td>
+          <td class="px-4 py-2.5 text-center">
+            {{template "fasih_link_btn" $r.FasihLink}}
+          </td>
         </tr>
         {{else}}
-        <tr><td colspan="7" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
+        <tr><td colspan="8" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
           <div class="flex flex-col items-center gap-2">
             <svg class="w-8 h-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
