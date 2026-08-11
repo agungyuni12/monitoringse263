@@ -221,10 +221,12 @@ def _check_bot_wall(text, tag):
         raise RuntimeError(f"Diblokir bot-detection BPS di tahap '{tag}' (kode {code})")
 
 
-def _wait_cdp_ready(port, timeout=30):
+def _wait_cdp_ready(port, proc, timeout=45):
     deadline = time.time() + timeout
     url = f"http://127.0.0.1:{port}/json/version"
     while time.time() < deadline:
+        if proc.poll() is not None:
+            raise RuntimeError(f"Chrome mati sebelum CDP siap (exit code {proc.returncode})")
         try:
             urllib.request.urlopen(url, timeout=1)
             return
@@ -243,18 +245,37 @@ def _make_browser(pw):
         "--no-first-run",
         "--no-default-browser-check",
         "--disable-blink-features=AutomationControlled",
+        # --no-sandbox & --disable-dev-shm-usage: WAJIB di container Docker —
+        # Chrome sandbox butuh capability yg gak ada di container biasa (bikin
+        # gagal start sama sekali), dan /dev/shm default Docker cuma 64MB
+        # (kekecilan buat Chrome, bikin crash/hang) — lihat sync_usaha.py yg
+        # pakai flag sama persis via pw.chromium.launch().
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
         "--window-size=1280,800",
         "--lang=id-ID",
     ]
     if HEADLESS:
         args.append("--headless=new")
-    proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # stderr ke file (bukan PIPE) — kalau PIPE gak pernah didrain selama proses
+    # jalan lama, buffer OS-nya (~64KB) bisa penuh & bikin Chrome nge-block pas
+    # nulis stderr (Chrome headless lumayan berisik soal GL/ANGLE warnings).
+    stderr_log = open(os.path.join(CDP_PROFILE_DIR, "chrome_stderr.log"), "w")
+    proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=stderr_log)
     try:
-        _wait_cdp_ready(CDP_PORT)
+        _wait_cdp_ready(CDP_PORT, proc)
         browser = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{CDP_PORT}")
         ctx = browser.contexts[0] if browser.contexts else browser.new_context()
     except Exception:
         proc.terminate()
+        stderr_log.close()
+        try:
+            with open(stderr_log.name) as f:
+                tail = f.read()[-2000:]
+            if tail.strip():
+                print(f"[CHROME][STDERR] {tail}", flush=True)
+        except Exception:
+            pass
         raise
     return browser, ctx, proc
 

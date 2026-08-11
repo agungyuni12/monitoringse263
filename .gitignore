@@ -20,6 +20,9 @@ db/se2026_full.sql
 # Checkpoint hasil scrape sync_usaha.py (recovery kalau upsert DB gagal)
 scraper/.checkpoints/
 
+# Profile Chrome persisten via CDP (cookie sesi FASIH, lihat sync_usaha_ekonomi.py)
+scraper/.chrome-profile-*/
+
 # Python bytecode cache
 __pycache__/
 *.pyc
