@@ -183,6 +183,8 @@ func main() {
 	orgGrp.GET("/assignment/search", handlers.OrganikAssignmentSearch)
 	orgGrp.GET("/assignment/:assignment_id/perbaikan/modal", handlers.OrganikPerbaikanModal)
 	orgGrp.POST("/assignment/:assignment_id/perbaikan", handlers.OrganikSavePerbaikan)
+	orgGrp.GET("/table/usaha-ekonomi", handlers.OrganikUsahaEkonomiTable)
+	orgGrp.GET("/table/keberadaan-keluarga", handlers.OrganikKeberadaanKeluargaTable)
 
 	port := "8080"
 	fmt.Printf("SIGEMPAR SE2026 – Server berjalan di http://localhost:%s\n", port)

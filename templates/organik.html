@@ -69,6 +69,16 @@
           <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           <span class="sidebar-label">Evaluasi</span>
         </button>
+        <button onclick="switchTab('usahaEkonomi')" id="tab-usahaEkonomi" title="Usaha (Data Ekonomi)"
+          class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+          <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-3 0-5 1.5-5 4s2 4 5 4 5-1.5 5-4-2-4-5-4zm0 0V4m0 16v-2"/></svg>
+          <span class="sidebar-label">Usaha (Data Ekonomi)</span>
+        </button>
+        <button onclick="switchTab('keluarga')" id="tab-keluarga" title="Keluarga"
+          class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+          <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 21s-7-6.5-7-11a7 7 0 1114 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5" stroke-width="1.5"/></svg>
+          <span class="sidebar-label">Keluarga</span>
+        </button>
       </nav>
 
       <div class="border-t border-gray-100 dark:border-gray-800 p-3 space-y-0.5">
@@ -117,7 +127,7 @@
         </div>
       </header>
 
-      <main class="flex-1 px-4 lg:px-6 py-8 space-y-6 max-w-5xl w-full">
+      <main class="flex-1 px-4 lg:px-6 py-8 space-y-6 max-w-[1600px] w-full">
 
     <!-- Alert -->
     {{if .OK}}
@@ -131,7 +141,7 @@
     </div>
     {{end}}
 
-    <div id="panel-pengawasan" class="tab-panel active space-y-6">
+    <div id="panel-pengawasan" class="tab-panel active space-y-6 max-w-3xl">
 
     <!-- Form Input -->
     <section class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm p-6 space-y-5">
@@ -302,6 +312,78 @@
           <div class="px-6 py-10 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat data evaluasi...</div>
         </div>
       </section>
+    </div>
+
+    <!-- TAB: Usaha (Data Ekonomi) — referensi lintas wilayah sebelum memilih
+         assignment untuk dievaluasi -->
+    <div id="panel-usahaEkonomi" class="tab-panel">
+      <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm overflow-hidden">
+        <div id="usaha-ekonomi-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center">
+          <input type="text" name="q"
+            hx-get="/organik/table/usaha-ekonomi" hx-target="#usaha-ekonomi-result" hx-swap="innerHTML"
+            hx-trigger="input changed delay:400ms" hx-include="#usaha-ekonomi-filter-bar"
+            placeholder="Cari nama usaha, nama KK, KBLI, SLS..."
+            class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+          <select name="kategori"
+            hx-get="/organik/table/usaha-ekonomi" hx-target="#usaha-ekonomi-result" hx-swap="innerHTML" hx-include="#usaha-ekonomi-filter-bar"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+            <option value="">Semua Kategori KBLI</option>
+            {{range $k := (list "A" "B" "C" "D" "E" "F" "G" "H" "I" "J" "K" "L" "M" "N" "O" "P" "Q" "R" "S" "T" "U")}}
+            <option value="{{$k}}">{{$k}}</option>
+            {{end}}
+          </select>
+          <select name="kec"
+            hx-get="/organik/table/usaha-ekonomi" hx-target="#usaha-ekonomi-result" hx-swap="innerHTML" hx-include="#usaha-ekonomi-filter-bar"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+            <option value="">Semua Kecamatan</option>
+            {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
+          </select>
+          <select name="pml_id" id="usaha-ekonomi-pml-select"
+            hx-get="/organik/table/usaha-ekonomi" hx-target="#usaha-ekonomi-result" hx-swap="innerHTML" hx-include="#usaha-ekonomi-filter-bar"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+            <option value="">Semua PML</option>
+          </select>
+          <select name="ppl_id" id="usaha-ekonomi-ppl-select"
+            hx-get="/organik/table/usaha-ekonomi" hx-target="#usaha-ekonomi-result" hx-swap="innerHTML" hx-include="#usaha-ekonomi-filter-bar"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+            <option value="">Semua PPL</option>
+          </select>
+        </div>
+        <div id="usaha-ekonomi-result"
+          hx-get="/organik/table/usaha-ekonomi" hx-trigger="load" hx-swap="innerHTML">
+          <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat data usaha...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: Keluarga — rekap status keberadaan keluarga per SLS se-kabupaten -->
+    <div id="panel-keluarga" class="tab-panel">
+      <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm overflow-hidden">
+        <div id="keluarga-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center">
+          <select name="level"
+            hx-get="/organik/table/keberadaan-keluarga" hx-target="#organik-keluarga-wrap" hx-swap="innerHTML" hx-include="#keluarga-filter-bar"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+            <option value="">Per SLS</option>
+            <option value="desa">Per Desa</option>
+            <option value="kec">Per Kecamatan</option>
+          </select>
+          <input type="text" name="q"
+            hx-get="/organik/table/keberadaan-keluarga" hx-target="#organik-keluarga-wrap" hx-swap="innerHTML"
+            hx-trigger="input changed delay:400ms" hx-include="#keluarga-filter-bar"
+            placeholder="Cari nama SLS, PPL, PML, Desa, Kecamatan..."
+            class="w-full md:w-72 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+          <select name="kec"
+            hx-get="/organik/table/keberadaan-keluarga" hx-target="#organik-keluarga-wrap" hx-swap="innerHTML" hx-include="#keluarga-filter-bar"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+            <option value="">Semua Kecamatan</option>
+            {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
+          </select>
+        </div>
+        <div id="organik-keluarga-wrap"
+          hx-get="/organik/table/keberadaan-keluarga" hx-trigger="load" hx-swap="innerHTML">
+          <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat data keluarga...</div>
+        </div>
+      </div>
     </div>
 
       </main>

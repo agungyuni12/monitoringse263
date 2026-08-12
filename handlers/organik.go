@@ -87,6 +87,7 @@ func OrganikDashboard(c echo.Context) error {
 		"Laporan": laporan,
 		"OK":      msg == "1",
 		"Err":     errMsg,
+		"KecList": queryKecList(),
 	})
 }
 

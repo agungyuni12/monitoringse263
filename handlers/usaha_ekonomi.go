@@ -124,6 +124,25 @@ func usahaEkonomiFilters(c echo.Context) (where string, args []interface{}, kecs
 
 // AdminUsahaEkonomiTable — GET /admin/table/usaha-ekonomi
 func AdminUsahaEkonomiTable(c echo.Context) error {
+	return usahaEkonomiTable(c, "/admin/table/usaha-ekonomi")
+}
+
+// OrganikUsahaEkonomiTable — GET /organik/table/usaha-ekonomi
+// Sama persis dengan versi admin (data usaha se-kabupaten, bukan cuma wilayah
+// sendiri) — organik memang punya akses pengawasan lintas wilayah, dipakai
+// sebagai referensi sebelum memilih assignment untuk dievaluasi.
+func OrganikUsahaEkonomiTable(c echo.Context) error {
+	return usahaEkonomiTable(c, "/organik/table/usaha-ekonomi")
+}
+
+// usahaEkonomiTable — logika bersama tab "Usaha (Data Ekonomi)", dipakai baik
+// oleh Admin maupun Organik. basePath dipakai utk link pagination/sorting
+// (models.PageInfo.BaseURL) dan hx-get filter berjenjang PML/PPL, supaya tiap
+// role tetap memanggil route miliknya sendiri (route admin diproteksi
+// RequireRole("admin"), route organik RequireRole("organik")) — target DOM id
+// ("usaha-ekonomi-result" dkk) sengaja tetap sama krn masing-masing halaman
+// (admin.html/organik.html) punya markup filter bar sendiri dgn id yg sama.
+func usahaEkonomiTable(c echo.Context, basePath string) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
 		page = 1
@@ -158,7 +177,7 @@ func AdminUsahaEkonomiTable(c echo.Context) error {
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, usahaEkonomiSortCols, "s.nama_kec, s.nama_desa, s.nama_sls, t.nama_usaha")
 
 	offset := (page - 1) * models.PerPage
-	pageInfo := models.NewPageInfo(page, total, "/admin/table/usaha-ekonomi", "usaha-ekonomi-result", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo := models.NewPageInfo(page, total, basePath, "usaha-ekonomi-result", extra+models.SortQueryString(sortCol, sortDir))
 	pageInfo.Sort = sortCol
 	pageInfo.Dir = sortDir
 	pageInfo.FilterExtra = extra
@@ -215,12 +234,12 @@ func AdminUsahaEkonomiTable(c echo.Context) error {
 	pmlSelect := OOBSelect{
 		TargetID: "usaha-ekonomi-pml-select", Name: "pml_id", Placeholder: "Semua PML",
 		Options: queryPMLOptionsByKec(kecs), Selected: pmlID,
-		HxGet: "/admin/table/usaha-ekonomi", HxTarget: "#usaha-ekonomi-result", HxInclude: "#usaha-ekonomi-filter-bar",
+		HxGet: basePath, HxTarget: "#usaha-ekonomi-result", HxInclude: "#usaha-ekonomi-filter-bar",
 	}
 	pplSelect := OOBSelect{
 		TargetID: "usaha-ekonomi-ppl-select", Name: "ppl_id", Placeholder: "Semua PPL",
 		Options: queryPPLOptionsByFilter(kecs, pmlID), Selected: pplID,
-		HxGet: "/admin/table/usaha-ekonomi", HxTarget: "#usaha-ekonomi-result", HxInclude: "#usaha-ekonomi-filter-bar",
+		HxGet: basePath, HxTarget: "#usaha-ekonomi-result", HxInclude: "#usaha-ekonomi-filter-bar",
 	}
 
 	return c.Render(http.StatusOK, "usaha_ekonomi_table.html", map[string]interface{}{
