@@ -99,15 +99,13 @@ func loadPerbaikanItems(assignmentID string) []models.EvaluasiAssignment {
 	return items
 }
 
-// OrganikPerbaikanModal — GET /organik/assignment/:assignment_id/perbaikan/modal
-func OrganikPerbaikanModal(c echo.Context) error {
-	assignmentID := c.Param("assignment_id")
-	namaUsaha, slsID, sp, ok := evaluasiAssignmentInfo(assignmentID)
-	if !ok {
-		return c.String(http.StatusNotFound, "Assignment tidak ditemukan")
-	}
-
-	return c.Render(http.StatusOK, "organik_evaluasi_modal.html", map[string]interface{}{
+// organikEvaluasiModalData bangun map render "organik_evaluasi_modal.html" —
+// dipakai baik saat modal pertama dibuka (GET) maupun setelah simpan (POST),
+// supaya kedua handler tidak duplikasi daftar field.
+func organikEvaluasiModalData(assignmentID, namaUsaha string, slsID int, sp struct {
+	NamaSLS, NamaKec, NamaDesa, NamaPPL, NamaPML string
+}) map[string]interface{} {
+	return map[string]interface{}{
 		"AssignmentID": assignmentID,
 		"NamaUsaha":    namaUsaha,
 		"SLSID":        slsID,
@@ -119,7 +117,19 @@ func OrganikPerbaikanModal(c echo.Context) error {
 		"FasihLink":    fasihSMLink(assignmentID),
 		"Items":        loadPerbaikanItems(assignmentID),
 		"JenisOpts":    models.JenisKesalahanOptions,
-	})
+		"RincianOpts":  models.RincianKuesionerList,
+	}
+}
+
+// OrganikPerbaikanModal — GET /organik/assignment/:assignment_id/perbaikan/modal
+func OrganikPerbaikanModal(c echo.Context) error {
+	assignmentID := c.Param("assignment_id")
+	namaUsaha, slsID, sp, ok := evaluasiAssignmentInfo(assignmentID)
+	if !ok {
+		return c.String(http.StatusNotFound, "Assignment tidak ditemukan")
+	}
+
+	return c.Render(http.StatusOK, "organik_evaluasi_modal.html", organikEvaluasiModalData(assignmentID, namaUsaha, slsID, sp))
 }
 
 // OrganikSavePerbaikan — POST /organik/assignment/:assignment_id/perbaikan
@@ -178,19 +188,7 @@ func OrganikSavePerbaikan(c echo.Context) error {
 		c.Response().Header().Set("HX-Trigger", `{"showToast":{"msg":"Gagal menyimpan: pastikan semua field wajib terisi.","kind":"error"}}`)
 	}
 
-	return c.Render(http.StatusOK, "organik_evaluasi_modal.html", map[string]interface{}{
-		"AssignmentID": assignmentID,
-		"NamaUsaha":    namaUsaha,
-		"SLSID":        slsID,
-		"NamaSLS":      sp.NamaSLS,
-		"NamaKec":      sp.NamaKec,
-		"NamaDesa":     sp.NamaDesa,
-		"NamaPPL":      sp.NamaPPL,
-		"NamaPML":      sp.NamaPML,
-		"FasihLink":    fasihSMLink(assignmentID),
-		"Items":        loadPerbaikanItems(assignmentID),
-		"JenisOpts":    models.JenisKesalahanOptions,
-	})
+	return c.Render(http.StatusOK, "organik_evaluasi_modal.html", organikEvaluasiModalData(assignmentID, namaUsaha, slsID, sp))
 }
 
 // OrganikEvaluasiTable — GET /organik/evaluasi

@@ -55,10 +55,12 @@
             class="perbaikan-item-remove hidden absolute top-2 right-2 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
-          <div>
+          <div class="relative rincian-input-wrap">
             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Rincian Kuesioner <span class="text-red-500">*</span></label>
-            <input type="text" name="rincian_kuesioner[]" required maxlength="150" placeholder="mis. Blok IV Rincian 401"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <input type="text" name="rincian_kuesioner[]" required maxlength="150" autocomplete="off"
+              placeholder="Cari blok/rincian, mis. &quot;KBLI&quot; atau ketik bebas..."
+              class="rincian-input w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <div class="rincian-results hidden absolute z-30 left-0 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg mt-1 max-h-56 overflow-y-auto"></div>
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Jenis Kesalahan <span class="text-red-500">*</span></label>
@@ -116,6 +118,7 @@
       var clone = first.cloneNode(true);
       clone.querySelectorAll('input, textarea').forEach(function(el) { el.value = ''; });
       clone.querySelectorAll('select').forEach(function(el) { el.selectedIndex = 0; });
+      clone.querySelectorAll('.rincian-results').forEach(function(el) { el.innerHTML = ''; el.classList.add('hidden'); });
       container.appendChild(clone);
       refreshRemoveButtons();
     };
@@ -125,6 +128,47 @@
       refreshRemoveButtons();
     };
     refreshRemoveButtons();
+
+    // ===== Dropdown-search "Rincian Kuesioner" — daftar resmi kuesioner
+    // SE2026-L (client-side, statis), tapi field tetap input bebas supaya
+    // organik masih bisa mengetik rincian sub-item spesifik yang tidak ada
+    // di daftar utama. Event delegation di #modal-content (bukan per-input)
+    // supaya otomatis jalan juga untuk baris hasil "Tambah Rincian Lain".
+    window.RINCIAN_KUESIONER_LIST = {{.RincianOpts}};
+    var modalContent = document.getElementById('modal-content');
+    if (modalContent && !modalContent.dataset.rincianBound) {
+      modalContent.dataset.rincianBound = '1';
+      modalContent.addEventListener('input', function(e) {
+        if (!e.target.classList || !e.target.classList.contains('rincian-input')) return;
+        var box = e.target.parentElement.querySelector('.rincian-results');
+        var q = e.target.value.trim().toLowerCase();
+        if (!q) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+        var list = window.RINCIAN_KUESIONER_LIST || [];
+        var matches = list.filter(function(s) { return s.toLowerCase().indexOf(q) !== -1; }).slice(0, 8);
+        if (matches.length === 0) {
+          box.innerHTML = '<div class="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">Tidak ada di daftar resmi — tetap bisa disimpan sebagai teks bebas</div>';
+        } else {
+          box.innerHTML = matches.map(function(s) {
+            var div = document.createElement('div');
+            div.textContent = s;
+            return '<div class="rincian-opt px-3 py-2 text-sm cursor-pointer hover:bg-orange-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700 last:border-0">' + div.innerHTML + '</div>';
+          }).join('');
+        }
+        box.classList.remove('hidden');
+      });
+      modalContent.addEventListener('click', function(e) {
+        var opt = e.target.closest('.rincian-opt');
+        if (opt) {
+          var wrap = opt.closest('.rincian-input-wrap');
+          wrap.querySelector('.rincian-input').value = opt.textContent;
+          opt.closest('.rincian-results').classList.add('hidden');
+          return;
+        }
+        if (!e.target.closest('.rincian-input-wrap')) {
+          modalContent.querySelectorAll('.rincian-results').forEach(function(b) { b.classList.add('hidden'); });
+        }
+      });
+    }
   })();
 </script>
 {{end}}

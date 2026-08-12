@@ -1,0 +1,90 @@
+package models
+
+// RincianKuesionerList — daftar referensi rincian kuesioner SE2026-L (Pendataan
+// Lengkap Usaha/Perusahaan, lihat kuesioner/26.06.14 SE2026-L.pdf) dipakai
+// sebagai opsi dropdown-search pada field "Rincian Kuesioner" di fitur Evaluasi
+// Organik. Daftar per rincian utama (bukan per sub-item huruf a/b/c) supaya
+// tetap ringkas; organik tetap bisa mengetik rincian sub-item spesifik sendiri
+// karena field ini tetap input teks bebas (datalist, bukan select tertutup).
+var RincianKuesionerList = []string{
+	// Blok I : Keterangan Umum Keluarga
+	"Blok I R.1 — Nama, NIK, dan Nomor KK Kepala Keluarga",
+	"Blok I R.2 — Jumlah anggota keluarga sesuai KK dan hasil pendataan",
+	"Blok I R.3 — Alamat keluarga (provinsi s.d. SLS, RT/RW)",
+	"Blok I R.4 — Kesesuaian alamat dengan Kartu Keluarga",
+	"Blok I R.5 — Nomor urut anggota keluarga",
+	"Blok I R.6 — Nama anggota keluarga",
+	"Blok I R.7 — Nomor Induk Kependudukan (NIK) anggota keluarga",
+	"Blok I R.8 — Hubungan dengan Kepala Keluarga",
+	"Blok I R.9 — Keberadaan dan alamat domisili anggota keluarga",
+	"Blok I R.10 — Provinsi/Kabupaten/Kota atau negara domisili",
+	"Blok I R.11 — Status perkawinan",
+	"Blok I R.12 — Jenis kelamin",
+	"Blok I R.13 — Tanggal lahir dan umur",
+
+	// Blok II : Keterangan Usaha/Perusahaan
+	"Blok II R.1 — Provinsi (diisi BPS)",
+	"Blok II R.2 — Kabupaten/Kota (diisi BPS)",
+	"Blok II R.3 — Kecamatan (diisi BPS)",
+	"Blok II R.4 — Kelurahan/Desa/Nagari (diisi BPS)",
+	"Blok II R.5 — Nama dan Nomor SLS/Sub-SLS (diisi BPS)",
+	"Blok II R.6 — Nomor Bangunan (diisi BPS)",
+	"Blok II R.7 — Nomor Urut Usaha/Perusahaan (diisi BPS)",
+	"Blok II R.8 — Nama dan alamat usaha/perusahaan",
+	"Blok II R.9 — Jenis usaha/perusahaan dan lokasi utama",
+	"Blok II R.10 — Nomor Induk Berusaha (NIB)",
+	"Blok II R.11 — Status badan usaha",
+	"Blok II R.12 — Nama, jenis kelamin, umur, NIK pengusaha/penanggung jawab",
+	"Blok II R.13 — Kegiatan utama, input-proses-output, produk utama, dan KBLI",
+	"Blok II R.14 — Jaringan usaha (tunggal/kantor pusat/cabang/dll)",
+	"Blok II R.15 — Informasi kantor pusat",
+	"Blok II R.16 — Penggunaan internet dalam menjalankan usaha",
+	"Blok II R.17 — Produksi barang/jasa ramah lingkungan",
+	"Blok II R.18 — Penggunaan produk karya seni/desain/teknologi/warisan budaya",
+	"Blok II R.19 — Sertifikasi halal (BPJPH)",
+	"Blok II R.20 — Izin edar (BPOM)",
+	"Blok II R.21 — Kemitraan dengan Koperasi Desa/Kelurahan Merah Putih (KDKMP)",
+	"Blok II R.22 — Keterlibatan program Makan Bergizi Gratis (MBG)",
+	"Blok II R.23 — Penjualan/pembelian dengan bukan penduduk Indonesia",
+	"Blok II R.24 — Jumlah pekerja",
+	"Blok II R.25 — Tahun mulai beroperasi komersial",
+	"Blok II R.26 — Rincian pengeluaran tahun 2025",
+	"Blok II R.27 — Rincian nilai produksi/penjualan/pendapatan tahun 2025",
+	"Blok II R.28 — Nilai aset per 31 Desember 2025",
+	"Blok II R.29 — Susunan kepemilikan modal per 31 Desember 2025",
+	"Blok II R.30 — Rincian pengeluaran sebulan terakhir",
+	"Blok II R.31 — Rincian nilai produksi/penjualan/pendapatan sebulan terakhir",
+	"Blok II R.32 — Nilai aset akhir bulan lalu",
+	"Blok II R.33 — Susunan kepemilikan modal saat didirikan",
+
+	// Blok III : Keterangan Sosial Ekonomi Anggota Keluarga
+	"Blok III R.14 — Partisipasi sekolah",
+	"Blok III R.15 — Ijazah/STTB tertinggi yang dimiliki",
+	"Blok III R.16 — Profesi pekerjaan utama",
+	"Blok III R.17 — Status kedudukan dalam pekerjaan utama",
+	"Blok III R.18 — Pendapatan dari pekerjaan/usaha/pendapatan lain sebulan",
+	"Blok III R.19 — Kepemilikan rekening aktif atau dompet digital",
+	"Blok III R.20 — Disabilitas",
+	"Blok III R.21 — Keluhan kesehatan kronis/menahun",
+
+	// Blok IV : Keterangan Sosial Ekonomi Keluarga
+	"Blok IV R.1 — Jenis bangunan tempat tinggal",
+	"Blok IV R.2 — Jumlah keluarga dalam 1 rumah/tempat tinggal",
+	"Blok IV R.3 — Status kepemilikan bangunan tempat tinggal",
+	"Blok IV R.4 — Perkiraan sewa/nilai kontrak sebulan",
+	"Blok IV R.5 — Luas lantai bangunan tempat tinggal",
+	"Blok IV R.6 — Bahan bangunan utama lantai dan kondisinya",
+	"Blok IV R.7 — Bahan bangunan utama dinding dan kondisinya",
+	"Blok IV R.8 — Bahan bangunan utama atap dan kondisinya",
+	"Blok IV R.9 — Fasilitas tempat buang air besar",
+	"Blok IV R.10 — Jenis kloset yang digunakan",
+	"Blok IV R.11 — Tempat pembuangan akhir tinja",
+	"Blok IV R.12 — Sumber air minum utama",
+	"Blok IV R.13 — Sumber penerangan utama rumah",
+	"Blok IV R.14 — Jumlah dan daya meteran listrik",
+	"Blok IV R.15 — Pengeluaran listrik serta pulsa/internet sebulan",
+	"Blok IV R.16 — Pengeluaran makanan dan bukan makanan keluarga",
+	"Blok IV R.17 — Kepemilikan aset (gas, kulkas, AC, emas, dll)",
+	"Blok IV R.18 — Kepemilikan aset tidak bergerak (tanah/rumah di tempat lain)",
+	"Blok IV R.19 — Foto rumah (tampak depan dan ruang tamu)",
+}
