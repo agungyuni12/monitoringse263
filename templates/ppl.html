@@ -83,6 +83,10 @@
         class="tab-btn px-4 py-2 rounded-xl text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
         Anomali
       </button>
+      <button onclick="switchTab('perbaikan')" id="tab-perbaikan"
+        class="tab-btn px-4 py-2 rounded-xl text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
+        Perbaikan Kuesioner
+      </button>
     </div>
 
     <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm overflow-hidden">
@@ -142,6 +146,24 @@
         <div id="ppl-anomali-result"
           hx-get="/ppl/anomali" hx-trigger="load" hx-swap="innerHTML">
           <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat data anomali...</div>
+        </div>
+      </div>
+
+      <!-- TAB: Perbaikan Kuesioner -->
+      <div id="panel-perbaikan" class="tab-panel">
+        <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="ppl-perbaikan-filter-bar">
+          <select name="status"
+            hx-get="/ppl/perbaikan/table" hx-target="#ppl-perbaikan-result" hx-swap="innerHTML"
+            hx-trigger="change" hx-include="#ppl-perbaikan-filter-bar"
+            class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100">
+            <option value="">Semua Status</option>
+            <option value="open">Terbuka</option>
+            <option value="resolved">Selesai</option>
+          </select>
+        </div>
+        <div id="ppl-perbaikan-result"
+          hx-get="/ppl/perbaikan/table" hx-trigger="load, refreshEvaluasi from:body" hx-swap="innerHTML">
+          <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat catatan perbaikan...</div>
         </div>
       </div>
     </div>

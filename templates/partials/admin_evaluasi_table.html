@@ -1,0 +1,52 @@
+{{define "admin_evaluasi_table.html"}}
+{{if .Rows}}
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+      <tr>
+        {{template "sortable_th" dict "Label" "Tanggal" "Col" "tanggal" "PageInfo" .PageInfo "Class" "px-4 py-3"}}
+        {{template "sortable_th" dict "Label" "Organik" "Col" "organik" "PageInfo" .PageInfo "Class" "px-4 py-3"}}
+        {{template "sortable_th" dict "Label" "SLS / Lokasi" "Col" "sls" "PageInfo" .PageInfo "Class" "px-4 py-3"}}
+        {{template "sortable_th" dict "Label" "PPL" "Col" "ppl" "PageInfo" .PageInfo "Class" "px-4 py-3"}}
+        {{template "sortable_th" dict "Label" "PML" "Col" "pml" "PageInfo" .PageInfo "Class" "px-4 py-3"}}
+        <th class="px-4 py-3 text-left">Rincian Kuesioner</th>
+        <th class="px-4 py-3 text-left">Jenis</th>
+        {{template "sortable_th" dict "Label" "Status" "Col" "status" "PageInfo" .PageInfo "Class" "px-4 py-3" "Center" true}}
+        <th class="px-4 py-3 text-left">Tindak Lanjut</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50 dark:divide-gray-800">
+      {{range .Rows}}
+      <tr class="hover:bg-orange-50 dark:hover:bg-gray-800 transition-colors">
+        <td class="px-4 py-3 whitespace-nowrap text-gray-700 dark:text-gray-300">{{.CreatedAt}}</td>
+        <td class="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">{{.NamaOrganik}}</td>
+        <td class="px-4 py-3">
+          <div class="font-medium text-gray-800 dark:text-gray-100">{{.NamaSLS}}</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">{{.NamaDesa}}, Kec. {{.NamaKec}}</div>
+        </td>
+        <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{.NamaPPL}}</td>
+        <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{.NamaPML}}</td>
+        <td class="px-4 py-3 text-gray-700 dark:text-gray-300 max-w-[14rem]">
+          <div class="truncate" title="{{.RincianKuesioner}}">{{.RincianKuesioner}}</div>
+          <div class="text-xs text-gray-400 dark:text-gray-500 truncate" title="{{.Rekomendasi}}">{{.Rekomendasi}}</div>
+        </td>
+        <td class="px-4 py-3">{{template "jenis_kesalahan_badge" .JenisKesalahan}}</td>
+        <td class="px-4 py-3 text-center">{{template "perbaikan_status_badge" .Status}}</td>
+        <td class="px-4 py-3 text-gray-700 dark:text-gray-300 max-w-xs">
+          {{if eq .Status "resolved"}}
+          <div class="truncate" title="{{.CatatanTindakLanjut}}">{{.CatatanTindakLanjut}}</div>
+          <div class="text-xs text-gray-400 dark:text-gray-500">oleh {{.TindakLanjutByName}} &bull; {{.TindakLanjutAt}}</div>
+          {{else}}
+          <span class="text-gray-300 dark:text-gray-600">—</span>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{if .PageInfo}}{{template "pagination" .PageInfo}}{{end}}
+{{else}}
+<div class="px-6 py-10 text-center text-gray-400 dark:text-gray-500 text-sm">Belum ada data evaluasi organik.</div>
+{{end}}
+{{end}}

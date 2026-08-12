@@ -1,0 +1,56 @@
+{{define "organik_evaluasi_table.html"}}
+{{if .Rows}}
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 dark:bg-gray-800/60 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+      <tr>
+        <th class="px-4 py-3 text-left">Terakhir Dicatat</th>
+        <th class="px-4 py-3 text-left">Assignment / Usaha</th>
+        <th class="px-4 py-3 text-left">SLS / Lokasi</th>
+        <th class="px-4 py-3 text-center">Catatan</th>
+        <th class="px-4 py-3 text-center">Status</th>
+        <th class="px-4 py-3 text-right">Aksi</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50 dark:divide-gray-800">
+      {{range .Rows}}
+      <tr class="hover:bg-orange-50 dark:hover:bg-gray-800/60 transition-colors">
+        <td class="px-4 py-3 whitespace-nowrap text-gray-700 dark:text-gray-300">{{.CreatedAt}}</td>
+        <td class="px-4 py-3">
+          <div class="font-medium text-gray-800 dark:text-gray-100">{{.NamaUsaha}}</div>
+          <div class="text-xs text-gray-400 dark:text-gray-500 font-mono">{{.AssignmentID}}</div>
+        </td>
+        <td class="px-4 py-3">
+          <div class="text-gray-700 dark:text-gray-300">{{.NamaSLS}}</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">{{.NamaDesa}}, Kec. {{.NamaKec}}</div>
+        </td>
+        <td class="px-4 py-3 text-center font-semibold text-se">{{.JmlPerbaikan}}</td>
+        <td class="px-4 py-3 text-center">
+          {{if eq .JmlOpen 0}}
+          {{template "perbaikan_status_badge" "resolved"}}
+          {{else}}
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">{{.JmlOpen}} terbuka</span>
+          {{end}}
+        </td>
+        <td class="px-4 py-3 text-right">
+          <button
+            hx-get="/organik/assignment/{{urlPathEscape .AssignmentID}}/perbaikan/modal"
+            hx-target="#modal-content"
+            hx-swap="innerHTML"
+            hx-on::after-request="openModal()"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-se hover:bg-se-dark text-white text-xs font-semibold rounded-lg transition-colors">
+            Kelola
+          </button>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{if .PageInfo}}{{template "pagination" .PageInfo}}{{end}}
+{{else}}
+<div class="px-6 py-10 text-center text-gray-400 dark:text-gray-500 text-sm">
+  Belum ada assignment yang dievaluasi. Gunakan pencarian di atas untuk mulai mencatat perbaikan.
+</div>
+{{end}}
+{{end}}

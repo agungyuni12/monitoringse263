@@ -1,0 +1,76 @@
+{{define "pml_perbaikan_table.html"}}
+{{if .Rows}}
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 dark:bg-gray-800/60 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+      <tr>
+        <th class="px-4 py-3 text-left">Tanggal</th>
+        <th class="px-4 py-3 text-left">SLS / Usaha</th>
+        <th class="px-4 py-3 text-left">Rincian Kuesioner</th>
+        <th class="px-4 py-3 text-left">Jenis</th>
+        <th class="px-4 py-3 text-left">Rekomendasi Organik</th>
+        <th class="px-4 py-3 text-center">Status</th>
+        <th class="px-4 py-3 text-right">Aksi</th>
+      </tr>
+    </thead>
+    <tbody id="perbaikan-tbody" class="divide-y divide-gray-50 dark:divide-gray-800">
+      {{range .Rows}}{{template "pml_perbaikan_row.html" dict "Row" . "BasePath" $.BasePath}}{{end}}
+    </tbody>
+  </table>
+</div>
+{{if .PageInfo}}{{template "pagination" .PageInfo}}{{end}}
+{{else}}
+<div class="px-6 py-10 text-center text-gray-400 dark:text-gray-500 text-sm">Belum ada catatan perbaikan kuesioner.</div>
+{{end}}
+{{end}}
+
+{{define "pml_perbaikan_row.html"}}
+{{$r := .Row}}
+<tr id="perbaikan-row-{{$r.ID}}" class="hover:bg-orange-50 dark:hover:bg-gray-800/60 transition-colors">
+  <td class="px-4 py-3 whitespace-nowrap text-gray-700 dark:text-gray-300">{{$r.CreatedAt}}</td>
+  <td class="px-4 py-3">
+    <div class="font-medium text-gray-800 dark:text-gray-100">{{$r.NamaSLS}}</div>
+    <div class="text-xs text-gray-500 dark:text-gray-400">{{$r.NamaUsaha}}</div>
+  </td>
+  <td class="px-4 py-3 text-gray-700 dark:text-gray-300 max-w-[14rem]">
+    <div class="truncate" title="{{$r.RincianKuesioner}}">{{$r.RincianKuesioner}}</div>
+  </td>
+  <td class="px-4 py-3">{{template "jenis_kesalahan_badge" $r.JenisKesalahan}}</td>
+  <td class="px-4 py-3 text-gray-700 dark:text-gray-300 max-w-xs">
+    <div class="truncate" title="{{$r.Rekomendasi}}">{{$r.Rekomendasi}}</div>
+  </td>
+  <td class="px-4 py-3 text-center">{{template "perbaikan_status_badge" $r.Status}}</td>
+  <td class="px-4 py-3 text-right">
+    {{if eq $r.Status "open"}}
+    <button type="button" onclick="document.getElementById('perbaikan-tl-{{$r.ID}}').classList.toggle('hidden')"
+      class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-se hover:bg-se-dark text-white text-xs font-semibold rounded-lg transition-colors">
+      Tindak Lanjut
+    </button>
+    {{else}}
+    <span class="text-xs text-gray-400 dark:text-gray-500">oleh {{$r.TindakLanjutByName}}</span>
+    {{end}}
+  </td>
+</tr>
+{{if eq $r.Status "open"}}
+<tr id="perbaikan-tl-{{$r.ID}}" class="hidden bg-orange-50/60 dark:bg-gray-800/40">
+  <td colspan="7" class="px-4 py-3">
+    <form
+      hx-post="{{.BasePath}}/perbaikan/{{$r.ID}}/tindak-lanjut"
+      hx-target="#perbaikan-row-{{$r.ID}}"
+      hx-swap="outerHTML"
+      class="flex flex-col sm:flex-row gap-2 items-start sm:items-end">
+      <div class="flex-1 w-full">
+        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Catatan Penanganan <span class="text-red-500">*</span></label>
+        <textarea name="catatan_tindak_lanjut" rows="2" required placeholder="Jelaskan perbaikan yang sudah dilakukan..."
+          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se resize-none"></textarea>
+      </div>
+      <input type="hidden" name="status" value="resolved"/>
+      <button type="submit"
+        class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors whitespace-nowrap">
+        Tandai Selesai
+      </button>
+    </form>
+  </td>
+</tr>
+{{end}}
+{{end}}

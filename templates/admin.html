@@ -86,6 +86,11 @@
               <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3" stroke-width="1.5"/></svg>
               <span class="sidebar-label">Pengawasan Organik</span>
             </button>
+            <button onclick="switchTab('evaluasi')" id="tab-evaluasi" title="Evaluasi Organik"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span class="sidebar-label">Evaluasi Organik</span>
+            </button>
             <button onclick="switchTab('sls')" id="tab-sls" title="Progres Semua SLS"
               class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
               <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 4h6a1 1 0 011 1v1H8V5a1 1 0 011-1z"/><rect x="5" y="6" width="14" height="15" rx="2" stroke-width="1.5"/><path stroke-linecap="round" stroke-width="1.5" d="M8.5 12h7M8.5 16h5"/></svg>
@@ -348,6 +353,50 @@
           </div>
           <div id="admin-organik-wrap">
             {{template "admin_organik_table.html" .}}
+          </div>
+        </div>
+
+        <!-- TAB: Evaluasi Organik -->
+        <div id="panel-evaluasi" class="tab-panel">
+          <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="evaluasi-filter-bar">
+            <input type="text" name="q"
+              hx-get="/admin/table/evaluasi-organik" hx-target="#admin-evaluasi-wrap" hx-swap="innerHTML"
+              hx-trigger="input changed delay:300ms" hx-include="#evaluasi-filter-bar"
+              placeholder="Cari organik, SLS, rincian kuesioner..."
+              class="w-full md:w-72 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="kec"
+              hx-get="/admin/table/evaluasi-organik" hx-target="#admin-evaluasi-wrap" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#evaluasi-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Kecamatan</option>
+              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
+            </select>
+            <select name="pml_id"
+              hx-get="/admin/table/evaluasi-organik" hx-target="#admin-evaluasi-wrap" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#evaluasi-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PML</option>
+              {{range .PMLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <select name="ppl_id"
+              hx-get="/admin/table/evaluasi-organik" hx-target="#admin-evaluasi-wrap" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#evaluasi-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PPL</option>
+              {{range .PPLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <select name="status"
+              hx-get="/admin/table/evaluasi-organik" hx-target="#admin-evaluasi-wrap" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#evaluasi-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Status</option>
+              <option value="open">Terbuka</option>
+              <option value="resolved">Selesai</option>
+            </select>
+          </div>
+          <div id="admin-evaluasi-wrap"
+            hx-get="/admin/table/evaluasi-organik" hx-trigger="load" hx-swap="innerHTML">
+            <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat data evaluasi organik...</div>
           </div>
         </div>
 

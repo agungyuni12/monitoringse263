@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"monitoringse/db"
@@ -37,7 +38,9 @@ func main() {
 
 	// Load all templates
 	funcMap := template.FuncMap{
-		"statusLabel": models.StatusLabelOf,
+		"statusLabel":          models.StatusLabelOf,
+		"jenisKesalahanLabel":  models.JenisKesalahanLabelOf,
+		"perbaikanStatusLabel": models.PerbaikanStatusLabelOf,
 		// pct: untuk display teks — return "45,67" (koma Indonesia)
 		"pct": func(a, b int) string {
 			if b == 0 {
@@ -78,6 +81,12 @@ func main() {
 			return d, nil
 		},
 		"list": func(values ...interface{}) []interface{} { return values },
+		// urlPathEscape: assignment_id kadang komposit "{uuid}#{index}" (lihat
+		// fasihSMLink di handlers/tidak_ditemukan.go) — "#" harus di-escape jadi
+		// "%23" kalau diselipkan ke URL path (hx-get/hx-post), karena kalau
+		// mentah browser bakal menganggapnya fragment identifier dan motong
+		// sisa path setelahnya sebelum request terkirim.
+		"urlPathEscape": url.PathEscape,
 	}
 
 	tmpl := template.New("").Funcs(funcMap)
@@ -112,6 +121,8 @@ func main() {
 	ppl.GET("/sls/:id/form", handlers.PPLFormModal)
 	ppl.POST("/sls/:id/save", handlers.PPLSaveProgress)
 	ppl.GET("/anomali", handlers.PPLAnomali)
+	ppl.GET("/perbaikan/table", handlers.PerbaikanTable)
+	ppl.POST("/perbaikan/:id/tindak-lanjut", handlers.PerbaikanTindakLanjut)
 
 	// PML routes
 	pmlGrp := e.Group("/pml", mw.RequireAuth, mw.RequireRole("pml"))
@@ -121,6 +132,8 @@ func main() {
 	pmlGrp.POST("/sls/:id/save", handlers.PMLSaveVerif)
 	pmlGrp.GET("/anomali", handlers.PMLAnomali)
 	pmlGrp.GET("/progres-ppl", handlers.PMLProgresPPL)
+	pmlGrp.GET("/perbaikan/table", handlers.PerbaikanTable)
+	pmlGrp.POST("/perbaikan/:id/tindak-lanjut", handlers.PerbaikanTindakLanjut)
 
 	// Admin routes
 	adminGrp := e.Group("/admin", mw.RequireAuth, mw.RequireRole("admin"))
@@ -159,12 +172,17 @@ func main() {
 	adminGrp.GET("/download/tidak-ditemukan-rekap", handlers.DownloadTidakDitemukanRekap)
 	adminGrp.GET("/download/usaha-ekonomi", handlers.DownloadUsahaEkonomi)
 	adminGrp.POST("/sync/fasih", handlers.AdminSyncFasih)
+	adminGrp.GET("/table/evaluasi-organik", handlers.AdminEvaluasiOrganikTable)
 
 	// Organik routes
 	orgGrp := e.Group("/organik", mw.RequireAuth, mw.RequireRole("organik"))
 	orgGrp.GET("", handlers.OrganikDashboard)
 	orgGrp.GET("/sls/search", handlers.OrganikSearchSLS)
 	orgGrp.POST("/laporan", handlers.OrganikSaveLaporan)
+	orgGrp.GET("/evaluasi", handlers.OrganikEvaluasiTable)
+	orgGrp.GET("/assignment/search", handlers.OrganikAssignmentSearch)
+	orgGrp.GET("/assignment/:assignment_id/perbaikan/modal", handlers.OrganikPerbaikanModal)
+	orgGrp.POST("/assignment/:assignment_id/perbaikan", handlers.OrganikSavePerbaikan)
 
 	port := "8080"
 	fmt.Printf("SIGEMPAR SE2026 – Server berjalan di http://localhost:%s\n", port)

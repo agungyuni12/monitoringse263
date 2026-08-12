@@ -89,6 +89,62 @@ func StatusLabelOf(val string) string {
 	return val
 }
 
+// EvaluasiAssignment — catatan perbaikan kuesioner per assignment (fitur
+// Evaluasi Organik). Satu assignment bisa punya banyak baris (satu per
+// rincian kuesioner yang salah).
+type EvaluasiAssignment struct {
+	ID                  int
+	OrganikID           int
+	NamaOrganik         string
+	SLSID               int
+	NamaSLS             string
+	NamaKec             string
+	NamaDesa            string
+	NamaPPL             string
+	NamaPML             string
+	AssignmentID        string
+	NamaUsaha           string
+	FasihLink           string
+	RincianKuesioner    string
+	JenisKesalahan      string
+	Rekomendasi         string
+	Status              string
+	CatatanTindakLanjut string
+	TindakLanjutByName  string
+	TindakLanjutAt      string
+	CreatedAt           string
+}
+
+var JenisKesalahanOptions = []StatusLabel{
+	{"konflik_isian", "Konflik Isian"},
+	{"nilai_ekstrem", "Nilai Ekstrem"},
+	{"tidak_konsisten", "Tidak Konsisten"},
+	{"lainnya", "Lainnya"},
+}
+
+func JenisKesalahanLabelOf(val string) string {
+	for _, s := range JenisKesalahanOptions {
+		if s.Value == val {
+			return s.Label
+		}
+	}
+	return val
+}
+
+var PerbaikanStatusOptions = []StatusLabel{
+	{"open", "Terbuka"},
+	{"resolved", "Selesai"},
+}
+
+func PerbaikanStatusLabelOf(val string) string {
+	for _, s := range PerbaikanStatusOptions {
+		if s.Value == val {
+			return s.Label
+		}
+	}
+	return val
+}
+
 // ── Pagination ──────────────────────────────────────────────────────────────
 
 const PerPage = 20

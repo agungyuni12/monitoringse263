@@ -7,9 +7,23 @@
   {{template "theme_init_script" .}}
   {{template "theme_assets" .}}
   {{template "theme_style" .}}
+  <style>
+    #toast { transition: opacity 0.4s ease, transform 0.4s ease; }
+    #toast.hide { opacity:0; transform:translateY(-1rem); pointer-events:none; }
+  </style>
 </head>
 <body class="bg-se-bg dark:bg-gray-950 min-h-screen transition-colors">
   {{template "theme_progress_bar" .}}
+
+  <!-- Toast -->
+  <div id="toast" class="hide fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium flex items-center gap-2 max-w-xs"></div>
+
+  <!-- Modal -->
+  <div id="modal-overlay" class="hidden fixed inset-0 bg-black/40 z-40 flex items-center justify-center p-4"
+       onclick="closeModal()">
+    <div id="modal-content" class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+    </div>
+  </div>
 
   {{template "app_header" dict "MaxW" "3xl" "Title" "Organik" "Subtitle" (print "SE 2026 · " .Name) "ShowKendala" true "ShowLogout" true}}
 
@@ -26,6 +40,20 @@
       Gagal menyimpan laporan. Pastikan semua field terisi dengan benar.
     </div>
     {{end}}
+
+    <!-- Tabs -->
+    <div class="pill-tabs">
+      <button onclick="switchTab('pengawasan')" id="tab-pengawasan"
+        class="tab-btn active px-4 py-2 rounded-xl text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
+        Pengawasan
+      </button>
+      <button onclick="switchTab('evaluasi')" id="tab-evaluasi"
+        class="tab-btn px-4 py-2 rounded-xl text-sm font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap hover:text-se transition-colors">
+        Evaluasi
+      </button>
+    </div>
+
+    <div id="panel-pengawasan" class="tab-panel active space-y-6">
 
     <!-- Form Input -->
     <section class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm p-6 space-y-5">
@@ -154,9 +182,78 @@
       {{end}}
     </section>
 
+    </div>
+    <!-- /panel-pengawasan -->
+
+    <!-- TAB: Evaluasi -->
+    <div id="panel-evaluasi" class="tab-panel">
+      <section class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm p-6 space-y-4 mb-6">
+        <div class="flex items-center gap-2 mb-1">
+          <div class="w-1.5 h-6 bg-se rounded-full"></div>
+          <h2 class="font-bold text-gray-800 dark:text-gray-100 text-lg">Cari Assignment untuk Dievaluasi</h2>
+        </div>
+        <div class="relative">
+          <input type="text" id="assignment-search"
+            hx-get="/organik/assignment/search"
+            hx-target="#assignment-results"
+            hx-trigger="input changed delay:250ms"
+            hx-indicator="#assignment-spin"
+            name="q"
+            placeholder="Ketik nama usaha, KK, SLS, desa, atau kecamatan..."
+            autocomplete="off"
+            class="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+          <span id="assignment-spin" class="htmx-indicator absolute right-3 top-3">
+            <svg class="w-4 h-4 animate-spin text-se" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+            </svg>
+          </span>
+          <div id="assignment-results" class="absolute z-20 left-0 right-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg mt-1 max-h-72 overflow-y-auto"></div>
+        </div>
+      </section>
+
+      <section class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+          <div class="flex items-center gap-2">
+            <div class="w-1.5 h-5 bg-se rounded-full"></div>
+            <h2 class="font-bold text-gray-800 dark:text-gray-100">Assignment yang Dievaluasi</h2>
+          </div>
+        </div>
+        <div id="evaluasi-table-wrap"
+          hx-get="/organik/evaluasi" hx-trigger="load, refreshEvaluasi from:body" hx-swap="innerHTML">
+          <div class="px-6 py-10 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat data evaluasi...</div>
+        </div>
+      </section>
+    </div>
+
   </main>
 
   <script>
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      document.getElementById('panel-' + name).classList.add('active');
+    }
+    function openModal() {
+      document.getElementById('modal-overlay').classList.remove('hidden');
+      document.getElementById('modal-overlay').classList.add('flex');
+    }
+    function closeModal() {
+      document.getElementById('modal-overlay').classList.add('hidden');
+      document.getElementById('modal-overlay').classList.remove('flex');
+    }
+    document.addEventListener('showToast', function(e) {
+      const {msg, kind} = e.detail;
+      const toast = document.getElementById('toast');
+      const colors = {success:'bg-green-600', error:'bg-red-600', warning:'bg-yellow-500'};
+      toast.className = `fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium flex items-center gap-2 max-w-xs ${colors[kind]||'bg-se'}`;
+      toast.textContent = msg;
+      toast.classList.remove('hide');
+      setTimeout(()=>toast.classList.add('hide'), 3500);
+    });
+    document.addEventListener('closeModal', closeModal);
+
     function selectSLS(id, nama, kec, desa, ppl, pml) {
       document.getElementById('sls_id').value = id;
       document.getElementById('sls-search').value = nama + ' – ' + desa + ', Kec. ' + kec;
