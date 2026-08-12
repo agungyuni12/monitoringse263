@@ -360,27 +360,36 @@
     <div id="panel-keluarga" class="tab-panel">
       <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm overflow-hidden">
         <div id="keluarga-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center">
-          <select name="level"
-            hx-get="/organik/table/keberadaan-keluarga" hx-target="#organik-keluarga-wrap" hx-swap="innerHTML" hx-include="#keluarga-filter-bar"
-            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
-            <option value="">Per SLS</option>
-            <option value="desa">Per Desa</option>
-            <option value="kec">Per Kecamatan</option>
-          </select>
           <input type="text" name="q"
-            hx-get="/organik/table/keberadaan-keluarga" hx-target="#organik-keluarga-wrap" hx-swap="innerHTML"
+            hx-get="/organik/table/keluarga" hx-target="#organik-keluarga-wrap" hx-swap="innerHTML"
             hx-trigger="input changed delay:400ms" hx-include="#keluarga-filter-bar"
-            placeholder="Cari nama SLS, PPL, PML, Desa, Kecamatan..."
+            placeholder="Cari nama, SLS, PPL, PML, Desa, Kecamatan..."
             class="w-full md:w-72 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
           <select name="kec"
-            hx-get="/organik/table/keberadaan-keluarga" hx-target="#organik-keluarga-wrap" hx-swap="innerHTML" hx-include="#keluarga-filter-bar"
+            hx-get="/organik/table/keluarga" hx-target="#organik-keluarga-wrap" hx-swap="innerHTML" hx-include="#keluarga-filter-bar"
             class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
             <option value="">Semua Kecamatan</option>
             {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
           </select>
+          <select name="pml_id" id="keluarga-pml-select"
+            hx-get="/organik/table/keluarga" hx-target="#organik-keluarga-wrap" hx-swap="innerHTML" hx-include="#keluarga-filter-bar"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+            <option value="">Semua PML</option>
+          </select>
+          <select name="ppl_id" id="keluarga-ppl-select"
+            hx-get="/organik/table/keluarga" hx-target="#organik-keluarga-wrap" hx-swap="innerHTML" hx-include="#keluarga-filter-bar"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+            <option value="">Semua PPL</option>
+          </select>
+          <label class="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 px-1 cursor-pointer select-none">
+            <input type="checkbox" name="anomali" value="1"
+              hx-get="/organik/table/keluarga" hx-target="#organik-keluarga-wrap" hx-swap="innerHTML" hx-include="#keluarga-filter-bar"
+              class="rounded border-gray-300 dark:border-gray-700 text-se focus:ring-se"/>
+            Hanya yang ada anomali
+          </label>
         </div>
         <div id="organik-keluarga-wrap"
-          hx-get="/organik/table/keberadaan-keluarga" hx-trigger="load" hx-swap="innerHTML">
+          hx-get="/organik/table/keluarga" hx-trigger="load" hx-swap="innerHTML">
           <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat data keluarga...</div>
         </div>
       </div>

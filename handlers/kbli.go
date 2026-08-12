@@ -542,18 +542,6 @@ func AdminKeberadaanKeluargaTable(c echo.Context) error {
 	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_keluarga_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-keluarga", kodeCovKeluargaAll, kodeCovKeluargaPrelist, kodeCovKeluargaBaru)
 }
 
-// OrganikKeberadaanKeluargaTable — GET /organik/table/keberadaan-keluarga
-// Tab "Keluarga" di dasbor Organik: rekap status keberadaan keluarga per SLS
-// (ditemukan, tidak ditemukan, meninggal, dll) se-kabupaten — sama datanya
-// dengan sub-tab "Keluarga" di Rekap Keberadaan Admin, dipisah jadi tab
-// tersendiri (bukan gabung dgn Usaha) sesuai permintaan.
-func OrganikKeberadaanKeluargaTable(c echo.Context) error {
-	if lvl := c.QueryParam("level"); lvl == "desa" || lvl == "kec" {
-		return adminWideAgregatGroupTable(c, "coverage_usaha_keluarga", "/organik/table/keberadaan-keluarga", "organik-keluarga-wrap", kodeCovKeluargaAll, kodeCovKeluargaPrelist, kodeCovKeluargaBaru, "Status keberadaan Keluarga", lvl)
-	}
-	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_keluarga_table.html", "organik-keluarga-wrap", "/organik/table/keberadaan-keluarga", kodeCovKeluargaAll, kodeCovKeluargaPrelist, kodeCovKeluargaBaru)
-}
-
 // OptionsPMLByKec — GET /admin/options/pml-by-kec?kec=X
 // Dipakai filter bertingkat Kecamatan → PML → PPL di Rekap Keberadaan: begitu
 // Kecamatan dipilih, dropdown PML ikut mengecil ke PML yang punya SLS di

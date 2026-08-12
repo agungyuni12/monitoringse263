@@ -234,3 +234,157 @@ func queryAdminOrganik(page int, q, sort, dir string) ([]AdminOrganikRow, models
 	}
 	return list, pageInfo
 }
+
+// ── Tab Keluarga (Organik) ──────────────────────────────────────────────────
+// Daftar per-keluarga dari tabel detail keberadaan_usaha (skala_usaha
+// mengandung "KELUARGA" — beda dgn coverage_usaha_keluarga yang cuma agregat
+// jumlah per SLS), digabung dgn flag anomali (COUNT dari tabel anomali per
+// assignment_id yang sama) supaya organik bisa langsung lihat keluarga mana
+// yang perlu diperiksa lebih lanjut.
+type KeluargaKeberadaanRow struct {
+	ID               int
+	AssignmentID     string
+	Nama             string
+	SkalaUsaha       string
+	KeberadaanKode   string
+	KeberadaanLabel  string
+	GateLabel        string
+	AssignmentStatus string
+	SyncedAt         string
+	NamaSLS          string
+	NamaKec          string
+	NamaDesa         string
+	NamaPPL          string
+	NamaPML          string
+	JmlAnomali       int
+	FasihLink        string
+}
+
+var organikKeluargaSortCols = map[string]string{
+	"nama":    "ku.nama",
+	"lokasi":  "s.nama_kec, s.nama_desa, s.nama_sls",
+	"ppl":     "ppl.name",
+	"pml":     "pml.name",
+	"status":  "ku.keberadaan_label",
+	"anomali": "jml_anomali",
+	"tanggal": "ku.synced_at",
+}
+
+// OrganikKeluargaTable — GET /organik/table/keluarga
+func OrganikKeluargaTable(c echo.Context) error {
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page < 1 {
+		page = 1
+	}
+	q := c.QueryParam("q")
+	kec := c.QueryParam("kec")
+	kecs := nonEmptyStrings([]string{kec})
+	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
+	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
+	onlyAnomali := c.QueryParam("anomali") == "1"
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
+	like := "%" + q + "%"
+
+	where := ` WHERE ku.skala_usaha LIKE '%KELUARGA%' AND (ku.nama LIKE ? OR s.nama_sls LIKE ? OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?)`
+	args := []interface{}{like, like, like, like}
+	if kec != "" {
+		where += ` AND s.nama_kec = ?`
+		args = append(args, kec)
+	}
+	if pmlID > 0 {
+		where += ` AND s.pml_id = ?`
+		args = append(args, pmlID)
+	}
+	if pplID > 0 {
+		where += ` AND s.ppl_id = ?`
+		args = append(args, pplID)
+	}
+	having := ""
+	if onlyAnomali {
+		having = ` HAVING jml_anomali > 0`
+	}
+
+	fromJoin := `
+		FROM keberadaan_usaha ku
+		JOIN sls s ON s.id = ku.sls_id
+		JOIN users ppl ON ppl.id = s.ppl_id
+		JOIN users pml ON pml.id = s.pml_id`
+
+	var total int
+	countQuery := `SELECT COUNT(*) FROM (
+		SELECT ku.id, (SELECT COUNT(*) FROM anomali a WHERE a.assignment_id = ku.assignment_id COLLATE utf8mb4_unicode_ci) AS jml_anomali
+		` + fromJoin + where + ` ` + having + `
+	) t`
+	db.DB.QueryRow(countQuery, args...).Scan(&total)
+
+	extra := ""
+	if q != "" {
+		extra += "&q=" + q
+	}
+	if kec != "" {
+		extra += "&kec=" + kec
+	}
+	if pmlID > 0 {
+		extra += "&pml_id=" + strconv.Itoa(pmlID)
+	}
+	if pplID > 0 {
+		extra += "&ppl_id=" + strconv.Itoa(pplID)
+	}
+	if onlyAnomali {
+		extra += "&anomali=1"
+	}
+
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, organikKeluargaSortCols, "s.nama_kec, s.nama_desa, s.nama_sls, ku.nama")
+	offset := (page - 1) * models.PerPage
+	pageInfo := models.NewPageInfo(page, total, "/organik/table/keluarga", "organik-keluarga-wrap", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
+
+	queryArgs := append(append([]interface{}{}, args...), models.PerPage, offset)
+	rows, err := db.DB.Query(`
+		SELECT ku.id, ku.assignment_id, COALESCE(ku.nama,''), COALESCE(ku.skala_usaha,''),
+		       COALESCE(ku.keberadaan_kode,''), COALESCE(ku.keberadaan_label,''), COALESCE(ku.gate_label,''),
+		       COALESCE(ku.assignment_status,''), COALESCE(DATE_FORMAT(ku.synced_at,'%d/%m/%Y %H:%i'),''),
+		       s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
+		       ppl.name, pml.name,
+		       (SELECT COUNT(*) FROM anomali a WHERE a.assignment_id = ku.assignment_id COLLATE utf8mb4_unicode_ci) AS jml_anomali
+		`+fromJoin+where+`
+		`+having+`
+		`+orderBy+`
+		LIMIT ? OFFSET ?`, queryArgs...)
+
+	var list []KeluargaKeberadaanRow
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var r KeluargaKeberadaanRow
+			rows.Scan(&r.ID, &r.AssignmentID, &r.Nama, &r.SkalaUsaha,
+				&r.KeberadaanKode, &r.KeberadaanLabel, &r.GateLabel,
+				&r.AssignmentStatus, &r.SyncedAt,
+				&r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML,
+				&r.JmlAnomali)
+			r.FasihLink = fasihSMLink(r.AssignmentID)
+			list = append(list, r)
+		}
+	}
+
+	pmlSelect := OOBSelect{
+		TargetID: "keluarga-pml-select", Name: "pml_id", Placeholder: "Semua PML",
+		Options: queryPMLOptionsByKec(kecs), Selected: pmlID,
+		HxGet: "/organik/table/keluarga", HxTarget: "#organik-keluarga-wrap", HxInclude: "#keluarga-filter-bar",
+	}
+	pplSelect := OOBSelect{
+		TargetID: "keluarga-ppl-select", Name: "ppl_id", Placeholder: "Semua PPL",
+		Options: queryPPLOptionsByFilter(kecs, pmlID), Selected: pplID,
+		HxGet: "/organik/table/keluarga", HxTarget: "#organik-keluarga-wrap", HxInclude: "#keluarga-filter-bar",
+	}
+
+	return c.Render(http.StatusOK, "organik_keluarga_table.html", map[string]interface{}{
+		"Rows":      list,
+		"PageInfo":  pageInfo,
+		"PMLSelect": pmlSelect,
+		"PPLSelect": pplSelect,
+	})
+}

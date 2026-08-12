@@ -1,0 +1,63 @@
+{{define "organik_keluarga_table.html"}}
+{{template "oob_select" .PMLSelect}}
+{{template "oob_select" .PPLSelect}}
+{{if .Rows}}
+<div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
+  Ditemukan <span class="font-semibold text-gray-700 dark:text-gray-300">{{.PageInfo.TotalRow}}</span> keluarga &bull; sumber: keberadaan_usaha + anomali
+</div>
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+      <tr>
+        {{template "sortable_th" dict "Label" "Nama (Suami/Istri)" "Col" "nama" "PageInfo" .PageInfo "Class" "px-4 py-3"}}
+        {{template "sortable_th" dict "Label" "SLS / Lokasi" "Col" "lokasi" "PageInfo" .PageInfo "Class" "px-4 py-3"}}
+        {{template "sortable_th" dict "Label" "PPL" "Col" "ppl" "PageInfo" .PageInfo "Class" "px-4 py-3"}}
+        {{template "sortable_th" dict "Label" "PML" "Col" "pml" "PageInfo" .PageInfo "Class" "px-4 py-3"}}
+        <th class="px-4 py-3 text-left">Skala</th>
+        {{template "sortable_th" dict "Label" "Status Keberadaan" "Col" "status" "PageInfo" .PageInfo "Class" "px-4 py-3"}}
+        <th class="px-4 py-3 text-left">Gate</th>
+        {{template "sortable_th" dict "Label" "Anomali" "Col" "anomali" "PageInfo" .PageInfo "Class" "px-4 py-3" "Center" true}}
+        {{template "sortable_th" dict "Label" "Sync Terakhir" "Col" "tanggal" "PageInfo" .PageInfo "Class" "px-4 py-3" "Center" true}}
+        <th class="px-4 py-3 text-center">FASIH</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-50 dark:divide-gray-800">
+      {{range .Rows}}
+      <tr class="hover:bg-orange-50 dark:hover:bg-gray-800 transition-colors">
+        <td class="px-4 py-3">
+          <div class="font-medium text-gray-800 dark:text-gray-100">{{if .Nama}}{{.Nama}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}</div>
+          <div class="text-xs text-gray-400 dark:text-gray-500 font-mono">{{.AssignmentID}}</div>
+        </td>
+        <td class="px-4 py-3">
+          <div class="text-gray-700 dark:text-gray-300">{{.NamaSLS}}</div>
+          <div class="text-xs text-gray-500 dark:text-gray-400">{{.NamaDesa}}, Kec. {{.NamaKec}}</div>
+        </td>
+        <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{.NamaPPL}}</td>
+        <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{.NamaPML}}</td>
+        <td class="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs max-w-[10rem] truncate" title="{{.SkalaUsaha}}">{{.SkalaUsaha}}</td>
+        <td class="px-4 py-3">
+          {{if .KeberadaanLabel}}
+          <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-se-bg dark:bg-gray-800 text-se">{{.KeberadaanLabel}}</span>
+          {{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
+        </td>
+        <td class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 max-w-[10rem] truncate" title="{{.GateLabel}}">{{if .GateLabel}}{{.GateLabel}}{{else}}-{{end}}</td>
+        <td class="px-4 py-3 text-center">
+          {{if gt .JmlAnomali 0}}
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+            {{.JmlAnomali}}
+          </span>
+          {{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
+        </td>
+        <td class="px-4 py-3 text-center text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{{if .SyncedAt}}{{.SyncedAt}}{{else}}-{{end}}</td>
+        <td class="px-4 py-3 text-center">{{template "fasih_link_btn" .FasihLink}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "pagination" .PageInfo}}
+{{else}}
+<div class="px-6 py-10 text-center text-gray-400 dark:text-gray-500 text-sm">Tidak ada data keluarga yang cocok.</div>
+{{end}}
+{{end}}
