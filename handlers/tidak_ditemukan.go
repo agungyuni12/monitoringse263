@@ -156,6 +156,25 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 	if tipe != "keluarga" && tipe != "usaha_keluarga" {
 		tipe = "usaha"
 	}
+	return tidakDitemukanTable(c, tipe, "/admin/table/tidak-ditemukan")
+}
+
+// OrganikKeluargaTable — GET /organik/table/keluarga
+// Tab "Keluarga" di dasbor Organik: persis sub-tab "Keluarga" di tab
+// Keberadaan Admin (nama KK, status keberadaan Ditemukan/Tidak Ditemukan/
+// Baru/Open, nomor KK prelist & sekarang) — bukan tabel agregat maupun
+// gabungan anomali, tipe dikunci "keluarga" (tanpa sub-tab Usaha/Rekap).
+func OrganikKeluargaTable(c echo.Context) error {
+	return tidakDitemukanTable(c, "keluarga", "/organik/table/keluarga")
+}
+
+// tidakDitemukanTable — logika bersama dipakai Admin (tipe usaha/usaha_keluarga/
+// keluarga, basePath /admin/table/tidak-ditemukan) & Organik (tipe dikunci
+// keluarga, basePath /organik/table/keluarga). Target DOM id (result wrap,
+// filter bar, PML/PPL select) sengaja tetap sama persis di kedua halaman
+// ("tidak-ditemukan-*") — masing-masing punya markup filter bar sendiri di
+// admin.html/organik.html dengan id yang sama.
+func tidakDitemukanTable(c echo.Context, tipe, basePath string) error {
 	table, extraWhere := tidakDitemukanSource(tipe)
 
 	page, _ := strconv.Atoi(c.QueryParam("page"))
@@ -196,7 +215,7 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, sortCols, "s.nama_kec, s.nama_desa, s.nama_sls, t.nama")
 
 	offset := (page - 1) * models.PerPage
-	pageInfo := models.NewPageInfo(page, total, "/admin/table/tidak-ditemukan", "tidak-ditemukan-result", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo := models.NewPageInfo(page, total, basePath, "tidak-ditemukan-result", extra+models.SortQueryString(sortCol, sortDir))
 	pageInfo.Sort = sortCol
 	pageInfo.Dir = sortDir
 	pageInfo.FilterExtra = extra
@@ -247,12 +266,12 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 	pmlSelect := OOBSelect{
 		TargetID: "tidak-ditemukan-pml-select", Name: "pml_id", Placeholder: "Semua PML",
 		Options: queryPMLOptionsByKec(kecs), Selected: pmlID,
-		HxGet: "/admin/table/tidak-ditemukan", HxTarget: "#tidak-ditemukan-result", HxInclude: "#tidak-ditemukan-filter-bar",
+		HxGet: basePath, HxTarget: "#tidak-ditemukan-result", HxInclude: "#tidak-ditemukan-filter-bar",
 	}
 	pplSelect := OOBSelect{
 		TargetID: "tidak-ditemukan-ppl-select", Name: "ppl_id", Placeholder: "Semua PPL",
 		Options: queryPPLOptionsByFilter(kecs, pmlID), Selected: pplID,
-		HxGet: "/admin/table/tidak-ditemukan", HxTarget: "#tidak-ditemukan-result", HxInclude: "#tidak-ditemukan-filter-bar",
+		HxGet: basePath, HxTarget: "#tidak-ditemukan-result", HxInclude: "#tidak-ditemukan-filter-bar",
 	}
 
 	statusOptions := keberadaanUsahaStatuses
