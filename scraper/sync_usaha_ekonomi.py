@@ -57,10 +57,15 @@ Sumber data (ditelusuri manual lewat SQL Lab — lihat percakapan):
         jarang terisi krn kepake khusus usaha baru yg lapor per bulan (bukan
         per periode survei).
       biaya_produksi/biaya_produksi_bln, gaji/gaji_bln, operasional/
-        operasional_bln, non_operasional/non_operasional_bln — satu blok
-        kuesioner ekonomi yg sama.
+        operasional_bln — satu blok kuesioner ekonomi yg sama.
       tk_dibayar (tenaga kerja dibayar, INTEGER) — blok yg sama jg.
       keg_utama (deskripsi kegiatan utama usaha).
+      luas_tanah_bln/luas_tanah_thn — BUKAN dari blok ekonomi (makanya
+        coverage-nya beda jauh): luas_tanah_thn 93,9% terisi (63.177/67.246,
+        thd scope Ditemukan/Baru), luas_tanah_bln cuma 2,6% (jarang, sama pola
+        _bln yg lain — khusus usaha yg lapor per bulan bukan per tahun).
+        Ganti biaya_non_operasional/non_operasional_bln (dibuang) krn luas
+        tanah jauh lebih lengkap datanya & lebih kepake buat profil usaha.
     Sisa kekosongan (di luar Tutup/Tidak Ditemukan/Ganda yg udah difilter)
     WAJAR (bukan trap kayak no_kk_prelist/kbli_prelist dulu) — blok ekonomi
     kuesioner emang belum semua usaha Ditemukan/Baru selesai diisi
@@ -139,7 +144,7 @@ SELECT n.assignment_id, n.index1, n.nama_usaha,
        n.total_pendapatan, n.total_pendapatan_bln, n.total_pengeluaran, n.total_pengeluaran_bln,
        n.biaya_produksi, n.biaya_produksi_bln,
        n.gaji, n.gaji_bln, n.operasional, n.operasional_bln,
-       n.non_operasional, n.non_operasional_bln,
+       n.luas_tanah_bln, n.luas_tanah_thn,
        n.tk_dibayar, n.keg_utama,
        n.level_6_full_code, n.assignment_status_alias, n.assignment_date_modified,
        r.jenis_prelist,
@@ -459,8 +464,8 @@ def ensure_tables(conn):
               gaji_bln            DOUBLE DEFAULT NULL,
               operasional         DOUBLE DEFAULT NULL,
               operasional_bln     DOUBLE DEFAULT NULL,
-              non_operasional     DOUBLE DEFAULT NULL,
-              non_operasional_bln DOUBLE DEFAULT NULL,
+              luas_tanah_bln      DOUBLE DEFAULT NULL,
+              luas_tanah_thn      DOUBLE DEFAULT NULL,
               tk_dibayar          INT DEFAULT NULL,
               keg_utama           TEXT DEFAULT NULL,
               assignment_status   VARCHAR(50) DEFAULT NULL,
@@ -495,7 +500,7 @@ def upsert_usaha_ekonomi(conn, rows, sls_map, synced_at):
                   (sls_id, assignment_id, nama_usaha, nama_kk, jenis_prelist, kategori, kbli_label,
                    pendapatan, pendapatan_bln, pengeluaran, pengeluaran_bln,
                    biaya_produksi, biaya_produksi_bln,
-                   gaji, gaji_bln, operasional, operasional_bln, non_operasional, non_operasional_bln,
+                   gaji, gaji_bln, operasional, operasional_bln, luas_tanah_bln, luas_tanah_thn,
                    tk_dibayar, keg_utama,
                    assignment_status, tanggal_modified, imported_at)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
@@ -516,8 +521,8 @@ def upsert_usaha_ekonomi(conn, rows, sls_map, synced_at):
                   gaji_bln            = VALUES(gaji_bln),
                   operasional         = VALUES(operasional),
                   operasional_bln     = VALUES(operasional_bln),
-                  non_operasional     = VALUES(non_operasional),
-                  non_operasional_bln = VALUES(non_operasional_bln),
+                  luas_tanah_bln      = VALUES(luas_tanah_bln),
+                  luas_tanah_thn      = VALUES(luas_tanah_thn),
                   tk_dibayar          = VALUES(tk_dibayar),
                   keg_utama           = VALUES(keg_utama),
                   assignment_status   = VALUES(assignment_status),
@@ -537,7 +542,7 @@ def upsert_usaha_ekonomi(conn, rows, sls_map, synced_at):
                 r.get("biaya_produksi"), r.get("biaya_produksi_bln"),
                 r.get("gaji"), r.get("gaji_bln"),
                 r.get("operasional"), r.get("operasional_bln"),
-                r.get("non_operasional"), r.get("non_operasional_bln"),
+                r.get("luas_tanah_bln"), r.get("luas_tanah_thn"),
                 r.get("tk_dibayar"),
                 r.get("keg_utama"),
                 r.get("assignment_status_alias"), r.get("assignment_date_modified"), synced_at,

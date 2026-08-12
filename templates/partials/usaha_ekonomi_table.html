@@ -24,7 +24,7 @@
           <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">Biaya Produksi</th>
           <th class="px-3 py-2.5 font-medium text-right">Gaji</th>
           <th class="px-3 py-2.5 font-medium text-right">Operasional</th>
-          <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">Non Operasional</th>
+          <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">Luas Tanah/Thn (m&sup2;)</th>
           <th class="px-3 py-2.5 font-medium text-center whitespace-nowrap">TK Dibayar</th>
           {{template "sortable_th" dict "Label" "Status Assignment" "Col" "status" "PageInfo" $.PageInfo}}
           {{template "sortable_th" dict "Label" "Tanggal Modified" "Col" "tanggal" "PageInfo" $.PageInfo "Center" true}}
@@ -67,7 +67,7 @@
           <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.BiayaProduksi}}</td>
           <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.Gaji}}</td>
           <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.Operasional}}</td>
-          <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.NonOperasional}}</td>
+          <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.LuasTanahThn}}</td>
           <td class="px-3 py-2 text-center whitespace-nowrap">{{$r.TkDibayar}}</td>
           <td class="px-3 py-2">
             {{if $r.AssignmentStatus}}

@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS usaha_ekonomi (
   gaji_bln            DOUBLE DEFAULT NULL,
   operasional         DOUBLE DEFAULT NULL,
   operasional_bln     DOUBLE DEFAULT NULL,
-  non_operasional     DOUBLE DEFAULT NULL,
-  non_operasional_bln DOUBLE DEFAULT NULL,
+  luas_tanah_bln      DOUBLE DEFAULT NULL,
+  luas_tanah_thn      DOUBLE DEFAULT NULL,
   tk_dibayar          INT DEFAULT NULL,
   keg_utama           TEXT DEFAULT NULL,
   assignment_status   VARCHAR(50) DEFAULT NULL,
@@ -38,3 +38,16 @@ CREATE TABLE IF NOT EXISTS usaha_ekonomi (
   KEY idx_ue_sls (sls_id),
   CONSTRAINT fk_ue_sls FOREIGN KEY (sls_id) REFERENCES sls (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Upgrade tabel yg udah ada dari versi sebelum luas_tanah ditambahkan (ganti
+-- non_operasional/non_operasional_bln, coverage-nya jauh lebih rendah drpd
+-- luas_tanah_thn — lihat docstring scraper/sync_usaha_ekonomi.py).
+-- SEKALI JALAN aja per environment (IF EXISTS/IF NOT EXISTS gak didukung
+-- ALTER TABLE ADD/DROP COLUMN di MySQL asli, cuma di MariaDB) — kalau tabel
+-- udah gak punya non_operasional (udah pernah di-apply), statement ini bakal
+-- error "unknown column", itu normal & aman diabaikan.
+ALTER TABLE usaha_ekonomi
+  DROP COLUMN non_operasional,
+  DROP COLUMN non_operasional_bln,
+  ADD COLUMN luas_tanah_bln DOUBLE DEFAULT NULL AFTER operasional_bln,
+  ADD COLUMN luas_tanah_thn DOUBLE DEFAULT NULL AFTER luas_tanah_bln;

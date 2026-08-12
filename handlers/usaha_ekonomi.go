@@ -35,7 +35,8 @@ type UsahaEkonomiRow struct {
 	BiayaProduksi    string
 	Gaji             string
 	Operasional      string
-	NonOperasional   string
+	LuasTanahBln     string // m², "-" kalau NULL — jarang terisi (khusus usaha yg lapor per bulan)
+	LuasTanahThn     string // m², "-" kalau NULL — coverage tinggi (93,9%, di luar blok ekonomi)
 	TkDibayar        string
 	KegUtama         string
 	AssignmentStatus string
@@ -88,6 +89,15 @@ func formatInt(v sql.NullInt64) string {
 		return "-"
 	}
 	return formatRibuan(v.Int64)
+}
+
+// formatAngka format angka bulat TANPA prefix "Rp" — dipakai buat kolom
+// non-Rupiah kayak luas_tanah (satuan m²).
+func formatAngka(v sql.NullFloat64) string {
+	if !v.Valid {
+		return "-"
+	}
+	return formatRibuan(int64(v.Float64))
 }
 
 // usahaEkonomiFilters membaca & membangun klausa WHERE, dipakai bareng oleh
@@ -189,7 +199,7 @@ func usahaEkonomiTable(c echo.Context, basePath string) error {
 		       COALESCE(t.nama_usaha,''), COALESCE(t.nama_kk,''), COALESCE(t.jenis_prelist,''),
 		       COALESCE(t.kategori,''), COALESCE(t.kbli_label,''),
 		       t.pendapatan, t.pendapatan_bln, t.pengeluaran, t.pengeluaran_bln,
-		       t.biaya_produksi, t.gaji, t.operasional, t.non_operasional,
+		       t.biaya_produksi, t.gaji, t.operasional, t.luas_tanah_bln, t.luas_tanah_thn,
 		       t.tk_dibayar,
 		       COALESCE(t.keg_utama,''),
 		       COALESCE(t.assignment_status,''),
@@ -208,13 +218,13 @@ func usahaEkonomiTable(c echo.Context, basePath string) error {
 		for rows.Next() {
 			var r UsahaEkonomiRow
 			var pendapatan, pendapatanBln, pengeluaran, pengeluaranBln sql.NullFloat64
-			var biayaProduksi, gaji, operasional, nonOperasional sql.NullFloat64
+			var biayaProduksi, gaji, operasional, luasTanahBln, luasTanahThn sql.NullFloat64
 			var tkDibayar sql.NullInt64
 			var assignmentID string
 			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML,
 				&r.NamaUsaha, &r.NamaKK, &r.JenisPrelist, &r.Kategori, &r.KBLILabel,
 				&pendapatan, &pendapatanBln, &pengeluaran, &pengeluaranBln,
-				&biayaProduksi, &gaji, &operasional, &nonOperasional,
+				&biayaProduksi, &gaji, &operasional, &luasTanahBln, &luasTanahThn,
 				&tkDibayar,
 				&r.KegUtama, &r.AssignmentStatus, &r.TanggalModified, &assignmentID)
 			r.Pendapatan = formatRupiah(pendapatan)
@@ -224,7 +234,8 @@ func usahaEkonomiTable(c echo.Context, basePath string) error {
 			r.BiayaProduksi = formatRupiah(biayaProduksi)
 			r.Gaji = formatRupiah(gaji)
 			r.Operasional = formatRupiah(operasional)
-			r.NonOperasional = formatRupiah(nonOperasional)
+			r.LuasTanahBln = formatAngka(luasTanahBln)
+			r.LuasTanahThn = formatAngka(luasTanahThn)
 			r.TkDibayar = formatInt(tkDibayar)
 			r.FasihLink = fasihSMLink(assignmentID)
 			list = append(list, r)
