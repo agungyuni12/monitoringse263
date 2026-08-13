@@ -9,6 +9,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"monitoringse/db"
+	mw "monitoringse/middleware"
 	"monitoringse/models"
 )
 
@@ -44,6 +45,13 @@ type UsahaEkonomiRow struct {
 	AssignmentStatus string
 	TanggalModified  string
 	FasihLink        string
+	// Klaim evaluasi organik (lihat handlers/organik_evaluasi.go — organik
+	// pertama yang mencatat perbaikan utk assignment ini "mengklaim"-nya).
+	// ClaimedByID 0 = belum ada organik yang klaim. Cuma dipakai/ditampilkan
+	// kalau ShowClaim true (tab Organik), tetap di-query jg utk Admin krn
+	// murah (subquery per baris halaman, bukan per seluruh tabel).
+	ClaimedByID   int
+	ClaimedByName string
 }
 
 var usahaEkonomiSortCols = map[string]string{
@@ -224,7 +232,10 @@ func usahaEkonomiTable(c echo.Context, basePath string) error {
 		       COALESCE(t.keg_utama,''),
 		       COALESCE(t.assignment_status,''),
 		       COALESCE(DATE_FORMAT(t.tanggal_modified,'%d/%m/%Y %H:%i'),''),
-		       t.assignment_id
+		       t.assignment_id,
+		       (SELECT ea.organik_id FROM evaluasi_assignment ea WHERE ea.assignment_id = t.assignment_id ORDER BY ea.created_at ASC LIMIT 1),
+		       (SELECT u2.name FROM evaluasi_assignment ea JOIN users u2 ON u2.id = ea.organik_id
+		          WHERE ea.assignment_id = t.assignment_id ORDER BY ea.created_at ASC LIMIT 1)
 		FROM usaha_ekonomi t
 		JOIN sls s ON s.id = t.sls_id
 		JOIN users ppl ON ppl.id = s.ppl_id
@@ -242,13 +253,16 @@ func usahaEkonomiTable(c echo.Context, basePath string) error {
 			var operasional, operasionalBln, luasTanahBln, luasTanahThn sql.NullFloat64
 			var tkDibayar sql.NullInt64
 			var assignmentID string
+			var claimedByID sql.NullInt64
+			var claimedByName sql.NullString
 			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML,
 				&r.NamaUsaha, &r.NamaKK, &r.JenisPrelist, &r.Kategori, &r.KBLILabel,
 				&pendapatan, &pendapatanBln, &pengeluaran, &pengeluaranBln,
 				&biayaProduksi, &biayaProduksiBln, &gaji, &gajiBln,
 				&operasional, &operasionalBln, &luasTanahBln, &luasTanahThn,
 				&tkDibayar,
-				&r.KegUtama, &r.AssignmentStatus, &r.TanggalModified, &assignmentID)
+				&r.KegUtama, &r.AssignmentStatus, &r.TanggalModified, &assignmentID,
+				&claimedByID, &claimedByName)
 			r.Pendapatan = formatRupiahBlnThn(pendapatan, pendapatanBln)
 			r.Pengeluaran = formatRupiahBlnThn(pengeluaran, pengeluaranBln)
 			r.BiayaProduksi = formatRupiahBlnThn(biayaProduksi, biayaProduksiBln)
@@ -257,6 +271,10 @@ func usahaEkonomiTable(c echo.Context, basePath string) error {
 			r.LuasTanah = formatAngkaBlnThn(luasTanahBln, luasTanahThn)
 			r.TkDibayar = formatInt(tkDibayar)
 			r.FasihLink = fasihSMLink(assignmentID)
+			if claimedByID.Valid {
+				r.ClaimedByID = int(claimedByID.Int64)
+				r.ClaimedByName = claimedByName.String
+			}
 			list = append(list, r)
 		}
 	}
@@ -273,14 +291,16 @@ func usahaEkonomiTable(c echo.Context, basePath string) error {
 	}
 
 	return c.Render(http.StatusOK, "usaha_ekonomi_table.html", map[string]interface{}{
-		"Rows":      list,
-		"PageInfo":  pageInfo,
-		"Q":         q,
-		"Kategori":  kategori,
-		"Kecs":      kecs,
-		"PmlID":     pmlID,
-		"PplID":     pplID,
-		"PMLSelect": pmlSelect,
-		"PPLSelect": pplSelect,
+		"Rows":          list,
+		"PageInfo":      pageInfo,
+		"Q":             q,
+		"Kategori":      kategori,
+		"Kecs":          kecs,
+		"PmlID":         pmlID,
+		"PplID":         pplID,
+		"PMLSelect":     pmlSelect,
+		"PPLSelect":     pplSelect,
+		"ShowClaim":     mw.SessionRole(c) == "organik",
+		"CurrentUserID": mw.SessionUserID(c),
 	})
 }

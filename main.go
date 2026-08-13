@@ -183,6 +183,7 @@ func main() {
 	orgGrp.GET("/assignment/search", handlers.OrganikAssignmentSearch)
 	orgGrp.GET("/assignment/:assignment_id/perbaikan/modal", handlers.OrganikPerbaikanModal)
 	orgGrp.POST("/assignment/:assignment_id/perbaikan", handlers.OrganikSavePerbaikan)
+	orgGrp.POST("/perbaikan/:id/tindak-lanjut", handlers.OrganikTindakLanjutPerbaikan)
 	orgGrp.GET("/table/usaha-ekonomi", handlers.OrganikUsahaEkonomiTable)
 	orgGrp.GET("/table/keluarga", handlers.OrganikKeluargaTable)
 

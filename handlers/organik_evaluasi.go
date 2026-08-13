@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"monitoringse/db"
 	mw "monitoringse/middleware"
@@ -76,6 +77,22 @@ func evaluasiAssignmentInfo(assignmentID string) (namaUsaha string, slsID int, s
 	return
 }
 
+// assignmentClaimant cari organik PERTAMA yang mencatat perbaikan utk
+// assignment ini (berdasarkan created_at paling awal) — dialah "pemilik
+// klaim" assignment tsb. Organik lain hanya boleh melihat, tidak boleh
+// menambah catatan baru (lihat organikEvaluasiModalData & OrganikSavePerbaikan).
+func assignmentClaimant(assignmentID string) (organikID int, organikName, claimedAt string, claimed bool) {
+	err := db.DB.QueryRow(`
+		SELECT ea.organik_id, u.name, COALESCE(DATE_FORMAT(ea.created_at,'%d/%m/%Y %H:%i'),'')
+		FROM evaluasi_assignment ea
+		JOIN users u ON u.id = ea.organik_id
+		WHERE ea.assignment_id = ?
+		ORDER BY ea.created_at ASC LIMIT 1`, assignmentID).
+		Scan(&organikID, &organikName, &claimedAt)
+	claimed = err == nil
+	return
+}
+
 func loadPerbaikanItems(assignmentID string) []models.EvaluasiAssignment {
 	rows, err := db.DB.Query(`
 		SELECT ea.id, ea.rincian_kuesioner, ea.jenis_kesalahan, ea.rekomendasi, ea.status,
@@ -101,35 +118,44 @@ func loadPerbaikanItems(assignmentID string) []models.EvaluasiAssignment {
 
 // organikEvaluasiModalData bangun map render "organik_evaluasi_modal.html" —
 // dipakai baik saat modal pertama dibuka (GET) maupun setelah simpan (POST),
-// supaya kedua handler tidak duplikasi daftar field.
+// supaya kedua handler tidak duplikasi daftar field. currentUserID dipakai
+// utk menentukan status klaim: kalau assignment sudah dicatat organik lain
+// (bukan currentUserID), Locked=true — template menyembunyikan form tambah
+// catatan supaya tidak ada dua organik yang evaluasi assignment yang sama.
 func organikEvaluasiModalData(assignmentID, namaUsaha string, slsID int, sp struct {
 	NamaSLS, NamaKec, NamaDesa, NamaPPL, NamaPML string
-}) map[string]interface{} {
+}, currentUserID int) map[string]interface{} {
+	claimID, claimName, claimAt, claimed := assignmentClaimant(assignmentID)
+	locked := claimed && claimID != currentUserID
 	return map[string]interface{}{
-		"AssignmentID": assignmentID,
-		"NamaUsaha":    namaUsaha,
-		"SLSID":        slsID,
-		"NamaSLS":      sp.NamaSLS,
-		"NamaKec":      sp.NamaKec,
-		"NamaDesa":     sp.NamaDesa,
-		"NamaPPL":      sp.NamaPPL,
-		"NamaPML":      sp.NamaPML,
-		"FasihLink":    fasihSMLink(assignmentID),
-		"Items":        loadPerbaikanItems(assignmentID),
-		"JenisOpts":    models.JenisKesalahanOptions,
-		"RincianOpts":  models.RincianKuesionerList,
+		"AssignmentID":  assignmentID,
+		"NamaUsaha":     namaUsaha,
+		"SLSID":         slsID,
+		"NamaSLS":       sp.NamaSLS,
+		"NamaKec":       sp.NamaKec,
+		"NamaDesa":      sp.NamaDesa,
+		"NamaPPL":       sp.NamaPPL,
+		"NamaPML":       sp.NamaPML,
+		"FasihLink":     fasihSMLink(assignmentID),
+		"Items":         loadPerbaikanItems(assignmentID),
+		"JenisOpts":     models.JenisKesalahanOptions,
+		"RincianOpts":   models.RincianKuesionerList,
+		"Locked":        locked,
+		"ClaimedByName": claimName,
+		"ClaimedAt":     claimAt,
 	}
 }
 
 // OrganikPerbaikanModal — GET /organik/assignment/:assignment_id/perbaikan/modal
 func OrganikPerbaikanModal(c echo.Context) error {
 	assignmentID := c.Param("assignment_id")
+	userID := mw.SessionUserID(c)
 	namaUsaha, slsID, sp, ok := evaluasiAssignmentInfo(assignmentID)
 	if !ok {
 		return c.String(http.StatusNotFound, "Assignment tidak ditemukan")
 	}
 
-	return c.Render(http.StatusOK, "organik_evaluasi_modal.html", organikEvaluasiModalData(assignmentID, namaUsaha, slsID, sp))
+	return c.Render(http.StatusOK, "organik_evaluasi_modal.html", organikEvaluasiModalData(assignmentID, namaUsaha, slsID, sp, userID))
 }
 
 // OrganikSavePerbaikan — POST /organik/assignment/:assignment_id/perbaikan
@@ -142,6 +168,13 @@ func OrganikSavePerbaikan(c echo.Context) error {
 	namaUsaha, slsID, sp, ok := evaluasiAssignmentInfo(assignmentID)
 	if !ok {
 		return c.String(http.StatusNotFound, "Assignment tidak ditemukan")
+	}
+
+	// Assignment yang sudah diklaim organik lain tidak boleh ditambah catatan
+	// baru oleh organik ini — cukup tampilkan ulang modal dalam mode terkunci.
+	if claimID, _, _, claimed := assignmentClaimant(assignmentID); claimed && claimID != userID {
+		c.Response().Header().Set("HX-Trigger", `{"showToast":{"msg":"Assignment ini sudah diklaim organik lain, tidak bisa menambah evaluasi.","kind":"error"}}`)
+		return c.Render(http.StatusOK, "organik_evaluasi_modal.html", organikEvaluasiModalData(assignmentID, namaUsaha, slsID, sp, userID))
 	}
 
 	if err := c.Request().ParseForm(); err != nil {
@@ -188,7 +221,46 @@ func OrganikSavePerbaikan(c echo.Context) error {
 		c.Response().Header().Set("HX-Trigger", `{"showToast":{"msg":"Gagal menyimpan: pastikan semua field wajib terisi.","kind":"error"}}`)
 	}
 
-	return c.Render(http.StatusOK, "organik_evaluasi_modal.html", organikEvaluasiModalData(assignmentID, namaUsaha, slsID, sp))
+	return c.Render(http.StatusOK, "organik_evaluasi_modal.html", organikEvaluasiModalData(assignmentID, namaUsaha, slsID, sp, userID))
+}
+
+// OrganikTindakLanjutPerbaikan — POST /organik/perbaikan/:id/tindak-lanjut
+// Organik bisa langsung menandai selesai catatan perbaikan yang dia catat
+// sendiri (tidak perlu menunggu PML/PPL) — pelengkap PerbaikanTindakLanjut di
+// handlers/pml_evaluasi.go, bukan pengganti; PML/PPL tetap bisa menindaklanjuti
+// seperti biasa dari dasbor masing-masing.
+func OrganikTindakLanjutPerbaikan(c echo.Context) error {
+	id, _ := strconv.Atoi(c.Param("id"))
+	userID := mw.SessionUserID(c)
+
+	var assignmentID string
+	var slsID int
+	err := db.DB.QueryRow(`SELECT assignment_id, sls_id FROM evaluasi_assignment WHERE id=? AND organik_id=?`, id, userID).
+		Scan(&assignmentID, &slsID)
+	if err != nil {
+		return c.String(http.StatusForbidden, "Akses ditolak — hanya organik pencatat yang bisa menindaklanjuti")
+	}
+
+	catatan := c.FormValue("catatan_tindak_lanjut")
+	if catatan == "" {
+		return c.String(http.StatusBadRequest, "Catatan penanganan wajib diisi")
+	}
+
+	_, err = db.DB.Exec(`
+		UPDATE evaluasi_assignment
+		SET status='resolved', catatan_tindak_lanjut=?, tindak_lanjut_by=?, tindak_lanjut_at=?
+		WHERE id=?`, catatan, userID, time.Now(), id)
+	if err != nil {
+		return err
+	}
+
+	namaUsaha, slsID, sp, ok := evaluasiAssignmentInfo(assignmentID)
+	if !ok {
+		return c.String(http.StatusNotFound, "Assignment tidak ditemukan")
+	}
+
+	c.Response().Header().Set("HX-Trigger", `{"showToast":{"msg":"Perbaikan ditandai selesai!","kind":"success"},"refreshEvaluasi":"true"}`)
+	return c.Render(http.StatusOK, "organik_evaluasi_modal.html", organikEvaluasiModalData(assignmentID, namaUsaha, slsID, sp, userID))
 }
 
 // OrganikEvaluasiTable — GET /organik/evaluasi

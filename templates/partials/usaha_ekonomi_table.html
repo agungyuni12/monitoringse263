@@ -8,18 +8,18 @@
   </div>
 
   <div class="overflow-x-auto">
-    <table class="w-full text-xs">
+    <table class="w-full min-w-[1180px] text-xs table-fixed">
       <thead>
         <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left uppercase tracking-wide">
-          <th class="px-3 py-2.5 font-medium text-center w-8">No</th>
-          {{template "sortable_th" dict "Label" "Lokasi (Kec / Desa / SLS)" "Col" "lokasi" "PageInfo" $.PageInfo}}
-          {{template "sortable_th" dict "Label" "Usaha" "Col" "nama" "PageInfo" $.PageInfo}}
-          {{template "sortable_th" dict "Label" "KBLI" "Col" "kbli" "PageInfo" $.PageInfo}}
-          <th class="px-3 py-2.5 font-medium">Kegiatan Utama</th>
-          {{template "sortable_th" dict "Label" "Pendapatan" "Col" "pendapatan" "PageInfo" $.PageInfo "Class" "px-3 py-2.5 font-medium text-right"}}
-          {{template "sortable_th" dict "Label" "Pengeluaran" "Col" "pengeluaran" "PageInfo" $.PageInfo "Class" "px-3 py-2.5 font-medium text-right"}}
-          <th class="px-3 py-2.5 font-medium text-right">Gaji</th>
-          <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">Luas Tanah (m&sup2;)</th>
+          <th class="px-3 py-2.5 font-medium text-center w-10">No</th>
+          {{template "sortable_th" dict "Label" "Lokasi (Kec / Desa / SLS)" "Col" "lokasi" "PageInfo" $.PageInfo "Class" "px-3 py-2.5 font-medium w-40"}}
+          {{template "sortable_th" dict "Label" "Usaha" "Col" "nama" "PageInfo" $.PageInfo "Class" "px-3 py-2.5 font-medium w-40"}}
+          {{template "sortable_th" dict "Label" "KBLI" "Col" "kbli" "PageInfo" $.PageInfo "Class" "px-3 py-2.5 font-medium w-52"}}
+          <th class="px-3 py-2.5 font-medium w-44">Kegiatan Utama</th>
+          {{template "sortable_th" dict "Label" "Pendapatan" "Col" "pendapatan" "PageInfo" $.PageInfo "Class" "px-3 py-2.5 font-medium text-right w-28"}}
+          {{template "sortable_th" dict "Label" "Pengeluaran" "Col" "pengeluaran" "PageInfo" $.PageInfo "Class" "px-3 py-2.5 font-medium text-right w-28"}}
+          <th class="px-3 py-2.5 font-medium text-right w-24">Gaji</th>
+          <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap w-24">Luas Tanah (m&sup2;)</th>
           <th class="px-3 py-2.5 font-medium text-center w-8"><span class="sr-only">Detail</span></th>
         </tr>
       </thead>
@@ -27,23 +27,38 @@
         {{range $i, $r := .Rows}}
         <tr class="usaha-ekonomi-row hover:bg-orange-50/20 dark:hover:bg-gray-800/40 transition-colors cursor-pointer" onclick="toggleUsahaEkonomiDetail({{$r.ID}})">
           <td class="px-3 py-2 text-center text-gray-400 dark:text-gray-500">{{add $.PageInfo.From $i}}</td>
-          <td class="px-3 py-2 whitespace-nowrap">
-            <div class="text-gray-400 dark:text-gray-500">{{$r.NamaKec}} › {{$r.NamaDesa}}</div>
-            <div class="font-medium text-gray-700 dark:text-gray-300">{{$r.NamaSLS}}</div>
+          <td class="px-3 py-2">
+            <div class="text-gray-400 dark:text-gray-500 truncate">{{$r.NamaKec}} › {{$r.NamaDesa}}</div>
+            <div class="font-medium text-gray-700 dark:text-gray-300 truncate">{{$r.NamaSLS}}</div>
           </td>
           <td class="px-3 py-2">
-            <div class="font-medium text-gray-800 dark:text-gray-100">{{$r.NamaUsaha}}</div>
+            <div class="font-medium text-gray-800 dark:text-gray-100 truncate">{{$r.NamaUsaha}}</div>
             {{if eq $r.JenisPrelist "keluarga"}}
-            <div class="text-gray-400 dark:text-gray-500">KK: {{if $r.NamaKK}}{{$r.NamaKK}}{{else}}-{{end}}</div>
+            <div class="text-gray-400 dark:text-gray-500 truncate">KK: {{if $r.NamaKK}}{{$r.NamaKK}}{{else}}-{{end}}</div>
+            {{end}}
+            {{if and $.ShowClaim $r.ClaimedByID}}
+              {{if eq $r.ClaimedByID $.CurrentUserID}}
+              <span class="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-se-bg dark:bg-gray-800 text-se whitespace-nowrap">
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                Klaim kamu
+              </span>
+              {{else}}
+              <span class="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 whitespace-nowrap" title="Sudah dievaluasi oleh {{$r.ClaimedByName}}">
+                <svg class="w-2.5 h-2.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                <span class="truncate max-w-[110px]">{{$r.ClaimedByName}}</span>
+              </span>
+              {{end}}
             {{end}}
           </td>
-          <td class="px-3 py-2 max-w-[200px]">
-            {{if $r.Kategori}}
-            <span class="inline-block px-1.5 py-0.5 rounded-full font-medium bg-teal-100 text-teal-700 whitespace-nowrap mr-1">{{$r.Kategori}}</span>
-            {{end}}
-            <span class="truncate" title="{{$r.KBLILabel}}">{{if $r.KBLILabel}}{{$r.KBLILabel}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}</span>
+          <td class="px-3 py-2 overflow-hidden">
+            <div class="flex items-center gap-1.5 min-w-0">
+              {{if $r.Kategori}}
+              <span class="inline-block px-1.5 py-0.5 rounded-full font-medium bg-teal-100 text-teal-700 whitespace-nowrap shrink-0">{{$r.Kategori}}</span>
+              {{end}}
+              <span class="truncate min-w-0" title="{{$r.KBLILabel}}">{{if $r.KBLILabel}}{{$r.KBLILabel}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}</span>
+            </div>
           </td>
-          <td class="px-3 py-2 max-w-[200px] truncate" title="{{$r.KegUtama}}">
+          <td class="px-3 py-2 truncate" title="{{$r.KegUtama}}">
             {{if $r.KegUtama}}{{$r.KegUtama}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
           </td>
           <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.Pendapatan}}</td>
