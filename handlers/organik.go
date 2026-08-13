@@ -82,13 +82,12 @@ func OrganikDashboard(c echo.Context) error {
 	errMsg := c.QueryParam("err")
 
 	return c.Render(http.StatusOK, "organik.html", map[string]interface{}{
-		"Name":            mw.SessionName(c),
-		"Today":           today,
-		"Laporan":         laporan,
-		"OK":              msg == "1",
-		"Err":             errMsg,
-		"KecList":         queryKecList(),
-		"EvaluasiTipeOpts": models.EvaluasiTipeOptions,
+		"Name":    mw.SessionName(c),
+		"Today":   today,
+		"Laporan": laporan,
+		"OK":      msg == "1",
+		"Err":     errMsg,
+		"KecList": queryKecList(),
 	})
 }
 

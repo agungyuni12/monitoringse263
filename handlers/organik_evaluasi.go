@@ -82,7 +82,7 @@ func OrganikAssignmentSearch(c echo.Context) error {
 	rows, err := db.DB.Query(`
 		SELECT t.assignment_id, `+nameExpr+`,
 		       s.id, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''), ppl.name,
-		       (SELECT COUNT(*) FROM evaluasi_assignment ea WHERE ea.assignment_id = t.assignment_id)
+		       (SELECT COUNT(*) FROM evaluasi_assignment ea WHERE ea.assignment_id = t.assignment_id COLLATE utf8mb4_unicode_ci)
 		FROM `+table+` t
 		JOIN sls s ON s.id = t.sls_id
 		JOIN users ppl ON ppl.id = s.ppl_id
