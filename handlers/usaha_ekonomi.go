@@ -17,26 +17,28 @@ import (
 // docstring di sana). Mencakup SEMUA usaha (semua kategori KBLI), bukan cuma
 // kategori A seperti versi awal fitur ini.
 type UsahaEkonomiRow struct {
-	ID               int
-	NamaSLS          string
-	NamaKec          string
-	NamaDesa         string
-	NamaPPL          string
-	NamaPML          string
-	NamaUsaha        string
-	NamaKK           string // kosong kalau usaha bangunan mandiri (bukan nempel roster keluarga)
-	JenisPrelist     string // "keluarga" = usaha dalam keluarga, selain itu = bangunan mandiri
-	Kategori         string // kategori KBLI 1-huruf (A-U)
-	KBLILabel        string
+	ID           int
+	NamaSLS      string
+	NamaKec      string
+	NamaDesa     string
+	NamaPPL      string
+	NamaPML      string
+	NamaUsaha    string
+	NamaKK       string // kosong kalau usaha bangunan mandiri (bukan nempel roster keluarga)
+	JenisPrelist string // "keluarga" = usaha dalam keluarga, selain itu = bangunan mandiri
+	Kategori     string // kategori KBLI 1-huruf (A-U)
+	KBLILabel    string
+	// Kolom ekonomi: masing-masing punya varian umum/tahunan + "_bln" (bulanan)
+	// di DB, tapi praktiknya cuma salah satu yang terisi per usaha (usaha lapor
+	// bulanan ATAU tahunan, jarang dua-duanya) — digabung jadi satu tampilan
+	// oleh formatRupiahBlnThn/formatAngkaBlnThn, suffix " (bln)" kalau yang
+	// terisi itu nilai bulanan.
 	Pendapatan       string // format "Rp N.NNN.NNN", "-" kalau NULL
-	PendapatanBln    string
 	Pengeluaran      string
-	PengeluaranBln   string
 	BiayaProduksi    string
 	Gaji             string
 	Operasional      string
-	LuasTanahBln     string // m², "-" kalau NULL — jarang terisi (khusus usaha yg lapor per bulan)
-	LuasTanahThn     string // m², "-" kalau NULL — coverage tinggi (93,9%, di luar blok ekonomi)
+	LuasTanah        string // m², "-" kalau NULL
 	TkDibayar        string
 	KegUtama         string
 	AssignmentStatus string
@@ -91,13 +93,30 @@ func formatInt(v sql.NullInt64) string {
 	return formatRibuan(v.Int64)
 }
 
-// formatAngka format angka bulat TANPA prefix "Rp" — dipakai buat kolom
-// non-Rupiah kayak luas_tanah (satuan m²).
-func formatAngka(v sql.NullFloat64) string {
-	if !v.Valid {
-		return "-"
+// formatRupiahBlnThn gabung kolom Rupiah umum/tahunan + bulanan jadi satu
+// tampilan — utamakan nilai bulanan kalau terisi (dikasih suffix " (bln)"
+// biar jelas beda basis waktunya dari nilai tahunan), fallback ke nilai
+// umum/tahunan. Praktiknya cuma salah satu yang pernah terisi per usaha.
+func formatRupiahBlnThn(annual, monthly sql.NullFloat64) string {
+	if monthly.Valid {
+		return "Rp " + formatRibuan(int64(monthly.Float64)) + " (bln)"
 	}
-	return formatRibuan(int64(v.Float64))
+	if annual.Valid {
+		return "Rp " + formatRibuan(int64(annual.Float64))
+	}
+	return "-"
+}
+
+// formatAngkaBlnThn — sama seperti formatRupiahBlnThn tapi tanpa prefix "Rp",
+// dipakai utk luas_tanah_bln/luas_tanah_thn (satuan m²).
+func formatAngkaBlnThn(monthly, annual sql.NullFloat64) string {
+	if monthly.Valid {
+		return formatRibuan(int64(monthly.Float64)) + " (bln)"
+	}
+	if annual.Valid {
+		return formatRibuan(int64(annual.Float64))
+	}
+	return "-"
 }
 
 // usahaEkonomiFilters membaca & membangun klausa WHERE, dipakai bareng oleh
@@ -199,7 +218,8 @@ func usahaEkonomiTable(c echo.Context, basePath string) error {
 		       COALESCE(t.nama_usaha,''), COALESCE(t.nama_kk,''), COALESCE(t.jenis_prelist,''),
 		       COALESCE(t.kategori,''), COALESCE(t.kbli_label,''),
 		       t.pendapatan, t.pendapatan_bln, t.pengeluaran, t.pengeluaran_bln,
-		       t.biaya_produksi, t.gaji, t.operasional, t.luas_tanah_bln, t.luas_tanah_thn,
+		       t.biaya_produksi, t.biaya_produksi_bln, t.gaji, t.gaji_bln,
+		       t.operasional, t.operasional_bln, t.luas_tanah_bln, t.luas_tanah_thn,
 		       t.tk_dibayar,
 		       COALESCE(t.keg_utama,''),
 		       COALESCE(t.assignment_status,''),
@@ -218,24 +238,23 @@ func usahaEkonomiTable(c echo.Context, basePath string) error {
 		for rows.Next() {
 			var r UsahaEkonomiRow
 			var pendapatan, pendapatanBln, pengeluaran, pengeluaranBln sql.NullFloat64
-			var biayaProduksi, gaji, operasional, luasTanahBln, luasTanahThn sql.NullFloat64
+			var biayaProduksi, biayaProduksiBln, gaji, gajiBln sql.NullFloat64
+			var operasional, operasionalBln, luasTanahBln, luasTanahThn sql.NullFloat64
 			var tkDibayar sql.NullInt64
 			var assignmentID string
 			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML,
 				&r.NamaUsaha, &r.NamaKK, &r.JenisPrelist, &r.Kategori, &r.KBLILabel,
 				&pendapatan, &pendapatanBln, &pengeluaran, &pengeluaranBln,
-				&biayaProduksi, &gaji, &operasional, &luasTanahBln, &luasTanahThn,
+				&biayaProduksi, &biayaProduksiBln, &gaji, &gajiBln,
+				&operasional, &operasionalBln, &luasTanahBln, &luasTanahThn,
 				&tkDibayar,
 				&r.KegUtama, &r.AssignmentStatus, &r.TanggalModified, &assignmentID)
-			r.Pendapatan = formatRupiah(pendapatan)
-			r.PendapatanBln = formatRupiah(pendapatanBln)
-			r.Pengeluaran = formatRupiah(pengeluaran)
-			r.PengeluaranBln = formatRupiah(pengeluaranBln)
-			r.BiayaProduksi = formatRupiah(biayaProduksi)
-			r.Gaji = formatRupiah(gaji)
-			r.Operasional = formatRupiah(operasional)
-			r.LuasTanahBln = formatAngka(luasTanahBln)
-			r.LuasTanahThn = formatAngka(luasTanahThn)
+			r.Pendapatan = formatRupiahBlnThn(pendapatan, pendapatanBln)
+			r.Pengeluaran = formatRupiahBlnThn(pengeluaran, pengeluaranBln)
+			r.BiayaProduksi = formatRupiahBlnThn(biayaProduksi, biayaProduksiBln)
+			r.Gaji = formatRupiahBlnThn(gaji, gajiBln)
+			r.Operasional = formatRupiahBlnThn(operasional, operasionalBln)
+			r.LuasTanah = formatAngkaBlnThn(luasTanahBln, luasTanahThn)
 			r.TkDibayar = formatInt(tkDibayar)
 			r.FasihLink = fasihSMLink(assignmentID)
 			list = append(list, r)

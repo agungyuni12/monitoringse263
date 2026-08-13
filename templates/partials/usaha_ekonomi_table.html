@@ -4,6 +4,7 @@
 <div>
   <div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
     Ditemukan <span class="font-semibold text-gray-700 dark:text-gray-300">{{.PageInfo.TotalRow}}</span> usaha
+    <span class="text-gray-300 dark:text-gray-600">&bull;</span> klik baris untuk lihat rincian lainnya
   </div>
 
   <div class="overflow-x-auto">
@@ -12,36 +13,23 @@
         <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left uppercase tracking-wide">
           <th class="px-3 py-2.5 font-medium text-center w-8">No</th>
           {{template "sortable_th" dict "Label" "Lokasi (Kec / Desa / SLS)" "Col" "lokasi" "PageInfo" $.PageInfo}}
-          {{template "sortable_th" dict "Label" "Petugas" "Col" "petugas" "PageInfo" $.PageInfo}}
           {{template "sortable_th" dict "Label" "Usaha" "Col" "nama" "PageInfo" $.PageInfo}}
-          {{template "sortable_th" dict "Label" "Kategori" "Col" "kategori" "PageInfo" $.PageInfo}}
           {{template "sortable_th" dict "Label" "KBLI" "Col" "kbli" "PageInfo" $.PageInfo}}
           <th class="px-3 py-2.5 font-medium">Kegiatan Utama</th>
-          {{template "sortable_th" dict "Label" "Pendapatan" "Col" "pendapatan" "PageInfo" $.PageInfo "Center" true}}
-          <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">Pendapatan/Bln</th>
-          {{template "sortable_th" dict "Label" "Pengeluaran" "Col" "pengeluaran" "PageInfo" $.PageInfo "Center" true}}
-          <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">Pengeluaran/Bln</th>
-          <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">Biaya Produksi</th>
+          {{template "sortable_th" dict "Label" "Pendapatan" "Col" "pendapatan" "PageInfo" $.PageInfo "Class" "px-3 py-2.5 font-medium text-right"}}
+          {{template "sortable_th" dict "Label" "Pengeluaran" "Col" "pengeluaran" "PageInfo" $.PageInfo "Class" "px-3 py-2.5 font-medium text-right"}}
           <th class="px-3 py-2.5 font-medium text-right">Gaji</th>
-          <th class="px-3 py-2.5 font-medium text-right">Operasional</th>
-          <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">Luas Tanah/Thn (m&sup2;)</th>
-          <th class="px-3 py-2.5 font-medium text-center whitespace-nowrap">TK Dibayar</th>
-          {{template "sortable_th" dict "Label" "Status Assignment" "Col" "status" "PageInfo" $.PageInfo}}
-          {{template "sortable_th" dict "Label" "Tanggal Modified" "Col" "tanggal" "PageInfo" $.PageInfo "Center" true}}
-          <th class="px-3 py-2.5 font-medium text-center">FASIH</th>
+          <th class="px-3 py-2.5 font-medium text-right whitespace-nowrap">Luas Tanah (m&sup2;)</th>
+          <th class="px-3 py-2.5 font-medium text-center w-8"><span class="sr-only">Detail</span></th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
         {{range $i, $r := .Rows}}
-        <tr class="hover:bg-orange-50/20 dark:hover:bg-gray-800/40 transition-colors">
+        <tr class="usaha-ekonomi-row hover:bg-orange-50/20 dark:hover:bg-gray-800/40 transition-colors cursor-pointer" onclick="toggleUsahaEkonomiDetail({{$r.ID}})">
           <td class="px-3 py-2 text-center text-gray-400 dark:text-gray-500">{{add $.PageInfo.From $i}}</td>
           <td class="px-3 py-2 whitespace-nowrap">
             <div class="text-gray-400 dark:text-gray-500">{{$r.NamaKec}} › {{$r.NamaDesa}}</div>
             <div class="font-medium text-gray-700 dark:text-gray-300">{{$r.NamaSLS}}</div>
-          </td>
-          <td class="px-3 py-2 whitespace-nowrap">
-            <div class="text-gray-600 dark:text-gray-400">PPL: {{$r.NamaPPL}}</div>
-            <div class="text-gray-400 dark:text-gray-500">PML: {{$r.NamaPML}}</div>
           </td>
           <td class="px-3 py-2">
             <div class="font-medium text-gray-800 dark:text-gray-100">{{$r.NamaUsaha}}</div>
@@ -49,64 +37,88 @@
             <div class="text-gray-400 dark:text-gray-500">KK: {{if $r.NamaKK}}{{$r.NamaKK}}{{else}}-{{end}}</div>
             {{end}}
           </td>
-          <td class="px-3 py-2 text-center">
+          <td class="px-3 py-2 max-w-[200px]">
             {{if $r.Kategori}}
-            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-teal-100 text-teal-700 whitespace-nowrap">{{$r.Kategori}}</span>
-            {{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
-          </td>
-          <td class="px-3 py-2 max-w-[220px] truncate" title="{{$r.KBLILabel}}">
-            {{if $r.KBLILabel}}{{$r.KBLILabel}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
+            <span class="inline-block px-1.5 py-0.5 rounded-full font-medium bg-teal-100 text-teal-700 whitespace-nowrap mr-1">{{$r.Kategori}}</span>
+            {{end}}
+            <span class="truncate" title="{{$r.KBLILabel}}">{{if $r.KBLILabel}}{{$r.KBLILabel}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}</span>
           </td>
           <td class="px-3 py-2 max-w-[200px] truncate" title="{{$r.KegUtama}}">
             {{if $r.KegUtama}}{{$r.KegUtama}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
           </td>
           <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.Pendapatan}}</td>
-          <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.PendapatanBln}}</td>
           <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.Pengeluaran}}</td>
-          <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.PengeluaranBln}}</td>
-          <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.BiayaProduksi}}</td>
           <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.Gaji}}</td>
-          <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.Operasional}}</td>
-          <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.LuasTanahThn}}</td>
-          <td class="px-3 py-2 text-center whitespace-nowrap">{{$r.TkDibayar}}</td>
-          <td class="px-3 py-2">
-            {{if $r.AssignmentStatus}}
-              {{if containsCI $r.AssignmentStatus "approved"}}
-              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
-              {{else if containsCI $r.AssignmentStatus "rejected"}}
-              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
-              {{else if containsCI $r.AssignmentStatus "revoked"}}
-              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
-              {{else if containsCI $r.AssignmentStatus "submitted"}}
-              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
-              {{else if containsCI $r.AssignmentStatus "draft"}}
-              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
-              {{else if containsCI $r.AssignmentStatus "open"}}
-              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
-              {{else}}
-              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600 dark:text-gray-400 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
-              {{end}}
-            {{else}}
-            <span class="text-gray-300 dark:text-gray-600">-</span>
-            {{end}}
-          </td>
-          <td class="px-3 py-2 text-center text-gray-400 dark:text-gray-500 whitespace-nowrap">{{$r.TanggalModified}}</td>
+          <td class="px-3 py-2 text-right whitespace-nowrap">{{$r.LuasTanah}}</td>
           <td class="px-3 py-2 text-center">
-            {{if $r.FasihLink}}
-            <a href="{{$r.FasihLink}}" target="_blank" rel="noopener noreferrer"
-              class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-se hover:bg-orange-50 dark:hover:bg-gray-800 transition-colors"
-              title="Buka assignment di FASIH">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-              </svg>
-            </a>
-            {{else}}
-            <span class="text-gray-300 dark:text-gray-600">-</span>
-            {{end}}
+            <svg id="usaha-ekonomi-chevron-{{$r.ID}}" class="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-transform inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </td>
+        </tr>
+        <tr id="usaha-ekonomi-detail-{{$r.ID}}" class="hidden bg-orange-50/40 dark:bg-gray-800/30">
+          <td colspan="10" class="px-4 py-3">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
+              <div>
+                <p class="text-gray-400 dark:text-gray-500 uppercase tracking-wide text-[10px] mb-0.5">Petugas</p>
+                <p class="text-gray-700 dark:text-gray-300">PPL: {{$r.NamaPPL}}</p>
+                <p class="text-gray-500 dark:text-gray-400">PML: {{$r.NamaPML}}</p>
+              </div>
+              <div>
+                <p class="text-gray-400 dark:text-gray-500 uppercase tracking-wide text-[10px] mb-0.5">Biaya Produksi</p>
+                <p class="text-gray-700 dark:text-gray-300">{{$r.BiayaProduksi}}</p>
+              </div>
+              <div>
+                <p class="text-gray-400 dark:text-gray-500 uppercase tracking-wide text-[10px] mb-0.5">Operasional</p>
+                <p class="text-gray-700 dark:text-gray-300">{{$r.Operasional}}</p>
+              </div>
+              <div>
+                <p class="text-gray-400 dark:text-gray-500 uppercase tracking-wide text-[10px] mb-0.5">TK Dibayar</p>
+                <p class="text-gray-700 dark:text-gray-300">{{$r.TkDibayar}}</p>
+              </div>
+              <div>
+                <p class="text-gray-400 dark:text-gray-500 uppercase tracking-wide text-[10px] mb-0.5">Status Assignment</p>
+                {{if $r.AssignmentStatus}}
+                  {{if containsCI $r.AssignmentStatus "approved"}}
+                  <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+                  {{else if containsCI $r.AssignmentStatus "rejected"}}
+                  <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+                  {{else if containsCI $r.AssignmentStatus "revoked"}}
+                  <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+                  {{else if containsCI $r.AssignmentStatus "submitted"}}
+                  <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+                  {{else if containsCI $r.AssignmentStatus "draft"}}
+                  <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+                  {{else if containsCI $r.AssignmentStatus "open"}}
+                  <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+                  {{else}}
+                  <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600 dark:text-gray-400 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+                  {{end}}
+                {{else}}
+                <span class="text-gray-300 dark:text-gray-600">-</span>
+                {{end}}
+              </div>
+              <div>
+                <p class="text-gray-400 dark:text-gray-500 uppercase tracking-wide text-[10px] mb-0.5">Tanggal Modified</p>
+                <p class="text-gray-700 dark:text-gray-300">{{if $r.TanggalModified}}{{$r.TanggalModified}}{{else}}-{{end}}</p>
+              </div>
+              <div>
+                <p class="text-gray-400 dark:text-gray-500 uppercase tracking-wide text-[10px] mb-0.5">FASIH</p>
+                {{if $r.FasihLink}}
+                <a href="{{$r.FasihLink}}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"
+                  class="inline-flex items-center gap-1 text-se hover:underline">
+                  Buka assignment
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                  </svg>
+                </a>
+                {{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
+              </div>
+            </div>
           </td>
         </tr>
         {{else}}
-        <tr><td colspan="19" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
+        <tr><td colspan="10" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
           <div class="flex flex-col items-center gap-2">
             <svg class="w-8 h-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
@@ -120,4 +132,13 @@
   </div>
   {{template "pagination" .PageInfo}}
 </div>
+<script>
+  function toggleUsahaEkonomiDetail(id) {
+    var row = document.getElementById('usaha-ekonomi-detail-' + id);
+    var chevron = document.getElementById('usaha-ekonomi-chevron-' + id);
+    if (!row) return;
+    row.classList.toggle('hidden');
+    if (chevron) chevron.classList.toggle('rotate-180');
+  }
+</script>
 {{end}}
