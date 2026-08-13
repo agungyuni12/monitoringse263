@@ -16,6 +16,7 @@ type PerbaikanRow struct {
 	CreatedAt           string
 	NamaSLS             string
 	NamaUsaha           string
+	Tipe                string
 	RincianKuesioner    string
 	JenisKesalahan      string
 	Rekomendasi         string
@@ -45,8 +46,8 @@ func PerbaikanTable(c echo.Context) error {
 
 	rows, err := db.DB.Query(`
 		SELECT ea.id, DATE_FORMAT(ea.created_at,'%d/%m/%Y %H:%i'),
-		       s.nama_sls, COALESCE(ue.nama_usaha, ue.nama_kk, '(tanpa nama)'),
-		       ea.rincian_kuesioner, ea.jenis_kesalahan, ea.rekomendasi, ea.status,
+		       s.nama_sls, COALESCE(ea.nama, ue.nama_usaha, ue.nama_kk, '(tanpa nama)'),
+		       ea.tipe, COALESCE(ea.rincian_kuesioner,''), COALESCE(ea.jenis_kesalahan,''), ea.rekomendasi, ea.status,
 		       COALESCE(tl.name,''), COALESCE(ea.catatan_tindak_lanjut,'')
 		FROM evaluasi_assignment ea
 		JOIN sls s ON s.id = ea.sls_id
@@ -62,7 +63,7 @@ func PerbaikanTable(c echo.Context) error {
 		for rows.Next() {
 			var r PerbaikanRow
 			rows.Scan(&r.ID, &r.CreatedAt, &r.NamaSLS, &r.NamaUsaha,
-				&r.RincianKuesioner, &r.JenisKesalahan, &r.Rekomendasi, &r.Status,
+				&r.Tipe, &r.RincianKuesioner, &r.JenisKesalahan, &r.Rekomendasi, &r.Status,
 				&r.TindakLanjutByName, &r.CatatanTindakLanjut)
 			list = append(list, r)
 		}
@@ -111,15 +112,15 @@ func PerbaikanTindakLanjut(c echo.Context) error {
 	var r PerbaikanRow
 	err = db.DB.QueryRow(`
 		SELECT ea.id, DATE_FORMAT(ea.created_at,'%d/%m/%Y %H:%i'),
-		       s.nama_sls, COALESCE(ue.nama_usaha, ue.nama_kk, '(tanpa nama)'),
-		       ea.rincian_kuesioner, ea.jenis_kesalahan, ea.rekomendasi, ea.status,
+		       s.nama_sls, COALESCE(ea.nama, ue.nama_usaha, ue.nama_kk, '(tanpa nama)'),
+		       ea.tipe, COALESCE(ea.rincian_kuesioner,''), COALESCE(ea.jenis_kesalahan,''), ea.rekomendasi, ea.status,
 		       COALESCE(tl.name,''), COALESCE(ea.catatan_tindak_lanjut,'')
 		FROM evaluasi_assignment ea
 		JOIN sls s ON s.id = ea.sls_id
 		LEFT JOIN usaha_ekonomi ue ON ue.assignment_id = ea.assignment_id
 		LEFT JOIN users tl ON tl.id = ea.tindak_lanjut_by
 		WHERE ea.id = ?`, id).Scan(&r.ID, &r.CreatedAt, &r.NamaSLS, &r.NamaUsaha,
-		&r.RincianKuesioner, &r.JenisKesalahan, &r.Rekomendasi, &r.Status,
+		&r.Tipe, &r.RincianKuesioner, &r.JenisKesalahan, &r.Rekomendasi, &r.Status,
 		&r.TindakLanjutByName, &r.CatatanTindakLanjut)
 	if err != nil {
 		return err

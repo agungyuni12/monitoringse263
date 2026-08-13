@@ -105,6 +105,8 @@ type EvaluasiAssignment struct {
 	AssignmentID        string
 	NamaUsaha           string
 	FasihLink           string
+	Tipe                string
+	Nama                string
 	RincianKuesioner    string
 	JenisKesalahan      string
 	Rekomendasi         string
@@ -124,6 +126,25 @@ var JenisKesalahanOptions = []StatusLabel{
 
 func JenisKesalahanLabelOf(val string) string {
 	for _, s := range JenisKesalahanOptions {
+		if s.Value == val {
+			return s.Label
+		}
+	}
+	return val
+}
+
+// EvaluasiTipeOptions — tipe sumber assignment yg bisa dievaluasi organik.
+// 'usaha' = usaha_ekonomi (form lengkap); 'td_*' = tidak ditemukan (catatan
+// bebas saja). Value-nya harus sinkron dgn konstanta di handlers/organik_evaluasi.go.
+var EvaluasiTipeOptions = []StatusLabel{
+	{"usaha", "Usaha (Data Ekonomi)"},
+	{"td_usaha", "Tidak Ditemukan · Usaha"},
+	{"td_keluarga", "Tidak Ditemukan · Keluarga"},
+	{"td_usaha_keluarga", "Tidak Ditemukan · Usaha dalam Keluarga"},
+}
+
+func EvaluasiTipeLabelOf(val string) string {
+	for _, s := range EvaluasiTipeOptions {
 		if s.Value == val {
 			return s.Label
 		}

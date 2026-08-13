@@ -40,6 +40,7 @@ func main() {
 	funcMap := template.FuncMap{
 		"statusLabel":          models.StatusLabelOf,
 		"jenisKesalahanLabel":  models.JenisKesalahanLabelOf,
+		"evaluasiTipeLabel":    models.EvaluasiTipeLabelOf,
 		"perbaikanStatusLabel": models.PerbaikanStatusLabelOf,
 		// pct: untuk display teks — return "45,67" (koma Indonesia)
 		"pct": func(a, b int) string {

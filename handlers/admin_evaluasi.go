@@ -19,6 +19,8 @@ type AdminEvaluasiRow struct {
 	NamaDesa            string
 	NamaPPL             string
 	NamaPML             string
+	Tipe                string
+	Nama                string
 	RincianKuesioner    string
 	JenisKesalahan      string
 	Rekomendasi         string
@@ -109,7 +111,8 @@ func AdminEvaluasiOrganikTable(c echo.Context) error {
 	rows, err := db.DB.Query(`
 		SELECT ea.id, DATE_FORMAT(ea.created_at,'%d/%m/%Y %H:%i'), org.name,
 		       s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''), ppl.name, pml.name,
-		       ea.rincian_kuesioner, ea.jenis_kesalahan, ea.rekomendasi, ea.status,
+		       ea.tipe, COALESCE(ea.nama,''),
+		       COALESCE(ea.rincian_kuesioner,''), COALESCE(ea.jenis_kesalahan,''), ea.rekomendasi, ea.status,
 		       COALESCE(ea.catatan_tindak_lanjut,''), COALESCE(tl.name,''),
 		       COALESCE(DATE_FORMAT(ea.tindak_lanjut_at,'%d/%m/%Y %H:%i'),'')
 		`+fromJoin+` `+where+`
@@ -127,7 +130,8 @@ func AdminEvaluasiOrganikTable(c echo.Context) error {
 		for rows.Next() {
 			var r AdminEvaluasiRow
 			rows.Scan(&r.ID, &r.CreatedAt, &r.NamaOrganik, &r.NamaSLS, &r.NamaKec, &r.NamaDesa,
-				&r.NamaPPL, &r.NamaPML, &r.RincianKuesioner, &r.JenisKesalahan, &r.Rekomendasi,
+				&r.NamaPPL, &r.NamaPML, &r.Tipe, &r.Nama,
+				&r.RincianKuesioner, &r.JenisKesalahan, &r.Rekomendasi,
 				&r.Status, &r.CatatanTindakLanjut, &r.TindakLanjutByName, &r.TindakLanjutAt)
 			list = append(list, r)
 		}

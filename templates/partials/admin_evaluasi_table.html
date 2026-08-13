@@ -27,10 +27,15 @@
         <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{.NamaPPL}}</td>
         <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{.NamaPML}}</td>
         <td class="px-4 py-3 text-gray-700 dark:text-gray-300 max-w-[14rem]">
+          {{if eq .Tipe "usaha"}}
           <div class="truncate" title="{{.RincianKuesioner}}">{{.RincianKuesioner}}</div>
           <div class="text-xs text-gray-400 dark:text-gray-500 truncate" title="{{.Rekomendasi}}">{{.Rekomendasi}}</div>
+          {{else}}
+          <span class="inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">{{evaluasiTipeLabel .Tipe}}</span>
+          <div class="text-xs text-gray-500 dark:text-gray-400 truncate mt-1" title="{{.Rekomendasi}}">{{.Rekomendasi}}</div>
+          {{end}}
         </td>
-        <td class="px-4 py-3">{{template "jenis_kesalahan_badge" .JenisKesalahan}}</td>
+        <td class="px-4 py-3">{{if eq .Tipe "usaha"}}{{template "jenis_kesalahan_badge" .JenisKesalahan}}{{else}}<span class="text-gray-300 dark:text-gray-600">—</span>{{end}}</td>
         <td class="px-4 py-3 text-center">{{template "perbaikan_status_badge" .Status}}</td>
         <td class="px-4 py-3 text-gray-700 dark:text-gray-300 max-w-xs">
           {{if eq .Status "resolved"}}

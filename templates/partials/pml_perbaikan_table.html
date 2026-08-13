@@ -31,7 +31,9 @@
   <td class="px-4 py-3">
     <div class="font-medium text-gray-800 dark:text-gray-100">{{$r.NamaSLS}}</div>
     <div class="text-xs text-gray-500 dark:text-gray-400">{{$r.NamaUsaha}}</div>
+    <span class="inline-block mt-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">{{evaluasiTipeLabel $r.Tipe}}</span>
   </td>
+  {{if eq $r.Tipe "usaha"}}
   <td class="px-4 py-3 text-gray-700 dark:text-gray-300 max-w-[14rem]">
     <div class="truncate" title="{{$r.RincianKuesioner}}">{{$r.RincianKuesioner}}</div>
   </td>
@@ -39,6 +41,14 @@
   <td class="px-4 py-3 text-gray-700 dark:text-gray-300 max-w-xs">
     <div class="truncate" title="{{$r.Rekomendasi}}">{{$r.Rekomendasi}}</div>
   </td>
+  {{else}}
+  <td class="px-4 py-3 text-gray-300 dark:text-gray-600 max-w-[14rem]">—</td>
+  <td class="px-4 py-3 text-gray-300 dark:text-gray-600">—</td>
+  <td class="px-4 py-3 text-gray-700 dark:text-gray-300 max-w-xs">
+    <div class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-0.5">Catatan</div>
+    <div class="truncate" title="{{$r.Rekomendasi}}">{{$r.Rekomendasi}}</div>
+  </td>
+  {{end}}
   <td class="px-4 py-3 text-center">{{template "perbaikan_status_badge" $r.Status}}</td>
   <td class="px-4 py-3 text-right">
     {{if eq $r.Status "open"}}

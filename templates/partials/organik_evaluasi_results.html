@@ -2,7 +2,7 @@
 {{if .Results}}
 {{range .Results}}
 <div
-  hx-get="/organik/assignment/{{urlPathEscape .AssignmentID}}/perbaikan/modal"
+  hx-get="/organik/assignment/{{urlPathEscape .AssignmentID}}/perbaikan/modal?tipe={{.Tipe}}"
   hx-target="#modal-content"
   hx-swap="innerHTML"
   hx-on::after-request="openModal(); document.getElementById('assignment-search').value=''; this.parentElement.innerHTML='';"
