@@ -142,6 +142,10 @@ func usahaEkonomiFilters(c echo.Context) (where string, args []interface{}, kecs
 		where += ` AND t.kategori = ?`
 		args = append(args, kat)
 	}
+	if status := c.QueryParam("status"); status != "" {
+		where += ` AND t.assignment_status LIKE ?`
+		args = append(args, "%"+status+"%")
+	}
 	if len(kecs) > 0 {
 		where += ` AND s.nama_kec IN (` + placeholders(len(kecs)) + `)`
 		for _, k := range kecs {
@@ -200,6 +204,9 @@ func usahaEkonomiTable(c echo.Context, basePath string) error {
 	}
 	if kategori != "" {
 		extra += "&kategori=" + kategori
+	}
+	if status := c.QueryParam("status"); status != "" {
+		extra += "&status=" + status
 	}
 	for _, v := range kecs {
 		extra += "&kec=" + v
