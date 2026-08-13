@@ -159,18 +159,21 @@ func AdminTidakDitemukanTable(c echo.Context) error {
 	return tidakDitemukanTable(c, tipe, "/admin/table/tidak-ditemukan")
 }
 
-// OrganikKeluargaTable — GET /organik/table/keluarga
-// Tab "Keluarga" di dasbor Organik: persis sub-tab "Keluarga" di tab
-// Keberadaan Admin (nama KK, status keberadaan Ditemukan/Tidak Ditemukan/
-// Baru/Open, nomor KK prelist & sekarang) — bukan tabel agregat maupun
-// gabungan anomali, tipe dikunci "keluarga" (tanpa sub-tab Usaha/Rekap).
-func OrganikKeluargaTable(c echo.Context) error {
-	return tidakDitemukanTable(c, "keluarga", "/organik/table/keluarga")
+// OrganikTidakDitemukanTable — GET /organik/table/tidak-ditemukan?tipe=usaha|keluarga|usaha_keluarga
+// Tab "Keberadaan" di dasbor Organik: persis tab Keberadaan Admin (sub-tab
+// Usaha/Keluarga/Usaha dalam Keluarga/Rekap) — organik bisa melihat data
+// tidak ditemukan lintas wilayah se-kabupaten.
+func OrganikTidakDitemukanTable(c echo.Context) error {
+	tipe := c.QueryParam("tipe")
+	if tipe != "keluarga" && tipe != "usaha_keluarga" {
+		tipe = "usaha"
+	}
+	return tidakDitemukanTable(c, tipe, "/organik/table/tidak-ditemukan")
 }
 
 // tidakDitemukanTable — logika bersama dipakai Admin (tipe usaha/usaha_keluarga/
-// keluarga, basePath /admin/table/tidak-ditemukan) & Organik (tipe dikunci
-// keluarga, basePath /organik/table/keluarga). Target DOM id (result wrap,
+// keluarga, basePath /admin/table/tidak-ditemukan) & Organik (basePath
+// /organik/table/tidak-ditemukan). Target DOM id (result wrap,
 // filter bar, PML/PPL select) sengaja tetap sama persis di kedua halaman
 // ("tidak-ditemukan-*") — masing-masing punya markup filter bar sendiri di
 // admin.html/organik.html dengan id yang sama.
@@ -406,6 +409,15 @@ func tidakDitemukanRekapTotals(where string, args []interface{}) (totalUsaha, to
 // Sub-menu Rekap di samping Usaha/Keluarga: jumlah usaha & keluarga tidak
 // ditemukan per lokasi, bukan daftar detail per baris.
 func AdminTidakDitemukanRekapTable(c echo.Context) error {
+	return tidakDitemukanRekapTable(c, "/admin/table/tidak-ditemukan-rekap")
+}
+
+// OrganikTidakDitemukanRekapTable — GET /organik/table/tidak-ditemukan-rekap?level=sls|desa|kec
+func OrganikTidakDitemukanRekapTable(c echo.Context) error {
+	return tidakDitemukanRekapTable(c, "/organik/table/tidak-ditemukan-rekap")
+}
+
+func tidakDitemukanRekapTable(c echo.Context, basePath string) error {
 	level := c.QueryParam("level")
 	if level != "desa" && level != "kec" {
 		level = "sls"
@@ -417,21 +429,21 @@ func AdminTidakDitemukanRekapTable(c echo.Context) error {
 	pmlSelect := OOBSelect{
 		TargetID: "tidak-ditemukan-pml-select", Name: "pml_id", Placeholder: "Semua PML",
 		Options: queryPMLOptionsByKec(kecs), Selected: pmlID,
-		HxGet: "/admin/table/tidak-ditemukan-rekap", HxTarget: "#tidak-ditemukan-result", HxInclude: "#tidak-ditemukan-filter-bar",
+		HxGet: basePath, HxTarget: "#tidak-ditemukan-result", HxInclude: "#tidak-ditemukan-filter-bar",
 	}
 	pplSelect := OOBSelect{
 		TargetID: "tidak-ditemukan-ppl-select", Name: "ppl_id", Placeholder: "Semua PPL",
 		Options: queryPPLOptionsByFilter(kecs, pmlID), Selected: pplID,
-		HxGet: "/admin/table/tidak-ditemukan-rekap", HxTarget: "#tidak-ditemukan-result", HxInclude: "#tidak-ditemukan-filter-bar",
+		HxGet: basePath, HxTarget: "#tidak-ditemukan-result", HxInclude: "#tidak-ditemukan-filter-bar",
 	}
 
 	if level == "sls" {
-		return tidakDitemukanRekapSLS(c, where, args, extra, totalUsaha, totalUsahaKeluarga, totalKeluarga, pmlSelect, pplSelect)
+		return tidakDitemukanRekapSLS(c, basePath, where, args, extra, totalUsaha, totalUsahaKeluarga, totalKeluarga, pmlSelect, pplSelect)
 	}
-	return tidakDitemukanRekapGroup(c, where, args, extra, level, totalUsaha, totalUsahaKeluarga, totalKeluarga, pmlSelect, pplSelect)
+	return tidakDitemukanRekapGroup(c, basePath, where, args, extra, level, totalUsaha, totalUsahaKeluarga, totalKeluarga, pmlSelect, pplSelect)
 }
 
-func tidakDitemukanRekapSLS(c echo.Context, where string, args []interface{}, extra string, totalUsaha, totalUsahaKeluarga, totalKeluarga int, pmlSelect, pplSelect OOBSelect) error {
+func tidakDitemukanRekapSLS(c echo.Context, basePath string, where string, args []interface{}, extra string, totalUsaha, totalUsahaKeluarga, totalKeluarga int, pmlSelect, pplSelect OOBSelect) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
 		page = 1
@@ -444,7 +456,7 @@ func tidakDitemukanRekapSLS(c echo.Context, where string, args []interface{}, ex
 
 	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, tidakDitemukanRekapSortCols, "s.nama_kec, s.nama_desa, s.nama_sls")
 	offset := (page - 1) * models.PerPage
-	pageInfo := models.NewPageInfo(page, total, "/admin/table/tidak-ditemukan-rekap", "tidak-ditemukan-result", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo := models.NewPageInfo(page, total, basePath, "tidak-ditemukan-result", extra+models.SortQueryString(sortCol, sortDir))
 	pageInfo.Sort = sortCol
 	pageInfo.Dir = sortDir
 	pageInfo.FilterExtra = extra
@@ -481,7 +493,7 @@ func tidakDitemukanRekapSLS(c echo.Context, where string, args []interface{}, ex
 // tidakDitemukanRekapGroup menangani level=desa|kec: query grup (mirip
 // adminWideAgregatGroupTable di kbli.go), lalu isi UsahaCnt/KeluargaCnt lewat
 // query terpisah ke masing2 tabel sumber, di-join per key desa/kec.
-func tidakDitemukanRekapGroup(c echo.Context, where string, args []interface{}, extra, level string, totalUsaha, totalUsahaKeluarga, totalKeluarga int, pmlSelect, pplSelect OOBSelect) error {
+func tidakDitemukanRekapGroup(c echo.Context, basePath string, where string, args []interface{}, extra, level string, totalUsaha, totalUsahaKeluarga, totalKeluarga int, pmlSelect, pplSelect OOBSelect) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
 		page = 1
@@ -516,7 +528,7 @@ func tidakDitemukanRekapGroup(c echo.Context, where string, args []interface{}, 
 			LIMIT ? OFFSET ?`, queryArgs...)
 	}
 
-	pageInfo := models.NewPageInfo(page, totalGroups, "/admin/table/tidak-ditemukan-rekap", "tidak-ditemukan-result", extra)
+	pageInfo := models.NewPageInfo(page, totalGroups, basePath, "tidak-ditemukan-result", extra)
 	pageInfo.FilterExtra = extra
 
 	renderData := func(list []*TidakDitemukanRekapRow) map[string]interface{} {

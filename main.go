@@ -186,7 +186,10 @@ func main() {
 	orgGrp.POST("/assignment/:assignment_id/perbaikan", handlers.OrganikSavePerbaikan)
 	orgGrp.POST("/perbaikan/:id/tindak-lanjut", handlers.OrganikTindakLanjutPerbaikan)
 	orgGrp.GET("/table/usaha-ekonomi", handlers.OrganikUsahaEkonomiTable)
-	orgGrp.GET("/table/keluarga", handlers.OrganikKeluargaTable)
+	orgGrp.GET("/table/tidak-ditemukan", handlers.OrganikTidakDitemukanTable)
+	orgGrp.GET("/table/tidak-ditemukan-rekap", handlers.OrganikTidakDitemukanRekapTable)
+	orgGrp.GET("/download/tidak-ditemukan", handlers.DownloadTidakDitemukan)
+	orgGrp.GET("/download/tidak-ditemukan-rekap", handlers.DownloadTidakDitemukanRekap)
 
 	port := "8080"
 	fmt.Printf("SIGEMPAR SE2026 – Server berjalan di http://localhost:%s\n", port)
