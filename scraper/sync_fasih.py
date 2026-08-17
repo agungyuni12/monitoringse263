@@ -254,7 +254,7 @@ def scrape_and_aggregate(page, seen_user_ids, sls_agg, unknown_statuses):
     last = inner["last"]
     dup_count = process_page_content(inner["content"], seen_user_ids, sls_agg, unknown_statuses)
     _save_checkpoint(seen_user_ids, sls_agg, unknown_statuses)
-    upload(apply_non_sls_override(sls_agg))
+    upload(sls_agg)
     print(f"[SCRAPE] Total: {total}. Halaman 0 selesai & checkpoint disimpan ({len(seen_user_ids)}/{total} petugas)", flush=True)
 
     pg = 0
@@ -268,7 +268,7 @@ def scrape_and_aggregate(page, seen_user_ids, sls_agg, unknown_statuses):
         dup_count += process_page_content(inner["content"], seen_user_ids, sls_agg, unknown_statuses)
         last = inner["last"]
         _save_checkpoint(seen_user_ids, sls_agg, unknown_statuses)
-        upload(apply_non_sls_override(sls_agg))
+        upload(sls_agg)
         print(f"  Halaman {pg} selesai & checkpoint disimpan ({len(seen_user_ids)}/{total} petugas)", flush=True)
 
     if dup_count:
@@ -557,40 +557,6 @@ def _clear_checkpoint():
         os.remove(CHECKPOINT_PATH)
 
 
-def apply_non_sls_override(sls_agg):
-    """
-    SLS "Non SLS" (area kosong seperti gunung/sawah/kebun/ladang tanpa usaha/
-    keluarga nyata) selalu dianggap punya minimal 1 assignment approved oleh
-    pengawas (dan otomatis ikut submit), terlepas dari status approval asli
-    di FASIH — supaya tidak nyangkut "belum diperiksa" di rekap progres.
-
-    Identifikasi Non SLS BUKAN dari nama_sls (variasinya banyak: "NON SLS...",
-    "KEBUN...", "SAWAH...", "LADANG...", "GUNUNG...", "HUTAN...", dst — tidak
-    konsisten), tapi dari KODE SLS: kode_sls 16 digit = prov(2)+kab(2)+kec(3)+
-    desa(3)+sls(4)+subsls(2). SLS residensial normal (RT/dusun) diberi nomor
-    segmen sls < 1000, sedangkan Non SLS (wilayah kerja statistik non-
-    permukiman) selalu diberi nomor segmen sls >= 1000 — konvensi baku BPS.
-    """
-    n = 0
-    for kode, a in sls_agg.items():
-        if len(kode) < 14 or not kode[10:14].isdigit():
-            continue
-        if int(kode[10:14]) < 1000:
-            continue
-        total = a["fasih_total"]
-        if total <= 0:
-            continue
-        approved = min(max(a["fasih_approved_pengawas"], 1), total)
-        if approved != a["fasih_approved_pengawas"]:
-            a["fasih_approved_pengawas"] = approved
-            n += 1
-        submit = min(max(a["jumlah_submit"], approved), total)
-        a["jumlah_submit"] = submit
-    if n:
-        print(f"[NON-SLS OVERRIDE] {n} SLS di-set minimal 1 approved", flush=True)
-    return sls_agg
-
-
 def upload(sls_agg):
     print(f"\n[DB] Menghubungkan ke {DB_HOST}:{DB_PORT}/{DB_NAME}...", flush=True)
     conn = pymysql.connect(
@@ -737,7 +703,6 @@ def run_once():
         finally:
             browser.close()
 
-    sls_agg = apply_non_sls_override(sls_agg)
     summary(sls_agg)
 
     print("[STEP 2] Upload final ke database...")
