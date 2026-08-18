@@ -35,6 +35,7 @@
           <th class="px-3 py-2.5 font-medium">Alamat</th>
           {{template "sortable_th" dict "Label" "Status Assignment" "Col" "status" "PageInfo" $.PageInfo}}
           {{template "sortable_th" dict "Label" "Tanggal Modified" "Col" "tanggal" "PageInfo" $.PageInfo "Center" true}}
+          <th class="px-3 py-2.5 font-medium whitespace-nowrap">ID Assignment</th>
           <th class="px-3 py-2.5 font-medium text-center">FASIH</th>
         </tr>
       </thead>
@@ -117,6 +118,17 @@
             {{end}}
           </td>
           <td class="px-3 py-2 text-center text-gray-400 dark:text-gray-500 whitespace-nowrap">{{$r.TanggalModified}}</td>
+          <td class="px-3 py-2 max-w-[160px]">
+            <div class="flex items-center gap-1.5">
+              <span class="font-mono text-[11px] text-gray-500 dark:text-gray-400 truncate" title="{{$r.AssignmentID}}">{{if $r.AssignmentID}}{{$r.AssignmentID}}{{else}}-{{end}}</span>
+              {{if $r.AssignmentID}}
+              <button type="button" onclick="copyTidakDitemukanID(this, '{{$r.AssignmentID}}')"
+                class="shrink-0 text-gray-400 hover:text-se dark:text-gray-500 dark:hover:text-se transition-colors" title="Salin ID">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              </button>
+              {{end}}
+            </div>
+          </td>
           <td class="px-3 py-2 text-center">
             {{if $r.FasihLink}}
             <a href="{{$r.FasihLink}}" target="_blank" rel="noopener noreferrer"
@@ -132,7 +144,7 @@
           </td>
         </tr>
         {{else}}
-        <tr><td colspan="13" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
+        <tr><td colspan="14" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
           <div class="flex flex-col items-center gap-2">
             <svg class="w-8 h-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
@@ -146,4 +158,11 @@
   </div>
   {{template "pagination" .PageInfo}}
 </div>
+<script>
+  function copyTidakDitemukanID(btn, assignmentId) {
+    navigator.clipboard.writeText(assignmentId).then(function() {
+      document.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'ID assignment disalin!', kind: 'success'}}));
+    });
+  }
+</script>
 {{end}}

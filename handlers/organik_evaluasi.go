@@ -86,9 +86,9 @@ func OrganikAssignmentSearch(c echo.Context) error {
 		FROM `+table+` t
 		JOIN sls s ON s.id = t.sls_id
 		JOIN users ppl ON ppl.id = s.ppl_id
-		WHERE (`+nameExpr+` LIKE ? OR s.nama_sls LIKE ? OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?)`+extraWhere+`
+		WHERE (`+nameExpr+` LIKE ? OR s.nama_sls LIKE ? OR s.nama_kec LIKE ? OR s.nama_desa LIKE ? OR t.assignment_id LIKE ?)`+extraWhere+`
 		ORDER BY s.nama_kec, s.nama_desa, s.nama_sls
-		LIMIT 20`, like, like, like, like)
+		LIMIT 20`, like, like, like, like, like)
 	if err != nil {
 		return c.Render(http.StatusOK, "organik_evaluasi_results.html", map[string]interface{}{})
 	}

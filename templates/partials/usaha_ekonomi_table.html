@@ -117,6 +117,18 @@
                 <p class="text-gray-400 dark:text-gray-500 uppercase tracking-wide text-[10px] mb-0.5">Tanggal Modified</p>
                 <p class="text-gray-700 dark:text-gray-300">{{if $r.TanggalModified}}{{$r.TanggalModified}}{{else}}-{{end}}</p>
               </div>
+              <div class="col-span-2">
+                <p class="text-gray-400 dark:text-gray-500 uppercase tracking-wide text-[10px] mb-0.5">ID Assignment</p>
+                <div class="flex items-center gap-1.5">
+                  <p class="text-gray-700 dark:text-gray-300 font-mono truncate" title="{{$r.AssignmentID}}">{{if $r.AssignmentID}}{{$r.AssignmentID}}{{else}}-{{end}}</p>
+                  {{if $r.AssignmentID}}
+                  <button type="button" onclick="event.stopPropagation(); copyUsahaEkonomiID(this, '{{$r.AssignmentID}}')"
+                    class="shrink-0 text-gray-400 hover:text-se dark:text-gray-500 dark:hover:text-se transition-colors" title="Salin ID">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                  </button>
+                  {{end}}
+                </div>
+              </div>
               <div>
                 <p class="text-gray-400 dark:text-gray-500 uppercase tracking-wide text-[10px] mb-0.5">FASIH</p>
                 {{if $r.FasihLink}}
@@ -154,6 +166,11 @@
     if (!row) return;
     row.classList.toggle('hidden');
     if (chevron) chevron.classList.toggle('rotate-180');
+  }
+  function copyUsahaEkonomiID(btn, assignmentId) {
+    navigator.clipboard.writeText(assignmentId).then(function() {
+      document.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'ID assignment disalin!', kind: 'success'}}));
+    });
   }
 </script>
 {{end}}

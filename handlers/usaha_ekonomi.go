@@ -44,6 +44,7 @@ type UsahaEkonomiRow struct {
 	KegUtama         string
 	AssignmentStatus string
 	TanggalModified  string
+	AssignmentID     string
 	FasihLink        string
 	// Klaim evaluasi organik (lihat handlers/organik_evaluasi.go — organik
 	// pertama yang mencatat perbaikan utk assignment ini "mengklaim"-nya).
@@ -136,8 +137,8 @@ func usahaEkonomiFilters(c echo.Context) (where string, args []interface{}, kecs
 	pplID, _ = strconv.Atoi(c.QueryParam("ppl_id"))
 	like := "%" + q + "%"
 
-	where = ` WHERE (t.nama_usaha LIKE ? OR t.nama_kk LIKE ? OR t.kbli_label LIKE ? OR s.nama_sls LIKE ?)`
-	args = []interface{}{like, like, like, like}
+	where = ` WHERE (t.nama_usaha LIKE ? OR t.nama_kk LIKE ? OR t.kbli_label LIKE ? OR s.nama_sls LIKE ? OR t.assignment_id LIKE ?)`
+	args = []interface{}{like, like, like, like, like}
 	if kat := c.QueryParam("kategori"); kat != "" {
 		where += ` AND t.kategori = ?`
 		args = append(args, kat)
@@ -277,6 +278,7 @@ func usahaEkonomiTable(c echo.Context, basePath string) error {
 			r.Operasional = formatRupiahBlnThn(operasional, operasionalBln)
 			r.LuasTanah = formatAngkaBlnThn(luasTanahBln, luasTanahThn)
 			r.TkDibayar = formatInt(tkDibayar)
+			r.AssignmentID = assignmentID
 			r.FasihLink = fasihSMLink(assignmentID)
 			if claimedByID.Valid {
 				r.ClaimedByID = int(claimedByID.Int64)

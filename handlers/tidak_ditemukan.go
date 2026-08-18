@@ -33,6 +33,7 @@ type TidakDitemukanRow struct {
 	Alamat           string
 	AssignmentStatus string
 	TanggalModified  string
+	AssignmentID     string
 	FasihLink        string // link langsung ke assignment di fasih-sm.bps.go.id
 }
 
@@ -120,8 +121,8 @@ func tidakDitemukanFilters(c echo.Context, tipe string) (where string, args []in
 	pplID, _ = strconv.Atoi(c.QueryParam("ppl_id"))
 	like := "%" + q + "%"
 
-	where = ` WHERE (t.nama LIKE ? OR s.nama_sls LIKE ?)`
-	args = []interface{}{like, like}
+	where = ` WHERE (t.nama LIKE ? OR s.nama_sls LIKE ? OR t.assignment_id LIKE ?)`
+	args = []interface{}{like, like, like}
 	if len(kecs) > 0 {
 		where += ` AND s.nama_kec IN (` + placeholders(len(kecs)) + `)`
 		for _, k := range kecs {
@@ -261,6 +262,7 @@ func tidakDitemukanTable(c echo.Context, tipe, basePath string) error {
 			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML,
 				&r.Nama, &r.Skala, &r.Keberadaan, &r.KBLIKategori, &r.NomorKKPrelist, &r.NomorKKSekarang,
 				&r.Alamat, &r.AssignmentStatus, &r.TanggalModified, &assignmentID)
+			r.AssignmentID = assignmentID
 			r.FasihLink = fasihSMLink(assignmentID)
 			list = append(list, r)
 		}
