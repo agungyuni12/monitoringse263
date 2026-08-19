@@ -1076,7 +1076,7 @@ func DownloadUsahaEkonomi(c echo.Context) error {
 		       t.pendapatan, t.pendapatan_bln, t.pengeluaran, t.pengeluaran_bln,
 		       t.biaya_produksi, t.biaya_produksi_bln, t.gaji, t.gaji_bln,
 		       t.operasional, t.operasional_bln, t.luas_tanah_bln, t.luas_tanah_thn,
-		       t.tk_dibayar, COALESCE(t.keg_utama,''),
+		       t.tk_dibayar, t.total_tk_jk, COALESCE(t.keg_utama,''),
 		       COALESCE(t.assignment_status,''),
 		       COALESCE(DATE_FORMAT(t.tanggal_modified,'%d/%m/%Y %H:%i'),'')
 		FROM usaha_ekonomi t
@@ -1094,7 +1094,7 @@ func DownloadUsahaEkonomi(c echo.Context) error {
 		pendapatan, pendapatanBln, pengeluaran, pengeluaranBln                                               sql.NullFloat64
 		biayaProduksi, biayaProduksiBln, gaji, gajiBln, operasional, operasionalBln                          sql.NullFloat64
 		luasTanahBln, luasTanahThn                                                                           sql.NullFloat64
-		tkDibayar                                                                                            sql.NullInt64
+		tkDibayar, totalTkJk                                                                                 sql.NullInt64
 	}
 	var data []row
 	for rows.Next() {
@@ -1103,7 +1103,7 @@ func DownloadUsahaEkonomi(c echo.Context) error {
 			&r.pendapatan, &r.pendapatanBln, &r.pengeluaran, &r.pengeluaranBln,
 			&r.biayaProduksi, &r.biayaProduksiBln, &r.gaji, &r.gajiBln,
 			&r.operasional, &r.operasionalBln, &r.luasTanahBln, &r.luasTanahThn,
-			&r.tkDibayar, &r.kegUtama, &r.status, &r.tanggal)
+			&r.tkDibayar, &r.totalTkJk, &r.kegUtama, &r.status, &r.tanggal)
 		data = append(data, r)
 	}
 
@@ -1112,7 +1112,7 @@ func DownloadUsahaEkonomi(c echo.Context) error {
 		"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Nama Usaha", "Nama KK", "Jenis Prelist",
 		"Kategori", "KBLI", "Pendapatan", "Pendapatan/Bln", "Pengeluaran", "Pengeluaran/Bln",
 		"Biaya Produksi", "Biaya Produksi/Bln", "Gaji", "Gaji/Bln", "Operasional", "Operasional/Bln",
-		"Luas Tanah/Bln (m2)", "Luas Tanah/Thn (m2)", "TK Dibayar", "Kegiatan Utama",
+		"Luas Tanah/Bln (m2)", "Luas Tanah/Thn (m2)", "TK Dibayar", "Total TK (Semua Gender)", "Kegiatan Utama",
 		"Status Assignment", "Tanggal Modified",
 	}
 	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
@@ -1148,9 +1148,12 @@ func DownloadUsahaEkonomi(c echo.Context) error {
 			if r.tkDibayar.Valid {
 				f.SetCellValue(sheet, cell(23, n), r.tkDibayar.Int64)
 			}
-			f.SetCellValue(sheet, cell(24, n), r.kegUtama)
-			f.SetCellValue(sheet, cell(25, n), r.status)
-			f.SetCellValue(sheet, cell(26, n), r.tanggal)
+			if r.totalTkJk.Valid {
+				f.SetCellValue(sheet, cell(24, n), r.totalTkJk.Int64)
+			}
+			f.SetCellValue(sheet, cell(25, n), r.kegUtama)
+			f.SetCellValue(sheet, cell(26, n), r.status)
+			f.SetCellValue(sheet, cell(27, n), r.tanggal)
 		}
 	})
 }

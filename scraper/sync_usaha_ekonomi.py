@@ -46,8 +46,8 @@ Sumber data (ditelusuri manual lewat SQL Lab — lihat percakapan):
         tk_laki/tk_pr/tk_tdk_dibayar (breakdown gender & status bayar pekerja
         — tk_dibayar tetap disimpan sbg angka tenaga kerja utama).
       - jenis_kegiatan — DICOBA, 0% terisi (field gak kepake), DIBUANG.
-  - Data ekonomi yg TETAP (semua DOUBLE kecuali tk_dibayar yg INTEGER;
-    ~57-59% coverage-nya DICEK SEBELUM filter keberadaan_usaha_value
+  - Data ekonomi yg TETAP (semua DOUBLE kecuali tk_dibayar & total_tk_jk yg
+    INTEGER; ~57-59% coverage-nya DICEK SEBELUM filter keberadaan_usaha_value
     ditambahkan, thd 106.117 total usaha TANPA filter — jadi angka itu
     ketinggian pesimis, coverage sebenarnya thd scope Ditemukan/Baru yg
     dipakai SEKARANG harusnya lebih tinggi krn baris yg emang gak mungkin
@@ -58,7 +58,8 @@ Sumber data (ditelusuri manual lewat SQL Lab — lihat percakapan):
         per periode survei).
       biaya_produksi/biaya_produksi_bln, gaji/gaji_bln, operasional/
         operasional_bln — satu blok kuesioner ekonomi yg sama.
-      tk_dibayar (tenaga kerja dibayar, INTEGER) — blok yg sama jg.
+      tk_dibayar (tenaga kerja DIBAYAR, INTEGER) — blok yg sama jg, TETAP
+        disimpan apa adanya (bukan diganti).
       keg_utama (deskripsi kegiatan utama usaha).
       luas_tanah_bln/luas_tanah_thn — BUKAN dari blok ekonomi (makanya
         coverage-nya beda jauh): luas_tanah_thn 93,9% terisi (63.177/67.246,
@@ -66,6 +67,13 @@ Sumber data (ditelusuri manual lewat SQL Lab — lihat percakapan):
         _bln yg lain — khusus usaha yg lapor per bulan bukan per tahun).
         Ganti biaya_non_operasional/non_operasional_bln (dibuang) krn luas
         tanah jauh lebih lengkap datanya & lebih kepake buat profil usaha.
+      total_tk_jk (total tenaga kerja SEMUA gender, INTEGER, DITAMBAHKAN —
+        bukan pengganti tk_dibayar) — BUKAN dari blok ekonomi jg, coverage
+        96,7% (71.481/73.951 thd scope Ditemukan/Baru). Kolom ke-25 (pas di
+        limit MAKS 25 kolom/query Superset). Beda dari tk_dibayar (cuma yg
+        DIBAYAR): total_tk_jk = SEMUA pekerja (dibayar + tdk dibayar) —
+        dicek manual mis. total_tk_jk=7, tk_dibayar=6 (1 pekerja keluarga
+        gak dibayar). Dua-duanya disimpan krn beda makna, bukan duplikat.
     Sisa kekosongan (di luar Tutup/Tidak Ditemukan/Ganda yg udah difilter)
     WAJAR (bukan trap kayak no_kk_prelist/kbli_prelist dulu) — blok ekonomi
     kuesioner emang belum semua usaha Ditemukan/Baru selesai diisi
@@ -145,7 +153,7 @@ SELECT n.assignment_id, n.index1, n.nama_usaha,
        n.biaya_produksi, n.biaya_produksi_bln,
        n.gaji, n.gaji_bln, n.operasional, n.operasional_bln,
        n.luas_tanah_bln, n.luas_tanah_thn,
-       n.tk_dibayar, n.keg_utama,
+       n.tk_dibayar, n.total_tk_jk, n.keg_utama,
        n.level_6_full_code, n.assignment_status_alias, n.assignment_date_modified,
        r.jenis_prelist,
        CASE WHEN r.jenis_prelist = 'keluarga' THEN COALESCE(r.nama_kk, r.dtsen_nama_kk) ELSE NULL END AS nama_kk
@@ -467,6 +475,7 @@ def ensure_tables(conn):
               luas_tanah_bln      DOUBLE DEFAULT NULL,
               luas_tanah_thn      DOUBLE DEFAULT NULL,
               tk_dibayar          INT DEFAULT NULL,
+              total_tk_jk         INT DEFAULT NULL,
               keg_utama           TEXT DEFAULT NULL,
               assignment_status   VARCHAR(50) DEFAULT NULL,
               tanggal_modified    DATETIME DEFAULT NULL,
@@ -501,9 +510,9 @@ def upsert_usaha_ekonomi(conn, rows, sls_map, synced_at):
                    pendapatan, pendapatan_bln, pengeluaran, pengeluaran_bln,
                    biaya_produksi, biaya_produksi_bln,
                    gaji, gaji_bln, operasional, operasional_bln, luas_tanah_bln, luas_tanah_thn,
-                   tk_dibayar, keg_utama,
+                   tk_dibayar, total_tk_jk, keg_utama,
                    assignment_status, tanggal_modified, imported_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ON DUPLICATE KEY UPDATE
                   sls_id              = VALUES(sls_id),
                   nama_usaha          = VALUES(nama_usaha),
@@ -524,6 +533,7 @@ def upsert_usaha_ekonomi(conn, rows, sls_map, synced_at):
                   luas_tanah_bln      = VALUES(luas_tanah_bln),
                   luas_tanah_thn      = VALUES(luas_tanah_thn),
                   tk_dibayar          = VALUES(tk_dibayar),
+                  total_tk_jk         = VALUES(total_tk_jk),
                   keg_utama           = VALUES(keg_utama),
                   assignment_status   = VALUES(assignment_status),
                   tanggal_modified    = VALUES(tanggal_modified),
@@ -543,7 +553,7 @@ def upsert_usaha_ekonomi(conn, rows, sls_map, synced_at):
                 r.get("gaji"), r.get("gaji_bln"),
                 r.get("operasional"), r.get("operasional_bln"),
                 r.get("luas_tanah_bln"), r.get("luas_tanah_thn"),
-                r.get("tk_dibayar"),
+                r.get("tk_dibayar"), r.get("total_tk_jk"),
                 r.get("keg_utama"),
                 r.get("assignment_status_alias"), r.get("assignment_date_modified"), synced_at,
             ))

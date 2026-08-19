@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS usaha_ekonomi (
   luas_tanah_bln      DOUBLE DEFAULT NULL,
   luas_tanah_thn      DOUBLE DEFAULT NULL,
   tk_dibayar          INT DEFAULT NULL,
+  total_tk_jk         INT DEFAULT NULL,
   keg_utama           TEXT DEFAULT NULL,
   assignment_status   VARCHAR(50) DEFAULT NULL,
   tanggal_modified    DATETIME DEFAULT NULL,
@@ -51,3 +52,10 @@ ALTER TABLE usaha_ekonomi
   DROP COLUMN non_operasional_bln,
   ADD COLUMN luas_tanah_bln DOUBLE DEFAULT NULL AFTER operasional_bln,
   ADD COLUMN luas_tanah_thn DOUBLE DEFAULT NULL AFTER luas_tanah_bln;
+
+-- Nambah total_tk_jk (total tenaga kerja semua gender, dibayar + tdk
+-- dibayar) — kolom ke-25 (pas di limit MAKS 25 kolom/query Superset), TIDAK
+-- gantiin tk_dibayar (tetap ada). SEKALI JALAN per environment, sama kayak
+-- blok di atas.
+ALTER TABLE usaha_ekonomi
+  ADD COLUMN total_tk_jk INT DEFAULT NULL AFTER tk_dibayar;

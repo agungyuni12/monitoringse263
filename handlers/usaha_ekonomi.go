@@ -40,7 +40,8 @@ type UsahaEkonomiRow struct {
 	Gaji             string
 	Operasional      string
 	LuasTanah        string // m², "-" kalau NULL
-	TkDibayar        string
+	TkDibayar        string // tenaga kerja DIBAYAR aja
+	TotalTkJk        string // total tenaga kerja SEMUA gender (dibayar + tdk dibayar)
 	KegUtama         string
 	AssignmentStatus string
 	TanggalModified  string
@@ -236,7 +237,7 @@ func usahaEkonomiTable(c echo.Context, basePath string) error {
 		       t.pendapatan, t.pendapatan_bln, t.pengeluaran, t.pengeluaran_bln,
 		       t.biaya_produksi, t.biaya_produksi_bln, t.gaji, t.gaji_bln,
 		       t.operasional, t.operasional_bln, t.luas_tanah_bln, t.luas_tanah_thn,
-		       t.tk_dibayar,
+		       t.tk_dibayar, t.total_tk_jk,
 		       COALESCE(t.keg_utama,''),
 		       COALESCE(t.assignment_status,''),
 		       COALESCE(DATE_FORMAT(t.tanggal_modified,'%d/%m/%Y %H:%i'),''),
@@ -259,7 +260,7 @@ func usahaEkonomiTable(c echo.Context, basePath string) error {
 			var pendapatan, pendapatanBln, pengeluaran, pengeluaranBln sql.NullFloat64
 			var biayaProduksi, biayaProduksiBln, gaji, gajiBln sql.NullFloat64
 			var operasional, operasionalBln, luasTanahBln, luasTanahThn sql.NullFloat64
-			var tkDibayar sql.NullInt64
+			var tkDibayar, totalTkJk sql.NullInt64
 			var assignmentID string
 			var claimedByID sql.NullInt64
 			var claimedByName sql.NullString
@@ -268,7 +269,7 @@ func usahaEkonomiTable(c echo.Context, basePath string) error {
 				&pendapatan, &pendapatanBln, &pengeluaran, &pengeluaranBln,
 				&biayaProduksi, &biayaProduksiBln, &gaji, &gajiBln,
 				&operasional, &operasionalBln, &luasTanahBln, &luasTanahThn,
-				&tkDibayar,
+				&tkDibayar, &totalTkJk,
 				&r.KegUtama, &r.AssignmentStatus, &r.TanggalModified, &assignmentID,
 				&claimedByID, &claimedByName)
 			r.Pendapatan = formatRupiahBlnThn(pendapatan, pendapatanBln)
@@ -278,6 +279,7 @@ func usahaEkonomiTable(c echo.Context, basePath string) error {
 			r.Operasional = formatRupiahBlnThn(operasional, operasionalBln)
 			r.LuasTanah = formatAngkaBlnThn(luasTanahBln, luasTanahThn)
 			r.TkDibayar = formatInt(tkDibayar)
+			r.TotalTkJk = formatInt(totalTkJk)
 			r.AssignmentID = assignmentID
 			r.FasihLink = fasihSMLink(assignmentID)
 			if claimedByID.Valid {
