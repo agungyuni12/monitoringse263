@@ -41,3 +41,7 @@ laporan/Laporan Evaluasi Hasil Uji Coba Sigempar.pdf
 laporan/Putra Bimo As'ari_Laporan Hasil Aktualisasi_Revisi.pdf
 laporan/SIGEMPAR - Presentasi Aplikasi.pptx
 laporan/SIGEMPAR - Video Inovasi.pptx
+db/evaluasi_klaim_agung_kusnadin_kbli_20260814.sql
+.gitignore
+db/evaluasi_klaim_agung_kusnadin_kilo_20260814.sql
+db/fix_timezone_evaluasi_klaim_agung.sql

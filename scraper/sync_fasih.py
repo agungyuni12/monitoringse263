@@ -260,7 +260,7 @@ def scrape_and_aggregate(page, seen_user_ids, sls_agg, unknown_statuses):
     pg = 0
     while not last:
         pg += 1
-        _human_pause(0.5, 1.3)
+        _human_pause(8, 15)
         body = _click_and_capture(
             page, lambda: page.get_by_role("link", name="Go to next page").click()
         )
