@@ -9,25 +9,19 @@
   {{template "theme_assets" .}}
   {{template "theme_style" .}}
   <style>
-    body {
-      background:
-        radial-gradient(ellipse 900px 600px at 12% -8%, rgba(243,112,33,.14), transparent 60%),
-        radial-gradient(ellipse 700px 500px at 108% 108%, rgba(243,112,33,.10), transparent 55%),
-        #FBF8F5;
+    body.login-shell {
+      background-color: #ebe9e4;
     }
     .dark body {
-      background:
-        radial-gradient(ellipse 900px 600px at 12% -8%, rgba(243,112,33,.10), transparent 60%),
-        radial-gradient(ellipse 700px 500px at 108% 108%, rgba(243,112,33,.07), transparent 55%),
-        #0a0a0a;
+      background-color: #111313;
     }
     .grain {
       position: fixed; inset: 0; pointer-events: none; opacity: .035; z-index: 0;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     }
     .dark .grain { opacity: .05; }
-    .card-shadow { box-shadow: 0 1px 2px rgba(180,90,20,.06), 0 24px 48px -12px rgba(180,90,20,.16), 0 0 0 1px rgba(180,90,20,.04); }
-    .dark .card-shadow { box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 24px 48px -12px rgba(0,0,0,.6); }
+    .card-shadow { box-shadow: 18px 18px 0 rgba(220,101,37,.12), 0 0 0 1px rgba(27,29,29,.12); }
+    .dark .card-shadow { box-shadow: 18px 18px 0 rgba(240,120,50,.12), 0 0 0 1px rgba(241,240,235,.14); }
     .btn-press:active { transform: scale(.98) translateY(1px); }
     input:focus { box-shadow: 0 0 0 3.5px rgba(243,112,33,.15); }
     @keyframes riseIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
@@ -36,7 +30,7 @@
     .rise-in-2 { animation-delay: .1s; }
   </style>
 </head>
-<body class="min-h-screen flex items-center justify-center px-4 py-10 relative overflow-hidden">
+<body class="login-shell min-h-screen flex items-center justify-center px-4 py-10 relative overflow-hidden">
   {{template "theme_progress_bar" .}}
   <div class="grain"></div>
 
@@ -47,16 +41,16 @@
   <main class="w-full max-w-[380px] relative z-10">
     <!-- Brand -->
     <div class="text-center mb-7 rise-in">
-      <div class="inline-flex items-center justify-center w-[72px] h-[72px] rounded-[22px] bg-white dark:bg-gray-900 ring-1 ring-black/[.06] dark:ring-white/10 shadow-[0_8px_24px_-8px_rgba(180,90,20,.28)] mb-4 p-2.5">
+      <div class="inline-flex items-center justify-center w-[72px] h-[72px] rounded-[10px] bg-white dark:bg-gray-900 ring-1 ring-black/[.06] dark:ring-white/10 mb-4 p-2.5">
         <img src="/static/logo-sigempar.png" alt="Logo SIGEMPAR" class="w-full h-full object-contain"/>
       </div>
-      <h1 class="text-[26px] leading-tight font-extrabold tracking-tight text-gray-900 dark:text-gray-100">SIGEMPAR</h1>
+      <h1 class="text-[30px] leading-tight font-extrabold tracking-[-.06em] text-gray-900 dark:text-gray-100">SIGEMPAR</h1>
       <p class="text-[13.5px] text-gray-500 dark:text-gray-400 mt-1.5 font-medium">Sistem Geospasial Monitoring Pencacahan</p>
       <p class="text-[11.5px] text-gray-400 dark:text-gray-500 mt-0.5 tracking-wide">SENSUS EKONOMI 2026</p>
     </div>
 
     <!-- Card -->
-    <div class="bg-white dark:bg-gray-900 rounded-[26px] card-shadow p-7 sm:p-8 rise-in rise-in-1">
+    <div class="bg-white dark:bg-gray-900 rounded-[10px] card-shadow p-7 sm:p-8 rise-in rise-in-1">
       <h2 class="text-[15px] font-semibold text-gray-800 dark:text-gray-100 mb-5">Masuk ke akun kamu</h2>
 
       {{if .Error}}

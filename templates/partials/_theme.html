@@ -24,7 +24,7 @@
   <link rel="icon" href="/static/logo-sigempar.png" type="image/png"/>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <script>
@@ -33,7 +33,8 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Plus Jakarta Sans', 'ui-sans-serif', 'system-ui', 'sans-serif']
+            sans: ['Space Grotesk', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            mono: ['IBM Plex Mono', 'ui-monospace', 'SFMono-Regular', 'monospace']
           },
           colors: {
             se: { DEFAULT:'#F37021', dark:'#d45f10', light:'#f59548', bg:'#FFF4ED' }
@@ -46,7 +47,175 @@
 
 {{define "theme_style"}}
   <style>
-    html { font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif; }
+    :root {
+      --canvas: #ebe9e4;
+      --panel: #f8f7f3;
+      --panel-strong: #fffefa;
+      --ink: #1b1d1d;
+      --muted: #74766f;
+      --line: #d5d3cc;
+      --line-strong: #b9b7b0;
+      --se: #dc6525;
+      --se-dark: #b94c16;
+      --grid: rgba(27,29,29,.055);
+      --panel-shadow: 0 14px 32px -24px rgba(58,49,38,.44);
+    }
+    .dark {
+      --canvas: #111313;
+      --panel: #191c1c;
+      --panel-strong: #202424;
+      --ink: #f1f0eb;
+      --muted: #90948e;
+      --line: #303535;
+      --line-strong: #484e4d;
+      --se: #f07832;
+      --se-dark: #d45d1d;
+      --grid: rgba(241,240,235,.055);
+      --panel-shadow: 0 16px 36px -26px rgba(0,0,0,.75);
+    }
+    html {
+      font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+      background: var(--canvas);
+      scroll-behavior: smooth;
+    }
+    body {
+      position: relative;
+      background-color: var(--canvas);
+      color: var(--ink);
+      transition: background-color .25s ease, color .25s ease;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: .7;
+      background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 32px 32px;
+      -webkit-mask-image: linear-gradient(to bottom, black, transparent 78%);
+      mask-image: linear-gradient(to bottom, black, transparent 78%);
+    }
+    body > .flex,
+    body > main { position: relative; z-index: 1; }
+    body.bg-gray-50, body.bg-se-bg { background-color: var(--canvas); }
+    .dark body.bg-gray-50, .dark body.bg-se-bg { background-color: var(--canvas); }
+    ::selection { color: #fff; background: var(--se); }
+
+    @media (max-width: 639px) {
+      body:not(.login-shell) main { padding-top: 1.5rem; padding-bottom: 2.5rem; }
+      body:not(.login-shell) #sidebar { width: min(84vw, 19rem); }
+      body:not(.login-shell) .pill-tabs { max-width: 100%; overflow-x: auto; }
+      body:not(.login-shell) .pill-tabs .tab-btn { white-space: nowrap; }
+      body:not(.login-shell) #toast { left: .875rem; right: .875rem; max-width: none; }
+      body:not(.login-shell) #modal-content { max-height: 88dvh; }
+    }
+
+    /* Shared shell: quiet paper in light mode, instrument panel in dark mode. */
+    body:not(.login-shell) #sidebar {
+      background: var(--panel);
+      border-color: var(--line);
+      box-shadow: 12px 0 30px -28px rgba(41,35,28,.55);
+    }
+    body:not(.login-shell) header {
+      background: color-mix(in srgb, var(--canvas) 90%, transparent);
+      border-color: var(--line);
+      backdrop-filter: blur(14px);
+    }
+    body:not(.login-shell) .bg-white,
+    body:not(.login-shell) .dark\:bg-gray-900 {
+      background-color: var(--panel) !important;
+    }
+    body:not(.login-shell) input.bg-white,
+    body:not(.login-shell) select.bg-white,
+    body:not(.login-shell) textarea.bg-white,
+    body:not(.login-shell) .bg-gray-800 {
+      background-color: var(--panel-strong) !important;
+    }
+    body:not(.login-shell) .bg-white.rounded-xl,
+    body:not(.login-shell) .bg-white.rounded-2xl,
+    body:not(.login-shell) .dark\:bg-gray-900.rounded-xl,
+    body:not(.login-shell) .dark\:bg-gray-900.rounded-2xl {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: var(--panel-shadow);
+    }
+    body:not(.login-shell) .rounded-xl { border-radius: 8px; }
+    body:not(.login-shell) .rounded-lg { border-radius: 5px; }
+    body:not(.login-shell) .border-gray-100,
+    body:not(.login-shell) .border-gray-200,
+    body:not(.login-shell) .border-gray-300,
+    body:not(.login-shell) .dark\:border-gray-700,
+    body:not(.login-shell) .dark\:border-gray-800 {
+      border-color: var(--line) !important;
+    }
+    body:not(.login-shell) main h1,
+    body:not(.login-shell) main h2,
+    body:not(.login-shell) main h3 {
+      letter-spacing: -.035em;
+      text-wrap: balance;
+    }
+    body:not(.login-shell) table {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 12px;
+    }
+    body:not(.login-shell) table thead th {
+      background: color-mix(in srgb, var(--se) 7%, var(--panel)) !important;
+      color: var(--muted);
+      font-family: 'Space Grotesk', ui-sans-serif, sans-serif;
+      font-size: 10px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    body:not(.login-shell) table tbody tr:hover {
+      background-color: color-mix(in srgb, var(--se) 7%, var(--panel)) !important;
+      box-shadow: inset 3px 0 0 var(--se);
+    }
+    body:not(.login-shell) main .grid > .bg-white.rounded-2xl,
+    body:not(.login-shell) main .grid > .dark\:bg-gray-900.rounded-2xl {
+      border-top: 2px solid var(--se);
+    }
+    body:not(.login-shell) .sidebar-brand-row {
+      border-color: var(--line) !important;
+      min-height: 76px;
+    }
+    body:not(.login-shell) .sidebar-nav-btn {
+      border-left-color: transparent;
+      letter-spacing: -.01em;
+    }
+    body:not(.login-shell) .sidebar-nav-btn.active {
+      background: color-mix(in srgb, var(--se) 13%, var(--panel)) !important;
+      color: var(--se) !important;
+      border-left-color: var(--se) !important;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--se) 18%, transparent);
+    }
+    body:not(.login-shell) .sidebar-group-summary {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 10px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    body:not(.login-shell) input,
+    body:not(.login-shell) select,
+    body:not(.login-shell) textarea {
+      border-color: var(--line-strong) !important;
+      border-radius: 6px;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 12px;
+    }
+    body:not(.login-shell) input:focus,
+    body:not(.login-shell) select:focus,
+    body:not(.login-shell) textarea:focus {
+      border-color: var(--se) !important;
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--se) 16%, transparent);
+    }
+    body:not(.login-shell) .rounded-full { border-radius: 9999px; }
+    body:not(.login-shell) .font-mono,
+    body:not(.login-shell) .tabular-nums { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+    body:not(.login-shell) .bg-gradient-to-br { background: var(--se) !important; }
+    body:not(.login-shell) .shadow-sm,
+    body:not(.login-shell) .shadow-lg,
+    body:not(.login-shell) .shadow-2xl { box-shadow: var(--panel-shadow); }
     .htmx-indicator { display:none; }
     .htmx-request .htmx-indicator { display:inline-block; }
     .badge-open        { background:#FEF3C7; color:#92400E; }
@@ -64,34 +233,34 @@
        control (pml/ppl/organik) vs. item nav sidebar vertikal (admin, latar
        tint + garis kiri). Dipisah lewat :not() supaya satu stylesheet
        bersama bisa melayani keduanya tanpa saling menimpa. */
-    .pill-tabs { background: #f4f1ec; border-radius: .875rem; padding: .25rem; display: inline-flex; gap: .125rem; }
-    .dark .pill-tabs { background: rgba(255,255,255,.04); }
+    .pill-tabs { background: color-mix(in srgb, var(--ink) 6%, var(--canvas)); border:1px solid var(--line); border-radius: 6px; padding: .25rem; display: inline-flex; gap: .125rem; }
+    .dark .pill-tabs { background: color-mix(in srgb, var(--ink) 6%, var(--canvas)); }
     .tab-btn.active:not(.sidebar-nav-btn) {
-      background: #fff;
-      color:#F37021;
+      background: var(--panel-strong);
+      color:var(--se);
       font-weight:600;
       box-shadow: 0 1px 2px rgba(120,60,10,.06), 0 4px 10px -4px rgba(120,60,10,.12);
     }
     .dark .tab-btn.active:not(.sidebar-nav-btn) {
-      background: #27272a;
+      background: var(--panel-strong);
       box-shadow: none;
     }
     .sidebar-nav-btn { border-radius: .625rem; }
     .sidebar-nav-btn.active {
-      background: rgba(243,112,33,.1);
-      color:#F37021;
+      background: color-mix(in srgb, var(--se) 12%, var(--panel));
+      color:var(--se);
       font-weight:600;
-      border-left-color:#F37021;
-      box-shadow: inset 0 0 0 1px rgba(243,112,33,.08);
+      border-left-color:var(--se);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--se) 16%, transparent);
     }
-    .dark .sidebar-nav-btn.active { background: rgba(243,112,33,.16); }
+    .dark .sidebar-nav-btn.active { background: color-mix(in srgb, var(--se) 16%, var(--panel)); }
     .tab-btn:hover svg { transform: scale(1.08); }
     .tab-btn svg { transition: transform .15s ease-out; }
 
     ::-webkit-scrollbar { width:10px; height:10px; }
     ::-webkit-scrollbar-track { background:transparent; }
-    ::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:9999px; }
-    .dark ::-webkit-scrollbar-thumb { background:#3f3f46; }
+    ::-webkit-scrollbar-thumb { background:var(--line-strong); border-radius:9999px; }
+    .dark ::-webkit-scrollbar-thumb { background:var(--line-strong); }
 
     /* Fade-in halus tiap kali konten diganti via HTMX (tabel, ringkasan, dst) */
     @keyframes fadeInUp {
@@ -103,9 +272,9 @@
     /* Loading bar tipis di paling atas selama request HTMX berjalan */
     #htmx-progress {
       position:fixed; top:0; left:0; height:2.5px; width:0%;
-      background:linear-gradient(90deg,#F37021,#f59548);
+      background:var(--se);
       z-index:60; opacity:0; transition:width .35s ease-out, opacity .2s ease-out;
-      box-shadow: 0 0 8px rgba(243,112,33,.6);
+      box-shadow: 0 0 8px color-mix(in srgb, var(--se) 60%, transparent);
     }
 
     /* Angka tabular supaya kolom angka rapi sejajar di semua tabel & stat card */
