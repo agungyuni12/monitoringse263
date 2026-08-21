@@ -34,10 +34,9 @@
     </div>
   </div>
 
-  <div id="sidebar-backdrop" onclick="toggleSidebar()"
-    class="fixed inset-0 bg-black/40 z-30 hidden lg:hidden"></div>
-
   <div class="flex min-h-screen">
+    <div id="sidebar-backdrop" onclick="toggleSidebar()"
+      class="fixed inset-0 bg-black/40 z-30 hidden lg:hidden"></div>
     <!-- ===== SIDEBAR ===== -->
     <aside id="sidebar"
       class="fixed inset-y-0 left-0 z-40 w-64 shrink-0 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800
@@ -322,7 +321,7 @@
           </div>
         </div>
         <div id="evaluasi-table-wrap"
-          hx-get="/organik/evaluasi" hx-trigger="load, refreshEvaluasi from:body" hx-swap="innerHTML">
+          hx-get="/organik/evaluasi" hx-trigger="tab:evaluasi from:body, refreshEvaluasi from:body" hx-swap="innerHTML">
           <div class="px-6 py-10 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat data evaluasi...</div>
         </div>
       </section>
@@ -374,7 +373,7 @@
           </select>
         </div>
         <div id="usaha-ekonomi-result"
-          hx-get="/organik/table/usaha-ekonomi" hx-trigger="load" hx-swap="innerHTML">
+          hx-get="/organik/table/usaha-ekonomi" hx-trigger="tab:usahaEkonomi from:body" hx-swap="innerHTML">
           <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat data usaha...</div>
         </div>
       </div>
@@ -435,7 +434,7 @@
           </a>
         </div>
         <div id="tidak-ditemukan-result"
-          hx-get="/organik/table/tidak-ditemukan?tipe=usaha" hx-trigger="load" hx-swap="innerHTML"
+          hx-get="/organik/table/tidak-ditemukan?tipe=usaha" hx-trigger="tab:keluarga from:body" hx-swap="innerHTML"
           hx-include="#tidak-ditemukan-filter-bar">
           <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data...</div>
         </div>
@@ -460,6 +459,7 @@
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       document.getElementById('tab-' + name).classList.add('active');
       document.getElementById('panel-' + name).classList.add('active');
+      document.body.dispatchEvent(new Event('tab:' + name));
       var sidebar = document.getElementById('sidebar');
       if (window.innerWidth < 1024 && !sidebar.classList.contains('-translate-x-full')) {
         toggleSidebar();

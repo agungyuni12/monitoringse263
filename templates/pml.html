@@ -34,10 +34,9 @@
     </div>
   </div>
 
-  <div id="sidebar-backdrop" onclick="toggleSidebar()"
-    class="fixed inset-0 bg-black/40 z-30 hidden lg:hidden"></div>
-
   <div class="flex min-h-screen">
+    <div id="sidebar-backdrop" onclick="toggleSidebar()"
+      class="fixed inset-0 bg-black/40 z-30 hidden lg:hidden"></div>
     <!-- ===== SIDEBAR ===== -->
     <aside id="sidebar"
       class="fixed inset-y-0 left-0 z-40 w-64 shrink-0 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800
@@ -241,7 +240,7 @@
           </select>
         </div>
         <div id="pml-anomali-result"
-          hx-get="/pml/anomali" hx-trigger="load" hx-swap="innerHTML">
+          hx-get="/pml/anomali" hx-trigger="tab:anomali from:body" hx-swap="innerHTML">
           <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat data anomali...</div>
         </div>
       </div>
@@ -256,7 +255,7 @@
             class="w-full md:w-56 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"/>
         </div>
         <div id="pml-progres-ppl-result"
-          hx-get="/pml/progres-ppl" hx-trigger="load" hx-swap="innerHTML">
+          hx-get="/pml/progres-ppl" hx-trigger="tab:progres-ppl from:body" hx-swap="innerHTML">
           <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat progres PPL...</div>
         </div>
       </div>
@@ -274,7 +273,7 @@
           </select>
         </div>
         <div id="pml-perbaikan-result"
-          hx-get="/pml/perbaikan/table" hx-trigger="load, refreshEvaluasi from:body" hx-swap="innerHTML">
+          hx-get="/pml/perbaikan/table" hx-trigger="tab:perbaikan from:body, refreshEvaluasi from:body" hx-swap="innerHTML">
           <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat catatan perbaikan...</div>
         </div>
       </div>
@@ -298,6 +297,7 @@
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       document.getElementById('tab-' + name).classList.add('active');
       document.getElementById('panel-' + name).classList.add('active');
+      document.body.dispatchEvent(new Event('tab:' + name));
       var sidebar = document.getElementById('sidebar');
       if (window.innerWidth < 1024 && !sidebar.classList.contains('-translate-x-full')) {
         toggleSidebar();

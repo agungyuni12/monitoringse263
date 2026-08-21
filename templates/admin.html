@@ -34,10 +34,9 @@
 
   {{template "theme_progress_bar" .}}
 
-  <div id="sidebar-backdrop" onclick="toggleSidebar()"
-    class="fixed inset-0 bg-black/40 z-30 hidden lg:hidden"></div>
-
   <div class="flex min-h-screen">
+    <div id="sidebar-backdrop" onclick="toggleSidebar()"
+      class="fixed inset-0 bg-black/40 z-30 hidden lg:hidden"></div>
     <!-- ===== SIDEBAR ===== -->
     <aside id="sidebar"
       class="fixed inset-y-0 left-0 z-40 w-64 shrink-0 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800
@@ -395,7 +394,7 @@
             </select>
           </div>
           <div id="admin-evaluasi-wrap"
-            hx-get="/admin/table/evaluasi-organik" hx-trigger="load" hx-swap="innerHTML">
+            hx-get="/admin/table/evaluasi-organik" hx-trigger="tab:evaluasi from:body" hx-swap="innerHTML">
             <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat data evaluasi organik...</div>
           </div>
         </div>
@@ -502,7 +501,7 @@
             </a>
           </div>
           <div id="anomali-result"
-            hx-get="/admin/table/anomali" hx-trigger="load" hx-swap="innerHTML">
+            hx-get="/admin/table/anomali" hx-trigger="tab:anomali from:body" hx-swap="innerHTML">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data anomali...</div>
           </div>
         </div>
@@ -561,7 +560,7 @@
             </a>
           </div>
           <div id="tidak-ditemukan-result"
-            hx-get="/admin/table/tidak-ditemukan?tipe=usaha" hx-trigger="load" hx-swap="innerHTML"
+            hx-get="/admin/table/tidak-ditemukan?tipe=usaha" hx-trigger="tab:keberadaan from:body" hx-swap="innerHTML"
             hx-include="#tidak-ditemukan-filter-bar">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data...</div>
           </div>
@@ -613,7 +612,7 @@
           </div>
           <div id="progres-rekap-result"
             hx-get="/admin/table/progres-rekap"
-            hx-trigger="load, change from:#global-metode-select"
+            hx-trigger="tab:progresRekap from:body, change from:#global-metode-select"
             hx-swap="innerHTML"
             hx-include="#progres-rekap-filter-bar, #global-metode-select">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat rekap progres...</div>
@@ -637,7 +636,7 @@
             </a>
           </div>
           <div id="admin-kbli-wrap"
-            hx-get="/admin/table/kbli" hx-trigger="load" hx-swap="innerHTML">
+            hx-get="/admin/table/kbli" hx-trigger="tab:kbli from:body" hx-swap="innerHTML">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data KBLI...</div>
           </div>
         </div>
@@ -685,7 +684,7 @@
             </a>
           </div>
           <div id="usaha-ekonomi-result"
-            hx-get="/admin/table/usaha-ekonomi" hx-trigger="load" hx-swap="innerHTML">
+            hx-get="/admin/table/usaha-ekonomi" hx-trigger="tab:usahaEkonomi from:body" hx-swap="innerHTML">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data usaha...</div>
           </div>
         </div>
@@ -738,7 +737,7 @@
             </a>
           </div>
           <div id="admin-keberadaan-rekap-wrap"
-            hx-get="/admin/table/keberadaan-bku" hx-trigger="load" hx-swap="innerHTML">
+            hx-get="/admin/table/keberadaan-bku" hx-trigger="tab:keberadaanRekap from:body" hx-swap="innerHTML">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data keberadaan...</div>
           </div>
         </div>
@@ -811,7 +810,7 @@
             </select>
           </div>
           <div id="admin-trend-ppl-wrap"
-            hx-get="/admin/table/trend/ppl" hx-trigger="load" hx-swap="innerHTML">
+            hx-get="/admin/table/trend/ppl" hx-trigger="tab:trend from:body" hx-swap="innerHTML">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat tren PPL...</div>
           </div>
           <div id="admin-trend-pml-wrap" class="hidden">
@@ -841,6 +840,7 @@
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       document.getElementById('tab-' + name).classList.add('active');
       document.getElementById('panel-' + name).classList.add('active');
+      document.body.dispatchEvent(new Event('tab:' + name));
       if (name === 'peta') setTimeout(initPetaMap, 60);
       // Tutup sidebar drawer di mobile setelah pilih tab
       var sidebar = document.getElementById('sidebar');
