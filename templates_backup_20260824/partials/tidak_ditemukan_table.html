@@ -1,0 +1,168 @@
+{{define "tidak_ditemukan_table.html"}}
+{{template "oob_select" .PMLSelect}}
+{{template "oob_select" .PPLSelect}}
+<div>
+  <div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
+    Ditemukan <span class="font-semibold text-gray-700 dark:text-gray-300">{{.PageInfo.TotalRow}}</span>
+    {{if eq .Tipe "keluarga"}}keluarga{{if .Status}} berstatus "{{.Status}}"{{else}} tidak ditemukan/ditemukan/baru/open{{end}}
+    {{else}}{{if eq .Tipe "usaha_keluarga"}}usaha dalam keluarga{{else}}usaha{{end}}{{if .Status}} berstatus "{{.Status}}"{{else}} tidak ditemukan/tutup/ganda/open{{end}}
+    {{end}}
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="w-full text-xs">
+      <thead>
+        <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left uppercase tracking-wide">
+          <th class="px-3 py-2.5 font-medium text-center w-8">No</th>
+          {{template "sortable_th" dict "Label" "Lokasi (Kec / Desa / SLS)" "Col" "lokasi" "PageInfo" $.PageInfo}}
+          {{template "sortable_th" dict "Label" "Petugas" "Col" "petugas" "PageInfo" $.PageInfo}}
+          {{if eq .Tipe "keluarga"}}
+          {{template "sortable_th" dict "Label" "Nama KK" "Col" "nama" "PageInfo" $.PageInfo}}
+          {{else}}
+          {{template "sortable_th" dict "Label" "Nama Usaha" "Col" "nama" "PageInfo" $.PageInfo}}
+          {{end}}
+          {{if ne .Tipe "keluarga"}}
+          {{template "sortable_th" dict "Label" "Skala" "Col" "skala" "PageInfo" $.PageInfo}}
+          {{end}}
+          {{template "sortable_th" dict "Label" "Keberadaan" "Col" "keberadaan" "PageInfo" $.PageInfo}}
+          {{if ne .Tipe "keluarga"}}
+          {{template "sortable_th" dict "Label" "KBLI (Prelist)" "Col" "kbli" "PageInfo" $.PageInfo "Center" true}}
+          {{end}}
+          {{if eq .Tipe "keluarga"}}
+          <th class="px-3 py-2.5 font-medium">Nomor KK Prelist</th>
+          <th class="px-3 py-2.5 font-medium">Nomor KK Sekarang</th>
+          {{end}}
+          <th class="px-3 py-2.5 font-medium">Alamat</th>
+          {{template "sortable_th" dict "Label" "Status Assignment" "Col" "status" "PageInfo" $.PageInfo}}
+          {{template "sortable_th" dict "Label" "Tanggal Modified" "Col" "tanggal" "PageInfo" $.PageInfo "Center" true}}
+          <th class="px-3 py-2.5 font-medium whitespace-nowrap">ID Assignment</th>
+          <th class="px-3 py-2.5 font-medium text-center">FASIH</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+        {{range $i, $r := .Rows}}
+        <tr class="hover:bg-orange-50/20 dark:hover:bg-gray-800/40 transition-colors">
+          <td class="px-3 py-2 text-center text-gray-400 dark:text-gray-500">{{add $.PageInfo.From $i}}</td>
+          <td class="px-3 py-2 whitespace-nowrap">
+            <div class="text-gray-400 dark:text-gray-500">{{$r.NamaKec}} › {{$r.NamaDesa}}</div>
+            <div class="font-medium text-gray-700 dark:text-gray-300">{{$r.NamaSLS}}</div>
+          </td>
+          <td class="px-3 py-2 whitespace-nowrap">
+            <div class="text-gray-600 dark:text-gray-400">PPL: {{$r.NamaPPL}}</div>
+            <div class="text-gray-400 dark:text-gray-500">PML: {{$r.NamaPML}}</div>
+          </td>
+          <td class="px-3 py-2 font-medium text-gray-800 dark:text-gray-100">{{$r.Nama}}</td>
+          {{if ne $.Tipe "keluarga"}}
+          <td class="px-3 py-2">
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+              {{if $r.Skala}}{{$r.Skala}}{{else}}-{{end}}
+            </span>
+          </td>
+          {{end}}
+          <td class="px-3 py-2">
+            {{if eq $r.Keberadaan "Tutup"}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700 whitespace-nowrap">{{$r.Keberadaan}}</span>
+            {{else if eq $r.Keberadaan "Ganda"}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700 whitespace-nowrap">{{$r.Keberadaan}}</span>
+            {{else if eq $r.Keberadaan "Open"}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600 whitespace-nowrap">{{$r.Keberadaan}}</span>
+            {{else if eq $r.Keberadaan "Ditemukan"}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700 whitespace-nowrap">{{$r.Keberadaan}}</span>
+            {{else if eq $r.Keberadaan "Baru"}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700 whitespace-nowrap">{{$r.Keberadaan}}</span>
+            {{else if $r.Keberadaan}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700 whitespace-nowrap">{{$r.Keberadaan}}</span>
+            {{else}}
+            <span class="text-gray-300 dark:text-gray-600">-</span>
+            {{end}}
+          </td>
+          {{if ne $.Tipe "keluarga"}}
+          <td class="px-3 py-2 text-center">
+            {{if $r.KBLIKategori}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-teal-100 text-teal-700 whitespace-nowrap" title="Kategori KBLI dari klasifikasi tahun lalu (2025), belum tentu masih berlaku">{{$r.KBLIKategori}}</span>
+            {{else}}
+            <span class="text-gray-300 dark:text-gray-600">-</span>
+            {{end}}
+          </td>
+          {{end}}
+          {{if eq $.Tipe "keluarga"}}
+          <td class="px-3 py-2 whitespace-nowrap font-mono text-gray-600 dark:text-gray-400">
+            {{if $r.NomorKKPrelist}}{{$r.NomorKKPrelist}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
+          </td>
+          <td class="px-3 py-2 whitespace-nowrap font-mono text-gray-600 dark:text-gray-400">
+            {{if $r.NomorKKSekarang}}{{$r.NomorKKSekarang}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
+          </td>
+          {{end}}
+          <td class="px-3 py-2 max-w-[220px] truncate" title="{{$r.Alamat}}">
+            {{if $r.Alamat}}{{$r.Alamat}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
+          </td>
+          <td class="px-3 py-2">
+            {{if $r.AssignmentStatus}}
+              {{if containsCI $r.AssignmentStatus "approved"}}
+              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+              {{else if containsCI $r.AssignmentStatus "rejected"}}
+              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+              {{else if containsCI $r.AssignmentStatus "revoked"}}
+              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+              {{else if containsCI $r.AssignmentStatus "submitted"}}
+              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+              {{else if containsCI $r.AssignmentStatus "draft"}}
+              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+              {{else if containsCI $r.AssignmentStatus "open"}}
+              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+              {{else}}
+              <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600 dark:text-gray-400 whitespace-nowrap">{{$r.AssignmentStatus}}</span>
+              {{end}}
+            {{else}}
+            <span class="text-gray-300 dark:text-gray-600">-</span>
+            {{end}}
+          </td>
+          <td class="px-3 py-2 text-center text-gray-400 dark:text-gray-500 whitespace-nowrap">{{$r.TanggalModified}}</td>
+          <td class="px-3 py-2 max-w-[160px]">
+            <div class="flex items-center gap-1.5">
+              <span class="font-mono text-[11px] text-gray-500 dark:text-gray-400 truncate" title="{{$r.AssignmentID}}">{{if $r.AssignmentID}}{{$r.AssignmentID}}{{else}}-{{end}}</span>
+              {{if $r.AssignmentID}}
+              <button type="button" onclick="copyTidakDitemukanID(this, '{{$r.AssignmentID}}')"
+                class="shrink-0 text-gray-400 hover:text-se dark:text-gray-500 dark:hover:text-se transition-colors" title="Salin ID">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              </button>
+              {{end}}
+            </div>
+          </td>
+          <td class="px-3 py-2 text-center">
+            {{if $r.FasihLink}}
+            <a href="{{$r.FasihLink}}" target="_blank" rel="noopener noreferrer"
+              class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-se hover:bg-orange-50 dark:hover:bg-gray-800 transition-colors"
+              title="Buka assignment di FASIH">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+              </svg>
+            </a>
+            {{else}}
+            <span class="text-gray-300 dark:text-gray-600">-</span>
+            {{end}}
+          </td>
+        </tr>
+        {{else}}
+        <tr><td colspan="14" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
+          <div class="flex flex-col items-center gap-2">
+            <svg class="w-8 h-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+            </svg>
+            <span class="text-sm">Belum ada data</span>
+          </div>
+        </td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{template "pagination" .PageInfo}}
+</div>
+<script>
+  function copyTidakDitemukanID(btn, assignmentId) {
+    navigator.clipboard.writeText(assignmentId).then(function() {
+      document.dispatchEvent(new CustomEvent('showToast', {detail: {msg: 'ID assignment disalin!', kind: 'success'}}));
+    });
+  }
+</script>
+{{end}}

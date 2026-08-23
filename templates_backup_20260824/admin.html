@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin – SIGEMPAR SE2026</title>
+  {{template "theme_init_script" .}}
+  {{template "theme_assets" .}}
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  {{template "theme_style" .}}
+  <style>
+    /* Sidebar collapse (desktop only — mobile tetap pakai drawer overlay) */
+    @media (min-width: 1024px) {
+      .sidebar-collapsed #sidebar { width:5rem; }
+      .sidebar-collapsed .sidebar-label,
+      .sidebar-collapsed .sidebar-brand-text { display:none; }
+      .sidebar-collapsed .sidebar-nav-btn { justify-content:center; }
+      .sidebar-collapsed #sidebar-collapse-icon { transform:rotate(180deg); }
+      .sidebar-collapsed .sidebar-brand-row { justify-content:center; }
+      /* Submenu grup (Monitoring/Anomali/Rekap): saat sidebar diciutkan jadi rail
+         ikon-saja, tampilkan semua isi grup rata (bukan accordion) & non-aktifkan
+         klik-buka/tutup pada judul grup — labelnya sudah hilang jadi tidak ada
+         yang bisa dikelompokkan lagi secara visual. */
+      .sidebar-collapsed details.sidebar-group > div { display: block !important; }
+      .sidebar-collapsed .sidebar-group-summary { pointer-events: none; justify-content: center; }
+      .sidebar-collapsed .sidebar-group .sidebar-nav-btn { padding-left: .75rem; padding-right: .75rem; }
+    }
+    #sidebar-collapse-icon { transition: transform .2s ease-out; }
+    .sidebar-group-summary::-webkit-details-marker { display:none; }
+  </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen transition-colors">
+
+  {{template "theme_progress_bar" .}}
+
+  <div class="flex min-h-screen">
+    <div id="sidebar-backdrop" onclick="toggleSidebar()"
+      class="fixed inset-0 bg-black/40 z-30 hidden lg:hidden"></div>
+    <!-- ===== SIDEBAR ===== -->
+    <aside id="sidebar"
+      class="fixed inset-y-0 left-0 z-40 w-64 shrink-0 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800
+        flex flex-col -translate-x-full lg:translate-x-0 lg:static transition-all duration-200 ease-out">
+      <div class="sidebar-brand-row flex items-center gap-3 px-5 py-5 border-b border-gray-100 dark:border-gray-800">
+        <div class="w-9 h-9 rounded-[10px] bg-se-bg dark:bg-gray-800 ring-1 ring-se/10 dark:ring-gray-700 shrink-0 p-1.5">
+          <img src="/static/logo-sigempar.png" alt="SIGEMPAR" class="w-full h-full object-contain"/>
+        </div>
+        <div class="sidebar-brand-text min-w-0">
+          <h1 class="font-extrabold text-[13.5px] leading-tight text-gray-800 dark:text-gray-100 tracking-tight">SIGEMPAR</h1>
+          <p class="text-gray-400 dark:text-gray-500 text-[11px] truncate">Dasbor Admin · SE 2026</p>
+        </div>
+        <button onclick="toggleSidebarCollapse()" title="Ciutkan/lebarkan sidebar"
+          class="hidden lg:flex ml-auto shrink-0 p-1.5 rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-se transition-all active:scale-90">
+          <svg id="sidebar-collapse-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>
+          </svg>
+        </button>
+      </div>
+
+      <nav class="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
+        <button onclick="switchTab('ringkasan')" id="tab-ringkasan" title="Ringkasan"
+          class="tab-btn sidebar-nav-btn active w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+          <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4h7v7H4V4zm9 0h7v7h-7V4zm0 9h7v7h-7v-7zM4 13h7v7H4v-7z"/></svg>
+          <span class="sidebar-label">Ringkasan</span>
+        </button>
+        <details class="sidebar-group group/monitoring" open>
+          <summary class="sidebar-group-summary list-none cursor-pointer flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 select-none">
+            <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            <span class="sidebar-label flex-1 text-left">Monitoring</span>
+            <svg class="sidebar-label w-3.5 h-3.5 text-gray-400 dark:text-gray-500 shrink-0 transition-transform group-open/monitoring:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="space-y-0.5 mt-0.5">
+            <button onclick="switchTab('pml')" id="tab-pml" title="Per PML"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3l7 3v5c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z"/></svg>
+              <span class="sidebar-label">Per PML</span>
+            </button>
+            <button onclick="switchTab('ppl')" id="tab-ppl" title="Per PPL"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 12a4 4 0 100-8 4 4 0 000 8zM4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>
+              <span class="sidebar-label">Per PPL</span>
+            </button>
+            <button onclick="switchTab('organik')" id="tab-organik" title="Pengawasan Organik"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3" stroke-width="1.5"/></svg>
+              <span class="sidebar-label">Pengawasan Organik</span>
+            </button>
+            <button onclick="switchTab('evaluasi')" id="tab-evaluasi" title="Evaluasi Organik"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span class="sidebar-label">Evaluasi Organik</span>
+            </button>
+            <button onclick="switchTab('sls')" id="tab-sls" title="Progres Semua SLS"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 4h6a1 1 0 011 1v1H8V5a1 1 0 011-1z"/><rect x="5" y="6" width="14" height="15" rx="2" stroke-width="1.5"/><path stroke-linecap="round" stroke-width="1.5" d="M8.5 12h7M8.5 16h5"/></svg>
+              <span class="sidebar-label">Progres Semua SLS</span>
+            </button>
+          </div>
+        </details>
+
+        <details class="sidebar-group group/anomali">
+          <summary class="sidebar-group-summary list-none cursor-pointer flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 select-none">
+            <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+            <span class="sidebar-label flex-1 text-left">Anomali &amp; Keberadaan</span>
+            <svg class="sidebar-label w-3.5 h-3.5 text-gray-400 dark:text-gray-500 shrink-0 transition-transform group-open/anomali:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="space-y-0.5 mt-0.5">
+            <button onclick="switchTab('anomali')" id="tab-anomali" title="Anomali"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+              <span class="sidebar-label">Anomali</span>
+            </button>
+            <button onclick="switchTab('keberadaan')" id="tab-keberadaan" title="Keberadaan"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 21s-7-6.5-7-11a7 7 0 1114 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5" stroke-width="1.5"/></svg>
+              <span class="sidebar-label">Keberadaan</span>
+            </button>
+          </div>
+        </details>
+
+        <details class="sidebar-group group/rekap">
+          <summary class="sidebar-group-summary list-none cursor-pointer flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 select-none">
+            <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 20V10m6 10V4m6 16v-7"/></svg>
+            <span class="sidebar-label flex-1 text-left">Rekap &amp; Analisis</span>
+            <svg class="sidebar-label w-3.5 h-3.5 text-gray-400 dark:text-gray-500 shrink-0 transition-transform group-open/rekap:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </summary>
+          <div class="space-y-0.5 mt-0.5">
+            <button onclick="switchTab('progresRekap')" id="tab-progresRekap" title="Rekap Progres"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 20V10m6 10V4m6 16v-7"/></svg>
+              <span class="sidebar-label">Rekap Progres</span>
+            </button>
+            <button onclick="switchTab('kbli')" id="tab-kbli" title="KBLI per SLS"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1" stroke-width="1.5"/><rect x="14" y="3" width="7" height="7" rx="1" stroke-width="1.5"/><rect x="3" y="14" width="7" height="7" rx="1" stroke-width="1.5"/><rect x="14" y="14" width="7" height="7" rx="1" stroke-width="1.5"/></svg>
+              <span class="sidebar-label">KBLI per SLS</span>
+            </button>
+            <button onclick="switchTab('usahaEkonomi')" id="tab-usahaEkonomi" title="Usaha (Data Ekonomi)"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-3 0-5 1.5-5 4s2 4 5 4 5-1.5 5-4-2-4-5-4zm0 0V4m0 16v-2"/></svg>
+              <span class="sidebar-label">Usaha (Data Ekonomi)</span>
+            </button>
+            <button onclick="switchTab('keberadaanRekap')" id="tab-keberadaanRekap" title="Rekap Keberadaan"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <span class="sidebar-label">Rekap Keberadaan</span>
+            </button>
+            <button onclick="switchTab('peta')" id="tab-peta" title="Peta Sebaran"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 4.5L4 6.5v13l5-2 6 2 5-2v-13l-5 2-6-2z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 4.5v13m6-11v13"/></svg>
+              <span class="sidebar-label">Peta Sebaran</span>
+            </button>
+            <button onclick="switchTab('trend')" id="tab-trend" title="Tren Progres"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 17l6-6 4 4 8-8m0 0h-5m5 0v5"/></svg>
+              <span class="sidebar-label">Tren Progres</span>
+            </button>
+          </div>
+        </details>
+      </nav>
+
+      <div class="border-t border-gray-100 dark:border-gray-800 p-3 space-y-0.5">
+        <a href="/kendala" title="Daftar Kendala"
+          class="sidebar-nav-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+          <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
+          <span class="sidebar-label">Daftar Kendala</span>
+        </a>
+        <a href="/logout" title="Keluar"
+          class="sidebar-nav-btn flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+          <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+          </svg>
+          <span class="sidebar-label">Keluar</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- ===== MAIN COLUMN ===== -->
+    <div class="flex-1 min-w-0 flex flex-col">
+      <!-- Topbar -->
+      <header class="sticky top-0 z-20 bg-white/85 dark:bg-gray-900/85 backdrop-blur border-b border-gray-200 dark:border-gray-800">
+        <div class="px-4 lg:px-6 py-3.5 flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <button onclick="toggleSidebar()" class="lg:hidden text-gray-500 dark:text-gray-400 hover:text-se p-1 -ml-1 rounded-lg transition-all active:scale-90">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 6h16M4 12h16M4 18h16"/>
+              </svg>
+            </button>
+            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-se to-se-dark text-white flex items-center justify-center text-[13px] font-bold shrink-0">
+              {{if .Name}}{{slice .Name 0 1}}{{else}}?{{end}}
+            </div>
+            <div class="min-w-0">
+              <p class="text-[11px] text-gray-400 dark:text-gray-500 truncate leading-tight">Selamat datang,</p>
+              <p class="font-bold text-[14px] text-gray-800 dark:text-gray-100 truncate leading-tight tracking-tight">{{.Name}}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1"></span>
+            {{template "theme_toggle_button" .}}
+          </div>
+        </div>
+      </header>
+
+      <main class="flex-1 px-4 lg:px-6 py-8 space-y-8 max-w-[1600px] w-full">
+
+        <!-- ===== TABS ===== -->
+        <section>
+          <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm dark:shadow-none dark:ring-1 dark:ring-gray-800 overflow-hidden">
+
+            <!-- TAB: Ringkasan — dasbor ringkasan Kabupaten Dompu, menu tersendiri
+                 supaya klik Per PML/Per PPL/dst langsung ke tabelnya tanpa perlu
+                 scroll melewati ringkasan ini dulu. -->
+        <div id="panel-ringkasan" class="tab-panel active">
+          <div class="p-6">
+            <div class="flex items-center justify-between gap-2 mb-4 flex-wrap">
+              <div class="flex items-center gap-2.5">
+                <div class="w-1.5 h-7 bg-gradient-to-b from-se to-se-dark rounded-full"></div>
+                <h2 class="font-extrabold text-gray-800 dark:text-gray-100 text-[19px] tracking-tight">Ringkasan Kabupaten Dompu SE 2026</h2>
+              </div>
+              <select id="global-metode-select" name="metode"
+                title="Metode perhitungan % Progres — berlaku untuk Ringkasan, Per PML, Per PPL, Progres Semua SLS, dan Peta Sebaran"
+                hx-get="/admin/summary"
+                hx-target="#admin-summary-wrap"
+                hx-swap="innerHTML"
+                hx-trigger="change"
+                class="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:text-gray-100">
+                <option value="1" {{if eq .Metode "1"}}selected{{end}}>% Progres: Total / Total</option>
+                <option value="2" {{if eq .Metode "2"}}selected{{end}}>% Progres: Total / Prelist</option>
+                <option value="3" {{if eq .Metode "3"}}selected{{end}}>% Progres: Prelist / Prelist</option>
+              </select>
+            </div>
+
+            <div id="admin-summary-wrap">
+              {{template "admin_summary_stats.html" .}}
+            </div>
+
+            <!-- Info Sync FASIH -->
+            <div class="mt-3 flex items-center justify-between px-1">
+              <div class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
+                {{if .LastSync.Error}}
+                <span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span>
+                <span>Sync gagal {{.LastSync.Time}}: <span class="text-red-500">{{.LastSync.Error}}</span></span>
+                {{else if .LastSync.Time}}
+                <span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span>
+                <span>Data FASIH diperbarui: <b class="text-gray-600 dark:text-gray-300">{{.LastSync.Time}}</b> &mdash; {{.LastSync.Updated}} SLS</span>
+                {{else}}
+                <span class="w-2 h-2 rounded-full bg-yellow-400 inline-block"></span>
+                <span>Menunggu sync pertama...</span>
+                {{end}}
+              </div>
+              <form hx-post="/admin/sync/fasih" hx-swap="none">
+                <button type="submit"
+                  class="text-xs px-3 py-1 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-orange-50 dark:hover:bg-gray-800 hover:border-se hover:text-se transition-all active:scale-95">
+                  Sync Sekarang
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+            <!-- TAB: Per PML -->
+        <div id="panel-pml" class="tab-panel">
+          <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="pml-filter-bar">
+            <input type="text" name="q"
+              hx-get="/admin/table/pml"
+              hx-target="#admin-pml-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="input changed delay:300ms"
+              hx-include="#pml-filter-bar, #global-metode-select"
+              placeholder="Cari nama PML..."
+              class="w-full md:w-80 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <a id="pml-dl-btn" href="/admin/download/pml"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="admin-pml-wrap"
+            hx-get="/admin/table/pml"
+            hx-target="this"
+            hx-swap="innerHTML"
+            hx-trigger="change from:#global-metode-select"
+            hx-include="#pml-filter-bar, #global-metode-select">
+            {{template "admin_pml_table.html" .}}
+          </div>
+        </div>
+
+        <!-- TAB: Per PPL -->
+        <div id="panel-ppl" class="tab-panel">
+          <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="ppl-filter-bar">
+            <input type="text" name="q"
+              hx-get="/admin/table/ppl"
+              hx-target="#admin-ppl-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="input changed delay:300ms"
+              hx-include="#ppl-filter-bar, #global-metode-select"
+              placeholder="Cari nama PPL..."
+              class="w-full md:w-72 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="pml_id" onchange="updatePPLDownload()"
+              hx-get="/admin/table/ppl"
+              hx-target="#admin-ppl-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="change"
+              hx-include="#ppl-filter-bar, #global-metode-select"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">-- Semua PML --</option>
+              {{range .PMLUserList}}
+              <option value="{{.ID}}">{{.Name}}</option>
+              {{end}}
+            </select>
+            <a id="ppl-dl-btn" href="/admin/download/ppl"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="admin-ppl-wrap"
+            hx-get="/admin/table/ppl"
+            hx-target="this"
+            hx-swap="innerHTML"
+            hx-trigger="change from:#global-metode-select"
+            hx-include="#ppl-filter-bar, #global-metode-select">
+            {{template "admin_ppl_table.html" .}}
+          </div>
+        </div>
+
+        <!-- TAB: Pengawasan Organik -->
+        <div id="panel-organik" class="tab-panel">
+          <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center">
+            <input type="text" name="q"
+              hx-get="/admin/table/organik"
+              hx-target="#admin-organik-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="input changed delay:300ms"
+              placeholder="Cari nama organik, SLS, PPL, desa..."
+              class="w-full md:w-80 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <a href="/admin/download/organik"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="admin-organik-wrap">
+            {{template "admin_organik_table.html" .}}
+          </div>
+        </div>
+
+        <!-- TAB: Evaluasi Organik -->
+        <div id="panel-evaluasi" class="tab-panel">
+          <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="evaluasi-filter-bar">
+            <input type="text" name="q"
+              hx-get="/admin/table/evaluasi-organik" hx-target="#admin-evaluasi-wrap" hx-swap="innerHTML"
+              hx-trigger="input changed delay:300ms" hx-include="#evaluasi-filter-bar"
+              placeholder="Cari organik, SLS, rincian kuesioner..."
+              class="w-full md:w-72 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="kec"
+              hx-get="/admin/table/evaluasi-organik" hx-target="#admin-evaluasi-wrap" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#evaluasi-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Kecamatan</option>
+              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
+            </select>
+            <select name="pml_id"
+              hx-get="/admin/table/evaluasi-organik" hx-target="#admin-evaluasi-wrap" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#evaluasi-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PML</option>
+              {{range .PMLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <select name="ppl_id"
+              hx-get="/admin/table/evaluasi-organik" hx-target="#admin-evaluasi-wrap" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#evaluasi-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PPL</option>
+              {{range .PPLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <select name="status"
+              hx-get="/admin/table/evaluasi-organik" hx-target="#admin-evaluasi-wrap" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#evaluasi-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Status</option>
+              <option value="open">Terbuka</option>
+              <option value="resolved">Selesai</option>
+            </select>
+          </div>
+          <div id="admin-evaluasi-wrap"
+            hx-get="/admin/table/evaluasi-organik" hx-trigger="tab:evaluasi from:body" hx-swap="innerHTML">
+            <div class="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-sm">Memuat data evaluasi organik...</div>
+          </div>
+        </div>
+
+        <!-- TAB: Progres Semua SLS -->
+        <div id="panel-sls" class="tab-panel">
+          <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="sls-filter-bar">
+            <select name="level"
+              hx-get="/admin/table/sls"
+              hx-target="#admin-sls-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="change"
+              hx-include="#sls-filter-bar, #global-metode-select"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Per SLS</option>
+              <option value="desa">Per Desa</option>
+              <option value="kec">Per Kecamatan</option>
+            </select>
+            <input type="text" name="q"
+              hx-get="/admin/table/sls"
+              hx-target="#admin-sls-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="input changed delay:300ms"
+              hx-include="#sls-filter-bar, #global-metode-select"
+              hx-indicator="#sls-search-spin"
+              placeholder="Cari nama SLS, Desa, Kecamatan..."
+              class="w-full md:w-80 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <span id="sls-search-spin" class="htmx-indicator inline-block align-middle">
+              <svg class="w-4 h-4 animate-spin text-se" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+              </svg>
+            </span>
+            <a id="sls-dl-btn" href="/admin/download/sls"
+              onclick="updateSLSDownload(this)"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="admin-sls-wrap"
+            hx-get="/admin/table/sls"
+            hx-target="this"
+            hx-swap="innerHTML"
+            hx-trigger="change from:#global-metode-select"
+            hx-include="#sls-filter-bar, #global-metode-select">
+            {{template "admin_sls_table.html" .}}
+          </div>
+        </div>
+
+        <!-- TAB: Anomali -->
+        <div id="panel-anomali" class="tab-panel">
+          <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="anomali-filter-bar">
+            <input type="text" name="q"
+              hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
+              hx-trigger="input changed delay:400ms" hx-include="#anomali-filter-bar"
+              placeholder="Cari nama, jenis, keterangan, SLS..."
+              class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="kec"
+              hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#anomali-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Kecamatan</option>
+              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
+            </select>
+            <select name="pml_id" id="anomali-pml-select"
+              hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#anomali-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PML</option>
+              {{range .PMLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <select name="ppl_id" id="anomali-ppl-select"
+              hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#anomali-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PPL</option>
+              {{range .PPLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <select name="fasih"
+              hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#anomali-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Status Tindak Lanjut</option>
+              <option value="belum">⏳ Belum Ditindaklanjuti</option>
+              <option value="sudah">✅ Sudah Ditindaklanjuti dengan Perbaikan</option>
+              <option value="sesuai">✅ Sudah Ditindaklanjuti dengan Penjelasan (Sesuai Kondisi Lapangan)</option>
+            </select>
+            <label class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400" title="Filter berdasarkan tanggal anomali pertama kali muncul">
+              muncul s.d.
+              <input type="date" name="tgl"
+                hx-get="/admin/table/anomali" hx-target="#anomali-result" hx-swap="innerHTML"
+                hx-trigger="change" hx-include="#anomali-filter-bar"
+                class="px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"/>
+            </label>
+            <a id="anomali-dl-btn" href="/admin/download/anomali"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="anomali-result"
+            hx-get="/admin/table/anomali" hx-trigger="tab:anomali from:body" hx-swap="innerHTML">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data anomali...</div>
+          </div>
+        </div>
+
+        <!-- TAB: Keberadaan — Tidak Ditemukan (Usaha/Keluarga) -->
+        <div id="panel-keberadaan" class="tab-panel">
+          <div id="tidak-ditemukan-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" data-mode="usaha">
+            <input type="hidden" name="tipe" id="tidak-ditemukan-tipe-input" value="usaha"/>
+            <div class="flex gap-1.5">
+              <button type="button" onclick="switchTidakDitemukanSub(this,'usaha')"
+                class="tidak-ditemukan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-se text-white transition-colors">Usaha</button>
+              <button type="button" onclick="switchTidakDitemukanSub(this,'keluarga')"
+                class="tidak-ditemukan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Keluarga</button>
+              <button type="button" onclick="switchTidakDitemukanSub(this,'usaha_keluarga')"
+                class="tidak-ditemukan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Usaha dalam Keluarga</button>
+              <button type="button" onclick="switchTidakDitemukanSub(this,'rekap')"
+                class="tidak-ditemukan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Rekap</button>
+            </div>
+            <select name="level" id="tidak-ditemukan-level-select" onchange="reloadTidakDitemukanTable()"
+              class="hidden px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="sls">Per SLS</option>
+              <option value="desa">Per Desa</option>
+              <option value="kec">Per Kecamatan</option>
+            </select>
+            <input type="text" name="q" oninput="onTidakDitemukanSearch()"
+              placeholder="Cari nama atau ID assignment..."
+              class="w-full md:w-56 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="kec" onchange="reloadTidakDitemukanTable()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Kecamatan</option>
+              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
+            </select>
+            <select name="status" id="tidak-ditemukan-status-select" onchange="reloadTidakDitemukanTable()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Status</option>
+              <option value="Tidak Ditemukan">Tidak Ditemukan</option>
+              <option value="Tutup">Tutup</option>
+              <option value="Ganda">Ganda</option>
+              <option value="Open">Open</option>
+            </select>
+            <select name="pml_id" id="tidak-ditemukan-pml-select"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PML</option>
+            </select>
+            <select name="ppl_id" id="tidak-ditemukan-ppl-select"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PPL</option>
+            </select>
+            <a id="tidak-ditemukan-dl-btn" href="/admin/download/tidak-ditemukan?tipe=usaha"
+              onclick="updateTidakDitemukanDownload()"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="tidak-ditemukan-result"
+            hx-get="/admin/table/tidak-ditemukan?tipe=usaha" hx-trigger="tab:keberadaan from:body" hx-swap="innerHTML"
+            hx-include="#tidak-ditemukan-filter-bar">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data...</div>
+          </div>
+        </div>
+
+        <!-- TAB: Rekap Progres (per SLS) -->
+        <div id="panel-progresRekap" class="tab-panel">
+          <div id="progres-rekap-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center">
+            <input type="text" name="q"
+              hx-get="/admin/table/progres-rekap" hx-target="#progres-rekap-result" hx-swap="innerHTML"
+              hx-trigger="input changed delay:400ms" hx-include="#progres-rekap-filter-bar, #global-metode-select"
+              placeholder="Cari nama SLS, Desa, Kecamatan..."
+              class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="pml_id"
+              hx-get="/admin/table/progres-rekap" hx-target="#progres-rekap-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#progres-rekap-filter-bar, #global-metode-select"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PML</option>
+              {{range .PMLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <select name="ppl_id" id="progresrekap-ppl-select"
+              hx-get="/admin/table/progres-rekap" hx-target="#progres-rekap-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#progres-rekap-filter-bar, #global-metode-select"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PPL</option>
+              {{range .PPLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <select name="sls_id" id="progresrekap-sls-select"
+              hx-get="/admin/table/progres-rekap" hx-target="#progres-rekap-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#progres-rekap-filter-bar, #global-metode-select"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua SLS</option>
+              {{range .KebSLSList}}<option value="{{.ID}}">{{.Nama}}</option>{{end}}
+            </select>
+            <label class="flex items-center gap-1.5 px-3 py-2 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 rounded-lg text-sm text-amber-700 dark:text-amber-400 cursor-pointer select-none">
+              <input type="checkbox" name="prioritas" value="1"
+                hx-get="/admin/table/progres-rekap" hx-target="#progres-rekap-result" hx-swap="innerHTML"
+                hx-trigger="change" hx-include="#progres-rekap-filter-bar, #global-metode-select"
+                class="accent-amber-600"/>
+              SLS Prioritas saja
+            </label>
+            <a id="progresrekap-dl-btn" href="/admin/download/progres-rekap"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="progres-rekap-result"
+            hx-get="/admin/table/progres-rekap"
+            hx-trigger="tab:progresRekap from:body, change from:#global-metode-select"
+            hx-swap="innerHTML"
+            hx-include="#progres-rekap-filter-bar, #global-metode-select">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat rekap progres...</div>
+          </div>
+        </div>
+
+        <!-- TAB: KBLI per SLS -->
+        <div id="panel-kbli" class="tab-panel">
+          <div id="kbli-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center">
+            <input type="text" name="q"
+              hx-get="/admin/table/kbli" hx-target="#admin-kbli-wrap" hx-swap="innerHTML"
+              hx-trigger="input changed delay:400ms" hx-include="#kbli-filter-bar"
+              placeholder="Cari nama SLS, Desa, Kecamatan..."
+              class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <a id="kbli-dl-btn" href="/admin/download/kbli"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="admin-kbli-wrap"
+            hx-get="/admin/table/kbli" hx-trigger="tab:kbli from:body" hx-swap="innerHTML">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data KBLI...</div>
+          </div>
+        </div>
+
+        <!-- TAB: Usaha (Data Ekonomi) — semua usaha (semua kategori KBLI)
+             lengkap dgn pendapatan, pengeluaran, biaya, gaji, tenaga kerja dll.
+             Sumber: tabel usaha_ekonomi, lihat scraper/sync_usaha_ekonomi.py. -->
+        <div id="panel-usahaEkonomi" class="tab-panel">
+          <div id="usaha-ekonomi-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center">
+            <input type="text" name="q"
+              hx-get="/admin/table/usaha-ekonomi" hx-target="#usaha-ekonomi-result" hx-swap="innerHTML"
+              hx-trigger="input changed delay:400ms" hx-include="#usaha-ekonomi-filter-bar"
+              placeholder="Cari nama usaha, nama KK, KBLI, SLS, atau ID assignment..."
+              class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="kategori"
+              hx-get="/admin/table/usaha-ekonomi" hx-target="#usaha-ekonomi-result" hx-swap="innerHTML" hx-include="#usaha-ekonomi-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Kategori KBLI</option>
+              {{range $k := (list "A" "B" "C" "D" "E" "F" "G" "H" "I" "J" "K" "L" "M" "N" "O" "P" "Q" "R" "S" "T" "U")}}
+              <option value="{{$k}}">{{$k}}</option>
+              {{end}}
+            </select>
+            <select name="kec"
+              hx-get="/admin/table/usaha-ekonomi" hx-target="#usaha-ekonomi-result" hx-swap="innerHTML" hx-include="#usaha-ekonomi-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Kecamatan</option>
+              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
+            </select>
+            <select name="pml_id" id="usaha-ekonomi-pml-select"
+              hx-get="/admin/table/usaha-ekonomi" hx-target="#usaha-ekonomi-result" hx-swap="innerHTML" hx-include="#usaha-ekonomi-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PML</option>
+            </select>
+            <select name="ppl_id" id="usaha-ekonomi-ppl-select"
+              hx-get="/admin/table/usaha-ekonomi" hx-target="#usaha-ekonomi-result" hx-swap="innerHTML" hx-include="#usaha-ekonomi-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PPL</option>
+            </select>
+            <a id="usaha-ekonomi-dl-btn" href="/admin/download/usaha-ekonomi"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="usaha-ekonomi-result"
+            hx-get="/admin/table/usaha-ekonomi" hx-trigger="tab:usahaEkonomi from:body" hx-swap="innerHTML">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data usaha...</div>
+          </div>
+        </div>
+
+        <!-- TAB: Rekap Keberadaan (coverage usaha & keluarga), dipecah 3 sub-tab
+             biar tabelnya tidak jadi 1 tabel raksasa gabungan semua kategori -->
+        <div id="panel-keberadaanRekap" class="tab-panel">
+          <div id="keberadaan-rekap-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center"
+            data-tbl-path="/admin/table/keberadaan-bku" data-dl-path="/admin/download/keberadaan-bku">
+            <div class="flex gap-1.5">
+              <button type="button" onclick="switchKeberadaanRekapSub(this,'/admin/table/keberadaan-bku','/admin/download/keberadaan-bku')"
+                class="keberadaan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-se text-white transition-colors">Usaha BKU</button>
+              <button type="button" onclick="switchKeberadaanRekapSub(this,'/admin/table/keberadaan-usaha-keluarga','/admin/download/keberadaan-usaha-keluarga')"
+                class="keberadaan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Usaha Keluarga</button>
+              <button type="button" onclick="switchKeberadaanRekapSub(this,'/admin/table/keberadaan-keluarga','/admin/download/keberadaan-keluarga')"
+                class="keberadaan-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Keluarga</button>
+            </div>
+            <select id="keb-level-select" onchange="reloadKeberadaanRekapTable()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Per SLS</option>
+              <option value="desa">Per Desa</option>
+              <option value="kec">Per Kecamatan</option>
+            </select>
+            <input type="text" id="keberadaan-rekap-q" oninput="onKeberadaanRekapSearch()"
+              placeholder="Cari nama SLS, Desa, Kecamatan..."
+              class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <!-- Filter bertingkat: pilih Kecamatan -> opsi PML ikut mengecil,
+                 pilih PML -> opsi PPL ikut mengecil (lihat onKebKecChange/onKebPmlChange) -->
+            <select id="keb-kec-select" onchange="onKebKecChange()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Kecamatan</option>
+              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
+            </select>
+            <select id="keb-pml-select" onchange="onKebPmlChange()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PML</option>
+              {{range .PMLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <select id="keb-ppl-select" onchange="onKebPplChange()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PPL</option>
+              {{range .PPLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <a id="keberadaan-rekap-dl-btn" href="/admin/download/keberadaan-bku"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="admin-keberadaan-rekap-wrap"
+            hx-get="/admin/table/keberadaan-bku" hx-trigger="tab:keberadaanRekap from:body" hx-swap="innerHTML">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data keberadaan...</div>
+          </div>
+        </div>
+
+        <!-- TAB: Peta Sebaran -->
+        <div id="panel-peta" class="tab-panel">
+          <div class="p-4 space-y-3">
+
+            <!-- Kontrol -->
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Tampilkan per:</label>
+              <select id="peta-level" onchange="onLevelChange()"
+                class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+                <option value="kec">Kecamatan</option>
+                <option value="desa">Desa</option>
+                <option value="sls">SLS (Detail)</option>
+              </select>
+            </div>
+
+            <!-- Info bar -->
+            <div id="map-info"
+              class="bg-orange-50 dark:bg-gray-800 border border-orange-100 dark:border-gray-700 rounded-lg px-4 py-2 text-sm text-gray-700 dark:text-gray-300">
+              Memuat data peta…
+            </div>
+
+            <!-- Map container -->
+            <div id="peta-map" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-inner"
+              style="height:520px;"></div>
+
+            <!-- Legend -->
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
+              <span class="font-semibold text-gray-700 dark:text-gray-300">% Submit:</span>
+              <span class="flex items-center gap-1"><span class="w-4 h-4 rounded border border-gray-300 inline-block" style="background:#FEF3EC"></span>0%</span>
+              <span class="flex items-center gap-1"><span class="w-4 h-4 rounded border border-gray-300 inline-block" style="background:#FDCFAE"></span>1–20%</span>
+              <span class="flex items-center gap-1"><span class="w-4 h-4 rounded border border-gray-300 inline-block" style="background:#FAA46B"></span>21–40%</span>
+              <span class="flex items-center gap-1"><span class="w-4 h-4 rounded border border-gray-300 inline-block" style="background:#F37021"></span>41–60%</span>
+              <span class="flex items-center gap-1"><span class="w-4 h-4 rounded border border-gray-300 inline-block" style="background:#C85A0E"></span>61–80%</span>
+              <span class="flex items-center gap-1"><span class="w-4 h-4 rounded border border-gray-300 inline-block" style="background:#8B3408"></span>&gt;80%</span>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- TAB: Tren Progres -->
+        <div id="panel-trend" class="tab-panel">
+          <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="trend-filter-bar">
+            <select id="trend-view" onchange="onTrendViewChange()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="ppl" selected>Tabel: Per PPL</option>
+              <option value="pml">Tabel: Per PML</option>
+            </select>
+            <input type="text" name="q" id="trend-q"
+              oninput="debounceRefreshTrend()"
+              placeholder="Cari nama PPL/PML..."
+              class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="pml_id" id="trend-pml-filter"
+              onchange="refreshTrendTables()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">-- Semua PML --</option>
+              {{range .PMLUserList}}
+              <option value="{{.ID}}">{{.Name}}</option>
+              {{end}}
+            </select>
+            <select name="days" id="trend-days"
+              onchange="refreshTrendTables()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="7">7 Hari Terakhir</option>
+              <option value="14" selected>14 Hari Terakhir</option>
+              <option value="30">30 Hari Terakhir</option>
+            </select>
+          </div>
+          <div id="admin-trend-ppl-wrap"
+            hx-get="/admin/table/trend/ppl" hx-trigger="tab:trend from:body" hx-swap="innerHTML">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat tren PPL...</div>
+          </div>
+          <div id="admin-trend-pml-wrap" class="hidden">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat tren PML...</div>
+          </div>
+        </div>
+
+      </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  {{template "theme_runtime_script" .}}
+  <script>
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('-translate-x-full');
+      document.getElementById('sidebar-backdrop').classList.toggle('hidden');
+    }
+    function toggleSidebarCollapse() {
+      var collapsed = document.documentElement.classList.toggle('sidebar-collapsed');
+      localStorage.setItem('sigempar-sidebar', collapsed ? 'collapsed' : 'expanded');
+    }
+
+    function switchTab(name) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      document.getElementById('panel-' + name).classList.add('active');
+      document.body.dispatchEvent(new Event('tab:' + name));
+      if (name === 'peta') setTimeout(initPetaMap, 60);
+      // Tutup sidebar drawer di mobile setelah pilih tab
+      var sidebar = document.getElementById('sidebar');
+      if (window.innerWidth < 1024 && !sidebar.classList.contains('-translate-x-full')) {
+        toggleSidebar();
+      }
+    }
+    // ===== Tab Keberadaan: sub-menu Usaha/Keluarga/Rekap =====
+    // 3 mode beda endpoint: Usaha & Keluarga sama-sama /admin/table/tidak-ditemukan
+    // (dibedakan query param `tipe`), Rekap pakai /admin/table/tidak-ditemukan-rekap
+    // (query param `level`) — jadi tiap ganti sub-tab & tiap filter berubah perlu
+    // reload manual lewat htmx.ajax(), bukan hx-get statis.
+    function tidakDitemukanFilterParams() {
+      var bar = document.getElementById('tidak-ditemukan-filter-bar');
+      var mode = bar.dataset.mode || 'usaha';
+      var params = [];
+      if (mode === 'rekap') {
+        params.push('level=' + encodeURIComponent(document.getElementById('tidak-ditemukan-level-select').value));
+      } else {
+        params.push('tipe=' + encodeURIComponent(mode));
+      }
+      var q = bar.querySelector('[name="q"]').value;
+      var kec = bar.querySelector('[name="kec"]').value;
+      var pmlID = bar.querySelector('[name="pml_id"]').value;
+      var pplID = bar.querySelector('[name="ppl_id"]').value;
+      if (q) params.push('q=' + encodeURIComponent(q));
+      if (kec) params.push('kec=' + encodeURIComponent(kec));
+      if (pmlID) params.push('pml_id=' + pmlID);
+      if (pplID) params.push('ppl_id=' + pplID);
+      // status gak relevan di mode rekap (itu rekap angka, bukan daftar per baris)
+      if (mode !== 'rekap') {
+        var status = bar.querySelector('[name="status"]').value;
+        if (status) params.push('status=' + encodeURIComponent(status));
+      }
+      return params.length ? ('?' + params.join('&')) : '';
+    }
+
+    function tidakDitemukanPaths() {
+      var mode = document.getElementById('tidak-ditemukan-filter-bar').dataset.mode || 'usaha';
+      return mode === 'rekap'
+        ? { tbl: '/admin/table/tidak-ditemukan-rekap', dl: '/admin/download/tidak-ditemukan-rekap' }
+        : { tbl: '/admin/table/tidak-ditemukan', dl: '/admin/download/tidak-ditemukan' };
+    }
+
+    function reloadTidakDitemukanTable() {
+      var paths = tidakDitemukanPaths();
+      var qs = tidakDitemukanFilterParams();
+      htmx.ajax('GET', paths.tbl + qs, { target: '#tidak-ditemukan-result', swap: 'innerHTML' });
+      document.getElementById('tidak-ditemukan-dl-btn').href = paths.dl + qs;
+    }
+
+    var _tidakDitemukanSearchDebounce = null;
+    function onTidakDitemukanSearch() {
+      clearTimeout(_tidakDitemukanSearchDebounce);
+      _tidakDitemukanSearchDebounce = setTimeout(reloadTidakDitemukanTable, 400);
+    }
+
+    function switchTidakDitemukanSub(btn, mode) {
+      var bar = document.getElementById('tidak-ditemukan-filter-bar');
+      bar.querySelectorAll('.tidak-ditemukan-subtab-btn').forEach(function(b) {
+        b.classList.remove('bg-se', 'text-white');
+        b.classList.add('text-gray-600', 'dark:text-gray-400');
+      });
+      btn.classList.add('bg-se', 'text-white');
+      btn.classList.remove('text-gray-600', 'dark:text-gray-400');
+      bar.dataset.mode = mode;
+      var levelSel = document.getElementById('tidak-ditemukan-level-select');
+      var statusSel = document.getElementById('tidak-ditemukan-status-select');
+      if (mode === 'rekap') {
+        levelSel.classList.remove('hidden');
+        statusSel.classList.add('hidden');
+      } else {
+        levelSel.classList.add('hidden');
+        bar.querySelector('[name="tipe"]').value = mode;
+        statusSel.classList.remove('hidden');
+        updateTidakDitemukanStatusOptions(mode);
+      }
+      reloadTidakDitemukanTable();
+    }
+
+    // Opsi dropdown status beda per tipe — keluarga gak punya status Tutup/Ganda
+    // (lihat scraper/sync_usaha.py: cuma usaha yg dapet status itu dari FASIH),
+    // tapi keluarga PUNYA Ditemukan/Baru (usaha gak — tab Usaha khusus usaha
+    // bermasalah, tab Keluarga sekarang nyakup semua status keluarga).
+    function updateTidakDitemukanStatusOptions(mode) {
+      var statusSel = document.getElementById('tidak-ditemukan-status-select');
+      var opts = mode === 'keluarga'
+        ? [['', 'Semua Status'], ['Tidak Ditemukan', 'Tidak Ditemukan'], ['Ditemukan', 'Ditemukan'], ['Baru', 'Baru'], ['Open', 'Open']]
+        : [['', 'Semua Status'], ['Tidak Ditemukan', 'Tidak Ditemukan'], ['Tutup', 'Tutup'], ['Ganda', 'Ganda'], ['Open', 'Open']];
+      statusSel.innerHTML = opts.map(function(o) {
+        return '<option value="' + o[0] + '">' + o[1] + '</option>';
+      }).join('');
+    }
+
+    // Update href download Tidak Ditemukan sesuai sub-tab/mode & filter aktif
+    function updateTidakDitemukanDownload() {
+      document.getElementById('tidak-ditemukan-dl-btn').href = tidakDitemukanPaths().dl + tidakDitemukanFilterParams();
+    }
+
+    // Update href download SLS sesuai level & q
+    function currentMetode() {
+      var sel = document.getElementById('global-metode-select');
+      return sel ? sel.value : '';
+    }
+
+    function updateSLSDownload() {
+      var bar = document.getElementById('sls-filter-bar');
+      var level = bar.querySelector('[name="level"]').value;
+      var q = bar.querySelector('[name="q"]').value;
+      var params = [];
+      if (level) params.push('level=' + level);
+      if (q) params.push('q=' + encodeURIComponent(q));
+      if (currentMetode()) params.push('metode=' + currentMetode());
+      document.getElementById('sls-dl-btn').href = '/admin/download/sls' + (params.length ? '?' + params.join('&') : '');
+    }
+
+    // Update href download PPL sesuai q & pml_id
+    function updatePPLDownload() {
+      var bar = document.getElementById('ppl-filter-bar');
+      var q = bar.querySelector('[name="q"]').value;
+      var pmlID = bar.querySelector('[name="pml_id"]').value;
+      var params = [];
+      if (q) params.push('q=' + encodeURIComponent(q));
+      if (pmlID) params.push('pml_id=' + pmlID);
+      if (currentMetode()) params.push('metode=' + currentMetode());
+      document.getElementById('ppl-dl-btn').href = '/admin/download/ppl' + (params.length ? '?' + params.join('&') : '');
+    }
+
+    // Update href download PML sesuai q
+    function updatePMLDownload() {
+      var bar = document.getElementById('pml-filter-bar');
+      var q = bar.querySelector('[name="q"]').value;
+      var params = [];
+      if (q) params.push('q=' + encodeURIComponent(q));
+      if (currentMetode()) params.push('metode=' + currentMetode());
+      document.getElementById('pml-dl-btn').href = '/admin/download/pml' + (params.length ? '?' + params.join('&') : '');
+    }
+
+    // Pasang listener pada semua filter
+    document.addEventListener('DOMContentLoaded', function() {
+      var slsBar = document.getElementById('sls-filter-bar');
+      if (slsBar) {
+        slsBar.querySelector('[name="level"]').addEventListener('change', updateSLSDownload);
+        slsBar.querySelector('[name="q"]').addEventListener('input', updateSLSDownload);
+      }
+      var pplBar = document.getElementById('ppl-filter-bar');
+      if (pplBar) {
+        pplBar.querySelector('[name="q"]').addEventListener('input', updatePPLDownload);
+        pplBar.querySelector('[name="pml_id"]').addEventListener('change', updatePPLDownload);
+      }
+      var pmlBar = document.getElementById('pml-filter-bar');
+      if (pmlBar) {
+        pmlBar.querySelector('[name="q"]').addEventListener('input', updatePMLDownload);
+      }
+      // Dropdown metode global juga ikut mempengaruhi % Progres di Excel — href
+      // download PML/PPL/SLS harus ikut ter-update begitu metode-nya diganti,
+      // bukan cuma pas filter lain disentuh.
+      var globalMetodeSelect = document.getElementById('global-metode-select');
+      if (globalMetodeSelect) {
+        globalMetodeSelect.addEventListener('change', function() {
+          if (slsBar) updateSLSDownload();
+          if (pplBar) updatePPLDownload();
+          if (pmlBar) updatePMLDownload();
+          // Peta Sebaran pakai pembagi (Total/Prelist) yang sama dengan
+          // dropdown metode global ini, jadi perlu di-reload juga.
+          if (petaMap) loadLevel(currentLevel);
+        });
+      }
+
+      // Tab-tab baru (Anomali, Rekap Progres, KBLI): update href tombol download
+      // otomatis mengikuti filter yang lagi aktif di filter-bar-nya. Rekap
+      // Keberadaan tidak ikut di sini krn path download-nya beda-beda tergantung
+      // sub-tab yang aktif (Usaha BKU/Usaha Keluarga/Keluarga) — lihat
+      // switchKeberadaanRekapSub & onKeberadaanRekapSearch.
+      [
+        {bar: 'anomali-filter-bar', btn: 'anomali-dl-btn', path: '/admin/download/anomali'},
+        {bar: 'progres-rekap-filter-bar', btn: 'progresrekap-dl-btn', path: '/admin/download/progres-rekap', extra: '#global-metode-select'},
+        {bar: 'kbli-filter-bar', btn: 'kbli-dl-btn', path: '/admin/download/kbli'},
+      ].forEach(function(cfg) {
+        var bar = document.getElementById(cfg.bar);
+        if (!bar) return;
+        var update = function() { updateDownloadHref(cfg.bar, cfg.btn, cfg.path, cfg.extra); };
+        bar.addEventListener('input', update);
+        bar.addEventListener('change', update);
+      });
+    });
+
+    // Kumpulkan semua field ber-name di dalam filter-bar (+ elemen extraSelector
+    // opsional di luar filter-bar, mis. dropdown metode global) jadi query string,
+    // lalu tempel ke href tombol download. Dipakai bareng oleh tab-tab baru di atas.
+    function updateDownloadHref(barId, btnId, path, extraSelector) {
+      var bar = document.getElementById(barId);
+      var btn = document.getElementById(btnId);
+      if (!bar || !btn) return;
+      var params = [];
+      bar.querySelectorAll('[name]').forEach(function(el) {
+        if (el.type === 'checkbox') {
+          if (el.checked) params.push(el.name + '=' + encodeURIComponent(el.value));
+        } else if (el.value) {
+          params.push(el.name + '=' + encodeURIComponent(el.value));
+        }
+      });
+      if (extraSelector) {
+        var extra = document.querySelector(extraSelector);
+        if (extra && extra.value) params.push(extra.name + '=' + encodeURIComponent(extra.value));
+      }
+      btn.href = path + (params.length ? '?' + params.join('&') : '');
+    }
+
+    // ===== REKAP KEBERADAAN (3 sub-tab: Usaha BKU / Usaha Keluarga / Keluarga) =====
+    // Beda dari sub-tab lain: masing2 sub-tab punya route table & download
+    // terpisah (bukan cuma query param `level` di route yang sama), jadi filter
+    // bar-nya nyimpen path aktif di data-tbl-path/data-dl-path lalu dipakai
+    // manual lewat htmx.ajax(), bukan hx-get statis. Filter Kecamatan/PML/PPL
+    // bertingkat: pilih Kecamatan -> opsi PML & PPL ikut mengecil (cuma yg
+    // punya SLS di kecamatan itu), pilih PML -> opsi PPL ikut mengecil lagi.
+    function kebFilterParams() {
+      var q = document.getElementById('keberadaan-rekap-q').value;
+      var level = document.getElementById('keb-level-select').value;
+      var kec = document.getElementById('keb-kec-select').value;
+      var pml = document.getElementById('keb-pml-select').value;
+      var ppl = document.getElementById('keb-ppl-select').value;
+      var params = [];
+      if (level) params.push('level=' + level);
+      if (q) params.push('q=' + encodeURIComponent(q));
+      if (kec) params.push('kec=' + encodeURIComponent(kec));
+      if (pml) params.push('pml_id=' + pml);
+      if (ppl) params.push('ppl_id=' + ppl);
+      return params.length ? ('?' + params.join('&')) : '';
+    }
+
+    function reloadKeberadaanRekapTable() {
+      var bar = document.getElementById('keberadaan-rekap-filter-bar');
+      var qs = kebFilterParams();
+      htmx.ajax('GET', bar.dataset.tblPath + qs, { target: '#admin-keberadaan-rekap-wrap', swap: 'innerHTML' });
+      document.getElementById('keberadaan-rekap-dl-btn').href = bar.dataset.dlPath + qs;
+    }
+
+    // Isi ulang <select> dari daftar {id,name} hasil fetch, sambil pertahankan
+    // pilihan lama kalau masih valid di daftar baru (biar tidak ke-reset kalau
+    // kebetulan masih cocok).
+    function fillOptionSelect(sel, list, placeholder) {
+      var cur = sel.value;
+      sel.innerHTML = '';
+      var optAll = document.createElement('option');
+      optAll.value = '';
+      optAll.textContent = placeholder;
+      sel.appendChild(optAll);
+      var stillValid = false;
+      list.forEach(function(item) {
+        var opt = document.createElement('option');
+        opt.value = String(item.ID);
+        opt.textContent = item.Name;
+        if (String(item.ID) === cur) stillValid = true;
+        sel.appendChild(opt);
+      });
+      sel.value = stillValid ? cur : '';
+    }
+
+    function switchKeberadaanRekapSub(btn, tblPath, dlPath) {
+      var bar = document.getElementById('keberadaan-rekap-filter-bar');
+      bar.querySelectorAll('.keberadaan-subtab-btn').forEach(function(b) {
+        b.classList.remove('bg-se', 'text-white');
+        b.classList.add('text-gray-600', 'dark:text-gray-400');
+      });
+      btn.classList.add('bg-se', 'text-white');
+      btn.classList.remove('text-gray-600', 'dark:text-gray-400');
+      bar.dataset.tblPath = tblPath;
+      bar.dataset.dlPath = dlPath;
+      var qs = kebFilterParams();
+      htmx.ajax('GET', tblPath + qs, { target: '#admin-keberadaan-rekap-wrap', swap: 'innerHTML' });
+      document.getElementById('keberadaan-rekap-dl-btn').href = dlPath + qs;
+    }
+
+    var _keberadaanRekapDebounce = null;
+    function onKeberadaanRekapSearch() {
+      clearTimeout(_keberadaanRekapDebounce);
+      _keberadaanRekapDebounce = setTimeout(reloadKeberadaanRekapTable, 400);
+    }
+
+    function onKebKecChange() {
+      var kec = document.getElementById('keb-kec-select').value;
+      var pmlSel = document.getElementById('keb-pml-select');
+      var pplSel = document.getElementById('keb-ppl-select');
+      fetch('/admin/options/pml-by-kec?kec=' + encodeURIComponent(kec))
+        .then(function(r) { return r.json(); })
+        .then(function(list) { fillOptionSelect(pmlSel, list, 'Semua PML'); });
+      fetch('/admin/options/ppl-by-filter?kec=' + encodeURIComponent(kec) + '&pml_id=' + encodeURIComponent(pmlSel.value))
+        .then(function(r) { return r.json(); })
+        .then(function(list) { fillOptionSelect(pplSel, list, 'Semua PPL'); });
+      reloadKeberadaanRekapTable();
+    }
+
+    function onKebPmlChange() {
+      var kec = document.getElementById('keb-kec-select').value;
+      var pmlID = document.getElementById('keb-pml-select').value;
+      var pplSel = document.getElementById('keb-ppl-select');
+      fetch('/admin/options/ppl-by-filter?kec=' + encodeURIComponent(kec) + '&pml_id=' + encodeURIComponent(pmlID))
+        .then(function(r) { return r.json(); })
+        .then(function(list) { fillOptionSelect(pplSel, list, 'Semua PPL'); });
+      reloadKeberadaanRekapTable();
+    }
+
+    function onKebPplChange() {
+      reloadKeberadaanRekapTable();
+    }
+
+    // ===== TREN PROGRES =====
+    // Hanya satu tabel (PPL atau PML) yang tampil & dimuat sesuai pilihan dropdown "Tabel".
+    // Filter PML hanya berlaku untuk tabel PPL.
+    var _trendDebounce = null;
+    function debounceRefreshTrend() {
+      clearTimeout(_trendDebounce);
+      _trendDebounce = setTimeout(refreshTrendTables, 300);
+    }
+    function onTrendViewChange() {
+      var view = document.getElementById('trend-view').value;
+      var isPPL = view === 'ppl';
+      document.getElementById('admin-trend-ppl-wrap').classList.toggle('hidden', !isPPL);
+      document.getElementById('admin-trend-pml-wrap').classList.toggle('hidden', isPPL);
+      document.getElementById('trend-pml-filter').classList.toggle('hidden', !isPPL);
+      refreshTrendTables();
+    }
+    function refreshTrendTables() {
+      var view = document.getElementById('trend-view').value;
+      var q = document.getElementById('trend-q').value;
+      var days = document.getElementById('trend-days').value;
+      var pmlID = document.getElementById('trend-pml-filter').value;
+      var qs = '?days=' + encodeURIComponent(days) + (q ? '&q=' + encodeURIComponent(q) : '');
+      if (view === 'ppl') {
+        htmx.ajax('GET', '/admin/table/trend/ppl' + qs + (pmlID ? '&pml_id=' + pmlID : ''),
+          {target: '#admin-trend-ppl-wrap', swap: 'innerHTML'});
+      } else {
+        htmx.ajax('GET', '/admin/table/trend/pml' + qs,
+          {target: '#admin-trend-pml-wrap', swap: 'innerHTML'});
+      }
+    }
+
+    // ===== PETA SEBARAN =====
+    var petaMap = null;
+    var statsData = {};
+    var currentLevel = 'kec';
+    var currentLayer = null;
+
+    function getColor(pct) {
+      if (pct === 0)  return '#FEF3EC';
+      if (pct <= 20)  return '#FDCFAE';
+      if (pct <= 40)  return '#FAA46B';
+      if (pct <= 60)  return '#F37021';
+      if (pct <= 80)  return '#C85A0E';
+      return '#8B3408';
+    }
+
+    function statKeyOf(p) {
+      if (currentLevel === 'kec')  return p.idkec;
+      if (currentLevel === 'desa') return p.iddesa;
+      return p.idsls;
+    }
+
+    function featureStyle(feature) {
+      var s = statsData[statKeyOf(feature.properties)] || {pct: 0};
+      var weight = currentLevel === 'sls' ? 1 : currentLevel === 'desa' ? 1.5 : 2.5;
+      return {fillColor: getColor(s.pct), weight: weight, opacity: 1, color: '#777', fillOpacity: 0.8};
+    }
+
+    // Pembagi % mengikuti dropdown metode global: metode "1" (Total/Total)
+    // pakai fasih_total, metode "2"/"3" (yang melibatkan Prelist) pakai
+    // target_prelist — konsisten dengan tabel Ringkasan/Per PML/Per PPL/SLS.
+    function totalFieldFor(s) {
+      return (currentMetode() === '2' || currentMetode() === '3') ? (s.target_prelist||0) : (s.fasih_total||0);
+    }
+    function totalLabelFor() {
+      return (currentMetode() === '2' || currentMetode() === '3') ? 'Prelist' : 'Total';
+    }
+
+    function popupFor(feature, latlng) {
+      var p = feature.properties;
+      var s = statsData[statKeyOf(p)] || {submit: 0, draft: 0, target: 0, fasih_total: 0, target_prelist: 0, pct: 0};
+      var title, sub;
+      if (currentLevel === 'kec')       { title = 'Kec. ' + p.nmkec;  sub = ''; }
+      else if (currentLevel === 'desa') { title = 'Desa ' + p.nmdesa; sub = 'Kec. ' + p.nmkec; }
+      else                              { title = p.nmsls; sub = 'Desa ' + p.nmdesa + ' &bull; Kec. ' + p.nmkec; }
+      var total = totalFieldFor(s);
+      var content = '<div style="font-size:13px;min-width:180px">' +
+        '<div style="font-weight:700;margin-bottom:4px">' + title + '</div>' +
+        (sub ? '<div style="color:#666;margin-bottom:4px">' + sub + '</div>' : '') +
+        '<div>Submit: <b>' + (s.submit||0) + '</b> &nbsp; Draft: <b>' + (s.draft||0) + '</b></div>' +
+        '<div>Submit / ' + totalLabelFor() + ': <b>' + (s.submit||0) + '</b> / ' + total + '</div>' +
+        '<div>Persentase: <b style="color:#F37021">' + (s.pct||0) + '%</b></div>' +
+        '</div>';
+      L.popup({maxWidth: 260}).setLatLng(latlng).setContent(content).openOn(petaMap);
+    }
+
+    function updateMapInfo(numFeatures) {
+      var el = document.getElementById('map-info');
+      if (!el) return;
+      var vals = Object.values(statsData);
+      var totSubmit  = vals.reduce(function(a, s) { return a + (s.submit||0); }, 0);
+      var totDraft   = vals.reduce(function(a, s) { return a + (s.draft||0);  }, 0);
+      var totTotal   = vals.reduce(function(a, s) { return a + totalFieldFor(s); }, 0);
+      var pct = totTotal > 0 ? Math.round(totSubmit * 100 / totTotal) : 0;
+      var label = currentLevel === 'kec'  ? numFeatures + ' kecamatan'
+                : currentLevel === 'desa' ? numFeatures + ' desa'
+                : numFeatures + ' SLS';
+      el.innerHTML = '<b>Kabupaten DOMPU</b> &mdash; ' + label +
+        ' &nbsp;|&nbsp; Submit: <b>' + totSubmit + '</b> &nbsp; Draft: <b>' + totDraft + '</b>' +
+        ' &nbsp;|&nbsp; Submit / ' + totalLabelFor() + ': <b>' + totSubmit + '</b> / ' + totTotal +
+        ' (<b>' + pct + '%</b>) &nbsp;|&nbsp; <span style="color:#999">Klik wilayah untuk detail</span>';
+    }
+
+    function loadLevel(level) {
+      currentLevel = level;
+      var lvlParam = (level === 'sls') ? '' : level;
+      var statsParams = [];
+      if (lvlParam) statsParams.push('level=' + lvlParam);
+      if (currentMetode()) statsParams.push('metode=' + currentMetode());
+      var statsUrl = '/admin/geo/stats' + (statsParams.length ? '?' + statsParams.join('&') : '');
+      var geoUrl   = '/admin/geo/geojson' + (lvlParam ? '?level=' + lvlParam : '');
+      document.getElementById('map-info').textContent = 'Memuat data…';
+      Promise.all([
+        fetch(geoUrl).then(function(r) { return r.json(); }),
+        fetch(statsUrl).then(function(r) { return r.json(); })
+      ]).then(function(results) {
+        var geoJson = results[0];
+        statsData = results[1];
+        if (currentLayer) petaMap.removeLayer(currentLayer);
+        currentLayer = L.geoJSON(geoJson, {
+          style: featureStyle,
+          onEachFeature: function(feature, layer) {
+            layer.on('mouseover', function() {
+              this.setStyle({weight: 2.5, color: '#F37021'});
+              this.bringToFront();
+            });
+            layer.on('mouseout', function() { currentLayer.resetStyle(this); });
+            layer.on('click', function(e) { popupFor(feature, e.latlng); });
+          }
+        }).addTo(petaMap);
+        if (currentLayer.getLayers().length) {
+          petaMap.fitBounds(currentLayer.getBounds(), {padding: [10, 10]});
+        }
+        updateMapInfo(geoJson.features.length);
+      }).catch(function(err) {
+        document.getElementById('map-info').textContent = 'Gagal memuat data: ' + err.message;
+      });
+    }
+
+    function onLevelChange() {
+      loadLevel(document.getElementById('peta-level').value);
+    }
+
+    function initPetaMap() {
+      if (petaMap) return;
+      petaMap = L.map('peta-map');
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 18
+      }).addTo(petaMap);
+      loadLevel('kec');
+    }
+  </script>
+</body>
+</html>

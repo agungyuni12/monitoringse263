@@ -9,7 +9,9 @@
   {{template "theme_assets" .}}
   {{template "theme_style" .}}
   <style>
-    body.login-shell { background-color: #ebe9e4; }
+    body.login-shell {
+      background-color: #ebe9e4;
+    }
     .dark body {
       background-color: #111313;
     }
@@ -18,12 +20,8 @@
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     }
     .dark .grain { opacity: .05; }
-    .card-shadow { box-shadow: 16px 16px 0 rgba(220,101,37,.14), 0 0 0 1px rgba(27,29,29,.15); }
-    .dark .card-shadow { box-shadow: 16px 16px 0 rgba(240,120,50,.14), 0 0 0 1px rgba(241,240,235,.15); }
-    .login-kicker { font: 500 10px/1.2 'DM Mono', monospace; letter-spacing: .16em; color: #b84413; }
-    .dark .login-kicker { color: #ff8a55; }
-    .login-index { border-top: 1px solid rgba(27,29,29,.18); border-bottom: 1px solid rgba(27,29,29,.18); }
-    .dark .login-index { border-color: rgba(241,240,235,.16); }
+    .card-shadow { box-shadow: 18px 18px 0 rgba(220,101,37,.12), 0 0 0 1px rgba(27,29,29,.12); }
+    .dark .card-shadow { box-shadow: 18px 18px 0 rgba(240,120,50,.12), 0 0 0 1px rgba(241,240,235,.14); }
     .btn-press:active { transform: scale(.98) translateY(1px); }
     input:focus { box-shadow: 0 0 0 3.5px rgba(243,112,33,.15); }
     @keyframes riseIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
@@ -40,21 +38,15 @@
     {{template "theme_toggle_button" .}}
   </div>
 
-  <main class="w-full max-w-[1000px] relative z-10 grid lg:grid-cols-[1fr_380px] gap-10 lg:gap-20 items-center">
+  <main class="w-full max-w-[380px] relative z-10">
     <!-- Brand -->
-    <div class="text-center lg:text-left mb-2 lg:mb-0 rise-in">
+    <div class="text-center mb-7 rise-in">
       <div class="inline-flex items-center justify-center w-[72px] h-[72px] rounded-[10px] bg-white dark:bg-gray-900 ring-1 ring-black/[.06] dark:ring-white/10 mb-4 p-2.5">
         <img src="/static/logo-sigempar.png" alt="Logo SIGEMPAR" class="w-full h-full object-contain"/>
       </div>
-      <p class="login-kicker mb-3">NUSA TENGGARA BARAT / 5205</p>
       <h1 class="text-[30px] leading-tight font-extrabold tracking-[-.06em] text-gray-900 dark:text-gray-100">SIGEMPAR</h1>
       <p class="text-[13.5px] text-gray-500 dark:text-gray-400 mt-1.5 font-medium">Sistem Geospasial Monitoring Pencacahan</p>
       <p class="text-[11.5px] text-gray-400 dark:text-gray-500 mt-0.5 tracking-wide">SENSUS EKONOMI 2026</p>
-      <div class="login-index hidden lg:grid grid-cols-3 gap-3 mt-9 py-3 text-left">
-        <div><p class="login-kicker">MODE</p><p class="text-xs text-gray-700 dark:text-gray-300 mt-1 font-mono">SECURE</p></div>
-        <div><p class="login-kicker">NODE</p><p class="text-xs text-gray-700 dark:text-gray-300 mt-1 font-mono">DOMPU-01</p></div>
-        <div><p class="login-kicker">STATUS</p><p class="text-xs text-green-700 dark:text-green-400 mt-1 font-mono">READY</p></div>
-      </div>
     </div>
 
     <!-- Card -->
@@ -94,7 +86,7 @@
       </form>
     </div>
 
-    <p class="lg:col-span-2 text-center text-[11.5px] text-gray-400 dark:text-gray-500 mt-2 lg:mt-0 rise-in rise-in-2">© 2026 BPS Kabupaten Dompu — SIGEMPAR SE2026</p>
+    <p class="text-center text-[11.5px] text-gray-400 dark:text-gray-500 mt-7 rise-in rise-in-2">© 2026 BPS Kabupaten Dompu — SIGEMPAR SE2026</p>
   </main>
 
   {{template "theme_runtime_script" .}}

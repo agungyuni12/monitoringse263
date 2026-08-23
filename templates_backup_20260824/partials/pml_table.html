@@ -1,0 +1,60 @@
+{{define "pml_table.html"}}
+<!-- Desktop table -->
+<div class="hidden md:block overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left text-xs uppercase tracking-wide">
+        {{template "sortable_th" dict "Label" "SLS" "Col" "sls" "PageInfo" .Page "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "PPL" "Col" "ppl" "PageInfo" .Page "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Target" "Col" "target" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Submit" "Col" "submit" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Draft" "Col" "draft" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Approved" "Col" "approved" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Rejected" "Col" "rejected" "PageInfo" .Page "Class" "px-4 py-3 font-medium" "Center" true}}
+        <th class="px-4 py-3 font-medium text-center">Revoke</th>
+        <th class="px-4 py-3 font-medium text-center">Aksi</th>
+      </tr>
+    </thead>
+    <tbody id="pml-table-body" class="divide-y divide-gray-100 dark:divide-gray-800">
+      {{range .List}}
+      {{template "pml_row.html" .}}
+      {{else}}
+      <tr><td colspan="9" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">Belum ada data SLS.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+
+<!-- Mobile card list -->
+<div class="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
+  {{range .List}}
+  <div class="p-4 {{if and (gt .JumlahSubmit 0) (eq .JumlahSubmit .JumlahDiperiksa)}}bg-green-50 dark:bg-green-900/10{{end}}">
+    <div class="flex justify-between items-start mb-2">
+      <div>
+        <p class="font-semibold text-gray-800 dark:text-gray-100 text-sm">{{.NamaSLS}}</p>
+        <p class="text-xs text-gray-400 dark:text-gray-500">{{.KodeSLS}} | PPL: {{.NamaPPL}}</p>
+      </div>
+      <button
+        hx-get="/pml/sls/{{.SLS.ID}}/verif"
+        hx-target="#modal-content"
+        hx-swap="innerHTML"
+        hx-on::after-request="openModal()"
+        class="text-xs bg-se text-white px-3 py-1.5 rounded-lg font-medium">
+        Verifikasi
+      </button>
+    </div>
+    <div class="grid grid-cols-4 gap-2 text-xs text-gray-600 dark:text-gray-400">
+      <span>Submit: <strong class="text-green-600 dark:text-green-400">{{.JumlahSubmit}}</strong></span>
+      <span>Draft: <strong class="text-se">{{.JumlahDraft}}</strong></span>
+      <span>Approved: <strong class="text-green-600 dark:text-green-400">{{.JumlahDiperiksa}}</strong></span>
+      <span>Rejected: <strong class="text-red-600 dark:text-red-400">{{.JumlahError}}</strong></span>
+      <span>Revoke: <strong class="text-yellow-600 dark:text-yellow-400">{{.JumlahRevoked}}</strong></span>
+    </div>
+  </div>
+  {{else}}
+  <p class="p-4 text-center text-sm text-gray-400 dark:text-gray-500">Belum ada data SLS.</p>
+  {{end}}
+</div>
+
+{{template "pagination" .Page}}
+{{end}}

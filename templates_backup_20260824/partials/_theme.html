@@ -1,0 +1,430 @@
+{{/*
+  Sistem desain & tema bersama untuk SELURUH halaman SIGEMPAR (login, admin,
+  pml, ppl, organik, kendala). Diekstrak dari admin.html supaya polesan yang
+  sebelumnya cuma ada di dashboard admin (dark mode, shadow ditinting brand,
+  skeleton loader, progress bar htmx, fokus keyboard, scrollbar) berlaku
+  merata di semua halaman. Ubah di satu tempat ini untuk memengaruhi semua.
+*/}}
+
+{{define "theme_init_script"}}
+  <script>
+    // Terapkan tema sebelum render supaya tidak ada flash (FOUC).
+    (function() {
+      var saved = localStorage.getItem('sigempar-theme');
+      var dark = saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (dark) document.documentElement.classList.add('dark');
+      if (localStorage.getItem('sigempar-sidebar') === 'collapsed') {
+        document.documentElement.classList.add('sidebar-collapsed');
+      }
+    })();
+  </script>
+{{end}}
+
+{{define "theme_assets"}}
+  <link rel="icon" href="/static/logo-sigempar.png" type="image/png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Space Grotesk', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            mono: ['IBM Plex Mono', 'ui-monospace', 'SFMono-Regular', 'monospace']
+          },
+          colors: {
+            se: { DEFAULT:'#F37021', dark:'#d45f10', light:'#f59548', bg:'#FFF4ED' }
+          }
+        }
+      }
+    }
+  </script>
+{{end}}
+
+{{define "theme_style"}}
+  <style>
+    :root {
+      --canvas: #ebe9e4;
+      --panel: #f8f7f3;
+      --panel-strong: #fffefa;
+      --ink: #1b1d1d;
+      --muted: #74766f;
+      --line: #d5d3cc;
+      --line-strong: #b9b7b0;
+      --se: #dc6525;
+      --se-dark: #b94c16;
+      --grid: rgba(27,29,29,.055);
+      --panel-shadow: 0 14px 32px -24px rgba(58,49,38,.44);
+    }
+    .dark {
+      --canvas: #111313;
+      --panel: #191c1c;
+      --panel-strong: #202424;
+      --ink: #f1f0eb;
+      --muted: #90948e;
+      --line: #303535;
+      --line-strong: #484e4d;
+      --se: #f07832;
+      --se-dark: #d45d1d;
+      --grid: rgba(241,240,235,.055);
+      --panel-shadow: 0 16px 36px -26px rgba(0,0,0,.75);
+    }
+    html {
+      font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+      background: var(--canvas);
+      scroll-behavior: smooth;
+    }
+    body {
+      position: relative;
+      background-color: var(--canvas);
+      color: var(--ink);
+      transition: background-color .25s ease, color .25s ease;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: .7;
+      background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 32px 32px;
+      -webkit-mask-image: linear-gradient(to bottom, black, transparent 78%);
+      mask-image: linear-gradient(to bottom, black, transparent 78%);
+    }
+    body > .flex,
+    body > main { position: relative; z-index: 1; }
+    body.bg-gray-50, body.bg-se-bg { background-color: var(--canvas); }
+    .dark body.bg-gray-50, .dark body.bg-se-bg { background-color: var(--canvas); }
+    ::selection { color: #fff; background: var(--se); }
+
+    @media (max-width: 639px) {
+      body:not(.login-shell) main { padding-top: 1.5rem; padding-bottom: 2.5rem; }
+      body:not(.login-shell) #sidebar { width: min(84vw, 19rem); }
+      body:not(.login-shell) .pill-tabs { max-width: 100%; overflow-x: auto; }
+      body:not(.login-shell) .pill-tabs .tab-btn { white-space: nowrap; }
+      body:not(.login-shell) #toast { left: .875rem; right: .875rem; max-width: none; }
+      body:not(.login-shell) #modal-content { max-height: 88dvh; }
+    }
+
+    /* Shared shell: quiet paper in light mode, instrument panel in dark mode. */
+    body:not(.login-shell) #sidebar {
+      background: var(--panel);
+      border-color: var(--line);
+      box-shadow: 12px 0 30px -28px rgba(41,35,28,.55);
+    }
+    body:not(.login-shell) header {
+      background: color-mix(in srgb, var(--canvas) 90%, transparent);
+      border-color: var(--line);
+      backdrop-filter: blur(14px);
+    }
+    body:not(.login-shell) .bg-white,
+    body:not(.login-shell) .dark\:bg-gray-900 {
+      background-color: var(--panel) !important;
+    }
+    body:not(.login-shell) input.bg-white,
+    body:not(.login-shell) select.bg-white,
+    body:not(.login-shell) textarea.bg-white,
+    body:not(.login-shell) .bg-gray-800 {
+      background-color: var(--panel-strong) !important;
+    }
+    body:not(.login-shell) .bg-white.rounded-xl,
+    body:not(.login-shell) .bg-white.rounded-2xl,
+    body:not(.login-shell) .dark\:bg-gray-900.rounded-xl,
+    body:not(.login-shell) .dark\:bg-gray-900.rounded-2xl {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      box-shadow: var(--panel-shadow);
+    }
+    body:not(.login-shell) .rounded-xl { border-radius: 8px; }
+    body:not(.login-shell) .rounded-lg { border-radius: 5px; }
+    body:not(.login-shell) .border-gray-100,
+    body:not(.login-shell) .border-gray-200,
+    body:not(.login-shell) .border-gray-300,
+    body:not(.login-shell) .dark\:border-gray-700,
+    body:not(.login-shell) .dark\:border-gray-800 {
+      border-color: var(--line) !important;
+    }
+    body:not(.login-shell) main h1,
+    body:not(.login-shell) main h2,
+    body:not(.login-shell) main h3 {
+      letter-spacing: -.035em;
+      text-wrap: balance;
+    }
+    body:not(.login-shell) table {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 12px;
+    }
+    body:not(.login-shell) table thead th {
+      background: color-mix(in srgb, var(--se) 7%, var(--panel)) !important;
+      color: var(--muted);
+      font-family: 'Space Grotesk', ui-sans-serif, sans-serif;
+      font-size: 10px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    body:not(.login-shell) table tbody tr:hover {
+      background-color: color-mix(in srgb, var(--se) 7%, var(--panel)) !important;
+      box-shadow: inset 3px 0 0 var(--se);
+    }
+    body:not(.login-shell) main .grid > .bg-white.rounded-2xl,
+    body:not(.login-shell) main .grid > .dark\:bg-gray-900.rounded-2xl {
+      border-top: 2px solid var(--se);
+    }
+    body:not(.login-shell) .sidebar-brand-row {
+      border-color: var(--line) !important;
+      min-height: 76px;
+    }
+    body:not(.login-shell) .sidebar-nav-btn {
+      border-left-color: transparent;
+      letter-spacing: -.01em;
+    }
+    body:not(.login-shell) .sidebar-nav-btn.active {
+      background: color-mix(in srgb, var(--se) 13%, var(--panel)) !important;
+      color: var(--se) !important;
+      border-left-color: var(--se) !important;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--se) 18%, transparent);
+    }
+    body:not(.login-shell) .sidebar-group-summary {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 10px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    body:not(.login-shell) input,
+    body:not(.login-shell) select,
+    body:not(.login-shell) textarea {
+      border-color: var(--line-strong) !important;
+      border-radius: 6px;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-size: 12px;
+    }
+    body:not(.login-shell) input:focus,
+    body:not(.login-shell) select:focus,
+    body:not(.login-shell) textarea:focus {
+      border-color: var(--se) !important;
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--se) 16%, transparent);
+    }
+    body:not(.login-shell) .rounded-full { border-radius: 9999px; }
+    body:not(.login-shell) .font-mono,
+    body:not(.login-shell) .tabular-nums { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+    body:not(.login-shell) .bg-gradient-to-br { background: var(--se) !important; }
+    body:not(.login-shell) .shadow-sm,
+    body:not(.login-shell) .shadow-lg,
+    body:not(.login-shell) .shadow-2xl { box-shadow: var(--panel-shadow); }
+    .htmx-indicator { display:none; }
+    .htmx-request .htmx-indicator { display:inline-block; }
+    .badge-open        { background:#FEF3C7; color:#92400E; }
+    .badge-in_progress { background:#DBEAFE; color:#1E40AF; }
+    .badge-resolved    { background:#D1FAE5; color:#065F46; }
+    .badge-escalated   { background:#FEE2E2; color:#991B1B; }
+    .dark .badge-open        { background:rgba(217,119,6,.18); color:#FBBF24; }
+    .dark .badge-in_progress { background:rgba(37,99,235,.18); color:#93C5FD; }
+    .dark .badge-resolved    { background:rgba(5,150,105,.18); color:#6EE7B7; }
+    .dark .badge-escalated   { background:rgba(220,38,38,.18); color:#FCA5A5; }
+    .tab-panel         { display:none; }
+    .tab-panel.active  { display:block; animation: fadeInUp .22s ease-out; }
+
+    /* Dua komponen tab berbeda berbagi nama class .tab-btn: pill segmented
+       control (pml/ppl/organik) vs. item nav sidebar vertikal (admin, latar
+       tint + garis kiri). Dipisah lewat :not() supaya satu stylesheet
+       bersama bisa melayani keduanya tanpa saling menimpa. */
+    .pill-tabs { background: color-mix(in srgb, var(--ink) 6%, var(--canvas)); border:1px solid var(--line); border-radius: 6px; padding: .25rem; display: inline-flex; gap: .125rem; }
+    .dark .pill-tabs { background: color-mix(in srgb, var(--ink) 6%, var(--canvas)); }
+    .tab-btn.active:not(.sidebar-nav-btn) {
+      background: var(--panel-strong);
+      color:var(--se);
+      font-weight:600;
+      box-shadow: 0 1px 2px rgba(120,60,10,.06), 0 4px 10px -4px rgba(120,60,10,.12);
+    }
+    .dark .tab-btn.active:not(.sidebar-nav-btn) {
+      background: var(--panel-strong);
+      box-shadow: none;
+    }
+    .sidebar-nav-btn { border-radius: .625rem; }
+    .sidebar-nav-btn.active {
+      background: color-mix(in srgb, var(--se) 12%, var(--panel));
+      color:var(--se);
+      font-weight:600;
+      border-left-color:var(--se);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--se) 16%, transparent);
+    }
+    .dark .sidebar-nav-btn.active { background: color-mix(in srgb, var(--se) 16%, var(--panel)); }
+    .tab-btn:hover svg { transform: scale(1.08); }
+    .tab-btn svg { transition: transform .15s ease-out; }
+
+    ::-webkit-scrollbar { width:10px; height:10px; }
+    ::-webkit-scrollbar-track { background:transparent; }
+    ::-webkit-scrollbar-thumb { background:var(--line-strong); border-radius:9999px; }
+    .dark ::-webkit-scrollbar-thumb { background:var(--line-strong); }
+
+    /* Fade-in halus tiap kali konten diganti via HTMX (tabel, ringkasan, dst) */
+    @keyframes fadeInUp {
+      from { opacity:0; transform:translateY(6px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .htmx-swap-fade { animation: fadeInUp .28s ease-out; }
+
+    /* Loading bar tipis di paling atas selama request HTMX berjalan */
+    #htmx-progress {
+      position:fixed; top:0; left:0; height:2.5px; width:0%;
+      background:var(--se);
+      z-index:60; opacity:0; transition:width .35s ease-out, opacity .2s ease-out;
+      box-shadow: 0 0 8px color-mix(in srgb, var(--se) 60%, transparent);
+    }
+
+    /* Angka tabular supaya kolom angka rapi sejajar di semua tabel & stat card */
+    table td, .tabular-nums, main section p.text-3xl, main section span.font-bold {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Header tabel: tracking lebih rapi + border bawah lebih tegas */
+    table thead tr {
+      letter-spacing: .03em;
+      font-weight: 600;
+    }
+    table thead th { font-weight: 600; }
+
+    /* Baris tabel: transisi hover lebih halus + highlight kiri tipis saat hover */
+    table tbody tr { transition: background-color .12s ease-out; }
+    table tbody tr:hover { box-shadow: inset 3px 0 0 0 rgba(243,112,33,.35); }
+    .dark table tbody tr:hover { box-shadow: inset 3px 0 0 0 rgba(243,112,33,.5); }
+
+    /* Kartu putih (stat card, panel tab, dsb): shadow ditinting warna brand,
+       bukan hitam datar — dan hilang total di dark mode supaya tidak "kotor" */
+    .bg-white.rounded-xl, .bg-white.rounded-2xl,
+    .dark\:bg-gray-900.rounded-xl, .dark\:bg-gray-900.rounded-2xl {
+      box-shadow: 0 1px 2px rgba(120,60,10,.04), 0 8px 20px -8px rgba(120,60,10,.10);
+    }
+    .dark .bg-white.rounded-xl, .dark .bg-white.rounded-2xl,
+    .dark .dark\:bg-gray-900.rounded-xl, .dark .dark\:bg-gray-900.rounded-2xl {
+      box-shadow: none;
+    }
+
+    /* Tombol & elemen interaktif: tekanan fisik saat diklik */
+    button:active, a.active\:scale-95:active, .btn-press:active { transform: scale(.97); }
+    button, a { transition-property: color, background-color, border-color, box-shadow, transform, opacity; }
+
+    /* Fokus keyboard yang jelas & konsisten di semua input/tombol/link */
+    input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {
+      outline: 2px solid rgba(243,112,33,.55);
+      outline-offset: 1px;
+    }
+
+    /* Skeleton loading generik utk area yang lagi "Memuat..." */
+    .skel { position: relative; overflow: hidden; background: #f1f1ef; border-radius: .5rem; }
+    .dark .skel { background: #27272a; }
+    .skel::after {
+      content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+      animation: skelShimmer 1.3s infinite;
+    }
+    .dark .skel::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,.06), transparent); }
+    @keyframes skelShimmer { 100% { transform: translateX(100%); } }
+  </style>
+{{end}}
+
+{{define "theme_toggle_button"}}
+  <button onclick="toggleDarkMode()" id="dark-toggle-btn"
+    title="Ganti tema terang/gelap"
+    class="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all active:scale-90">
+    <svg id="icon-sun" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.36 6.36l-1.41-1.41M7.05 7.05L5.64 5.64m12.72 0l-1.41 1.41M7.05 16.95l-1.41 1.41M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+    </svg>
+    <svg id="icon-moon" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+    </svg>
+  </button>
+{{end}}
+
+{{define "app_header"}}
+  {{/* Header bersih & konsisten untuk pml/ppl/organik/kendala — menggantikan
+       banner gradien oranye penuh-lebar yang generik dengan topbar netral
+       senada dengan admin.html, plus satu aksen warna yang disiplin. */}}
+  <header class="sticky top-0 z-30 bg-white/90 dark:bg-gray-900/90 backdrop-blur border-b border-gray-200 dark:border-gray-800">
+    <div class="max-w-{{.MaxW}} mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-9 h-9 rounded-xl bg-se-bg dark:bg-gray-800 ring-1 ring-se/10 dark:ring-gray-700 p-1.5 shrink-0">
+          <img src="/static/logo-sigempar.png" alt="SIGEMPAR" class="w-full h-full object-contain"/>
+        </div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <span class="w-1 h-4 bg-se rounded-full shrink-0"></span>
+            <h1 class="font-extrabold text-gray-900 dark:text-gray-100 text-[15px] leading-tight tracking-tight truncate">{{.Title}}</h1>
+          </div>
+          <p class="text-gray-400 dark:text-gray-500 text-[11.5px] mt-0.5 truncate pl-3">{{.Subtitle}}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-1 shrink-0">
+        {{if .ShowKendala}}
+        <a href="/kendala" title="Daftar Kendala"
+          class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-se hover:bg-se-bg dark:hover:bg-gray-800 text-sm font-medium transition-colors">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          </svg>
+          <span class="hidden sm:inline">Kendala</span>
+        </a>
+        {{end}}
+        {{if .ShowLogout}}
+        <a href="/logout" title="Keluar"
+          class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 text-sm font-medium transition-colors">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+          </svg>
+          <span class="hidden sm:inline">Keluar</span>
+        </a>
+        {{end}}
+        <span class="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1"></span>
+        {{template "theme_toggle_button" .}}
+      </div>
+    </div>
+  </header>
+{{end}}
+
+{{define "theme_progress_bar"}}
+  <div id="htmx-progress"></div>
+{{end}}
+
+{{define "theme_runtime_script"}}
+  <script>
+    function toggleDarkMode() {
+      var isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('sigempar-theme', isDark ? 'dark' : 'light');
+    }
+
+    // ===== Loading bar tipis + fade-in tiap kali HTMX menukar konten =====
+    (function() {
+      var bar = document.getElementById('htmx-progress');
+      if (!bar) return;
+      var hideTimer = null;
+      document.addEventListener('htmx:beforeRequest', function() {
+        clearTimeout(hideTimer);
+        bar.style.transition = 'none';
+        bar.style.opacity = '1';
+        bar.style.width = '0%';
+        // paksa reflow supaya transition width berikutnya kepakai
+        void bar.offsetWidth;
+        bar.style.transition = 'width .4s ease-out, opacity .2s ease-out';
+        bar.style.width = '75%';
+      });
+      document.addEventListener('htmx:afterRequest', function() {
+        bar.style.width = '100%';
+        hideTimer = setTimeout(function() {
+          bar.style.opacity = '0';
+        }, 150);
+      });
+      document.addEventListener('htmx:afterSwap', function(e) {
+        var el = e.detail.target;
+        el.classList.remove('htmx-swap-fade');
+        void el.offsetWidth;
+        el.classList.add('htmx-swap-fade');
+      });
+    })();
+  </script>
+{{end}}

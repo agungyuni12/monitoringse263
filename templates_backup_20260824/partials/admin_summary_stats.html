@@ -1,0 +1,183 @@
+{{define "admin_summary_stats.html"}}
+<!-- Coverage Usaha & Keluarga se-kabupaten -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3.5 mb-3.5">
+  <div class="group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
+    <div class="flex items-center justify-between mb-2.5">
+      <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Coverage Usaha BKU</p>
+      <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 {{if gt .Summary.PctCoverageUsahaBKU 100.0}}bg-purple-50 dark:bg-purple-950/50{{else}}bg-amber-50 dark:bg-amber-950/50{{end}}">
+        <svg class="w-4 h-4 {{if gt .Summary.PctCoverageUsahaBKU 100.0}}text-purple-500{{else}}text-amber-500{{end}}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg>
+      </div>
+    </div>
+    <p class="text-[30px] leading-none font-extrabold tracking-tight {{if gt .Summary.PctCoverageUsahaBKU 100.0}}text-purple-600 dark:text-purple-400{{else}}text-amber-600 dark:text-amber-400{{end}}">{{pctf .Summary.PctCoverageUsahaBKU}}<span class="text-lg font-bold">%</span></p>
+    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Ditemukan+Baru vs Prelist</p>
+  </div>
+  <div class="group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
+    <div class="flex items-center justify-between mb-2.5">
+      <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Coverage Usaha Keluarga</p>
+      <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 {{if gt .Summary.PctCoverageUsahaKeluarga 100.0}}bg-purple-50 dark:bg-purple-950/50{{else}}bg-amber-50 dark:bg-amber-950/50{{end}}">
+        <svg class="w-4 h-4 {{if gt .Summary.PctCoverageUsahaKeluarga 100.0}}text-purple-500{{else}}text-amber-500{{end}}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg>
+      </div>
+    </div>
+    <p class="text-[30px] leading-none font-extrabold tracking-tight {{if gt .Summary.PctCoverageUsahaKeluarga 100.0}}text-purple-600 dark:text-purple-400{{else}}text-amber-600 dark:text-amber-400{{end}}">{{pctf .Summary.PctCoverageUsahaKeluarga}}<span class="text-lg font-bold">%</span></p>
+    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Ditemukan+Baru vs Prelist</p>
+  </div>
+  <div class="group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
+    <div class="flex items-center justify-between mb-2.5">
+      <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Coverage Keluarga</p>
+      <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 {{if gt .Summary.PctCoverageKeluarga 100.0}}bg-purple-50 dark:bg-purple-950/50{{else}}bg-amber-50 dark:bg-amber-950/50{{end}}">
+        <svg class="w-4 h-4 {{if gt .Summary.PctCoverageKeluarga 100.0}}text-purple-500{{else}}text-amber-500{{end}}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m5-3.13a4 4 0 100-8 4 4 0 000 8zm6 3a4 4 0 00-3-3.87"/></svg>
+      </div>
+    </div>
+    <p class="text-[30px] leading-none font-extrabold tracking-tight {{if gt .Summary.PctCoverageKeluarga 100.0}}text-purple-600 dark:text-purple-400{{else}}text-amber-600 dark:text-amber-400{{end}}">{{pctf .Summary.PctCoverageKeluarga}}<span class="text-lg font-bold">%</span></p>
+    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Ditemukan+Baru vs Prelist</p>
+  </div>
+</div>
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-3.5">
+  <div class="group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
+    <div class="flex items-center justify-between mb-2.5">
+      <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Total SLS</p>
+      <div class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7l9-4 9 4-9 4-9-4zm0 0v10l9 4 9-4V7"/></svg>
+      </div>
+    </div>
+    <p class="text-[30px] leading-none font-extrabold tracking-tight text-gray-700 dark:text-gray-100">{{.Summary.TotalSLS}}</p>
+  </div>
+  <div class="group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
+    <div class="flex items-center justify-between mb-2.5">
+      <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Total Target</p>
+      <div class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" stroke-width="1.5"/><circle cx="12" cy="12" r="3" stroke-width="1.5"/></svg>
+      </div>
+    </div>
+    <p class="text-[30px] leading-none font-extrabold tracking-tight text-gray-700 dark:text-gray-100">{{.Summary.TotalTarget}}</p>
+  </div>
+  <div class="group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
+    <div class="flex items-center justify-between mb-2.5">
+      <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Submit PPL</p>
+      <div class="w-8 h-8 rounded-full bg-green-50 dark:bg-green-950/50 flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7"/></svg>
+      </div>
+    </div>
+    <p class="text-[30px] leading-none font-extrabold tracking-tight text-green-600 dark:text-green-400">{{.Summary.TotalFasihSubmit}}</p>
+    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Pending review PML</p>
+  </div>
+  <div class="group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
+    <div class="flex items-center justify-between mb-2.5">
+      <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Draft PPL</p>
+      <div class="w-8 h-8 rounded-full bg-se-bg dark:bg-orange-950/50 flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4 text-se" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 4h2m-1 0v16m-7-4h14"/></svg>
+      </div>
+    </div>
+    <p class="text-[30px] leading-none font-extrabold tracking-tight text-se">{{.Summary.TotalDraft}}</p>
+    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1.5">{{pct .Summary.TotalDraft .Summary.TotalFasihTotal}}% dari total</p>
+  </div>
+</div>
+
+<!-- Breakdown approval per level -->
+<div class="bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-5 mb-3.5">
+  <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold mb-3.5">Breakdown approval per level</p>
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <!-- Pengawas -->
+    <div class="rounded-xl bg-green-50/70 dark:bg-green-950/30 p-3.5">
+      <p class="text-xs font-bold text-green-700 dark:text-green-400 mb-2">Pengawas</p>
+      <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
+        <span>Approved</span>
+        <span class="font-bold text-green-700 dark:text-green-400 tabular-nums">{{.Summary.TotalApprovedPengawas}}</span>
+      </div>
+      <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
+        <span>Rejected</span>
+        <span class="font-semibold text-red-600 dark:text-red-400 tabular-nums">{{.Summary.TotalRejectedPengawas}}</span>
+      </div>
+      <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+        <span>Revoked</span>
+        <span class="font-semibold text-yellow-600 dark:text-yellow-500 tabular-nums">{{.Summary.TotalRevokedPengawas}}</span>
+      </div>
+    </div>
+    <!-- Kabupaten -->
+    <div class="rounded-xl bg-blue-50/70 dark:bg-blue-950/30 p-3.5">
+      <p class="text-xs font-bold text-blue-700 dark:text-blue-400 mb-2">Kabupaten</p>
+      <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
+        <span>Approved</span>
+        <span class="font-bold text-blue-700 dark:text-blue-400 tabular-nums">{{.Summary.TotalApprovedKabupaten}}</span>
+      </div>
+      <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+        <span>Rejected</span>
+        <span class="font-semibold text-red-600 dark:text-red-400 tabular-nums">{{.Summary.TotalRejectedKabupaten}}</span>
+      </div>
+    </div>
+    <!-- Provinsi -->
+    <div class="rounded-xl bg-purple-50/70 dark:bg-purple-950/30 p-3.5">
+      <p class="text-xs font-bold text-purple-700 dark:text-purple-400 mb-2">Provinsi</p>
+      <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
+        <span>Approved</span>
+        <span class="font-bold text-purple-700 dark:text-purple-400 tabular-nums">{{.Summary.TotalApprovedProvinsi}}</span>
+      </div>
+      <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+        <span>Rejected</span>
+        <span class="font-semibold text-red-600 dark:text-red-400 tabular-nums">{{.Summary.TotalRejectedProvinsi}}</span>
+      </div>
+    </div>
+    <!-- Pusat -->
+    <div class="rounded-xl bg-gray-100/70 dark:bg-gray-800/60 p-3.5">
+      <p class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">Pusat</p>
+      <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
+        <span>Approved</span>
+        <span class="font-bold text-gray-800 dark:text-gray-200 tabular-nums">{{.Summary.TotalApprovedPusat}}</span>
+      </div>
+      <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+        <span>Rejected</span>
+        <span class="font-semibold text-red-600 dark:text-red-400 tabular-nums">{{.Summary.TotalRejectedPusat}}</span>
+      </div>
+    </div>
+    <!-- Admin (Edited/Completed) -->
+    <div class="rounded-xl bg-teal-50/70 dark:bg-teal-950/30 p-3.5">
+      <p class="text-xs font-bold text-teal-700 dark:text-teal-400 mb-2">Admin</p>
+      <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
+        <span>Edited</span>
+        <span class="font-bold text-teal-700 dark:text-teal-400 tabular-nums">{{.Summary.TotalEditedAdmin}}</span>
+      </div>
+      <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+        <span>Completed</span>
+        <span class="font-semibold text-teal-600 dark:text-teal-400 tabular-nums">{{.Summary.TotalCompletedAdmin}}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Progress Bars -->
+<div class="bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-5 space-y-5">
+  <div>
+    <div class="flex justify-between items-baseline text-sm text-gray-600 dark:text-gray-400 mb-2">
+      <span class="font-semibold text-gray-700 dark:text-gray-300">Progres submit+reject+approve vs total assignment</span>
+      <span class="font-bold text-green-600 dark:text-green-400 tabular-nums">{{.Summary.TotalSubmit}} / {{.Summary.TotalFasihTotal}} <span class="text-gray-400 dark:text-gray-500 font-medium">({{pctf .Summary.PctProgres}}%)</span></span>
+    </div>
+    <!-- Stacked bar: Approved Pengawas (hijau) + Submit pending (kuning) + Rejected Pengawas (merah) -->
+    <div class="h-3.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden flex">
+      <div class="h-full bg-green-600 transition-all" style="width:{{pctraw .Summary.TotalApprovedPengawas .Summary.TotalFasihTotal}}%" title="Approved Pengawas"></div>
+      <div class="h-full bg-blue-500 transition-all" style="width:{{pctraw .Summary.TotalApprovedKabupaten .Summary.TotalFasihTotal}}%" title="Approved Kabupaten"></div>
+      <div class="h-full bg-purple-500 transition-all" style="width:{{pctraw .Summary.TotalApprovedProvinsi .Summary.TotalFasihTotal}}%" title="Approved Provinsi"></div>
+      <div class="h-full bg-gray-600 transition-all" style="width:{{pctraw .Summary.TotalApprovedPusat .Summary.TotalFasihTotal}}%" title="Approved Pusat"></div>
+      <div class="h-full bg-yellow-400 transition-all" style="width:{{pctraw .Summary.TotalFasihSubmit .Summary.TotalFasihTotal}}%" title="Submit pending"></div>
+      <div class="h-full bg-red-500 transition-all" style="width:{{pctraw .Summary.TotalRejectedPengawas .Summary.TotalFasihTotal}}%" title="Rejected"></div>
+    </div>
+    <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-gray-500 dark:text-gray-400">
+      <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-green-600 inline-block"></span>Appr. Pengawas <span class="tabular-nums font-medium">{{.Summary.TotalApprovedPengawas}}</span></span>
+      <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>Appr. Kab. <span class="tabular-nums font-medium">{{.Summary.TotalApprovedKabupaten}}</span></span>
+      <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-purple-500 inline-block"></span>Appr. Prov. <span class="tabular-nums font-medium">{{.Summary.TotalApprovedProvinsi}}</span></span>
+      <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-gray-600 inline-block"></span>Appr. Pusat <span class="tabular-nums font-medium">{{.Summary.TotalApprovedPusat}}</span></span>
+      <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-yellow-400 inline-block"></span>Pending <span class="tabular-nums font-medium">{{.Summary.TotalFasihSubmit}}</span></span>
+      <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-red-500 inline-block"></span>Rejected <span class="tabular-nums font-medium">{{.Summary.TotalRejectedPengawas}}</span></span>
+    </div>
+  </div>
+  <div>
+    <div class="flex justify-between items-baseline text-sm text-gray-600 dark:text-gray-400 mb-2">
+      <span class="font-semibold text-gray-700 dark:text-gray-300">Progres approved vs submit</span>
+      <span class="font-bold text-green-700 dark:text-green-400 tabular-nums">{{.Summary.TotalDiperiksa}} / {{.Summary.TotalSubmit}} <span class="text-gray-400 dark:text-gray-500 font-medium">({{pct .Summary.TotalDiperiksa .Summary.TotalSubmit}}%)</span></span>
+    </div>
+    <div class="h-3.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+      <div class="h-full bg-green-600 rounded-full transition-all" style="width:{{pctraw .Summary.TotalDiperiksa .Summary.TotalSubmit}}%"></div>
+    </div>
+  </div>
+</div>
+{{end}}
