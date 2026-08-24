@@ -69,7 +69,8 @@ baris/eksekusi independen dari nilai LIMIT — dicek ULANG manual pakai raw
 SELECT tanpa agregat (bukan cuma COUNT(*), yang SELALU balik 1 baris apapun
 LIMIT-nya jadi gak valid buat tes ini) dan ternyata LIMIT 5000 memang balik
 5000 baris utuh. Entah cap lamanya sudah dicabut atau spesifik ke pola query
-lama — yang pasti sekarang PAGE_SIZE 5000 terbukti aman.)
+lama — yang pasti PAGE_SIZE 5000 terbukti aman, dan belakangan dicek ulang
+PAGE_SIZE 9000 juga balik 9000 baris utuh, jadi dipakai sekarang.)
 Percobaan OFFSET bertahap versi awal (sebelum rewrite ini) sempat gagal krn
 implementasi lamanya baca hasil lewat RELOAD halaman (race condition: reload
 sebelum server nyimpen tab state query baru bisa balikin cache query
@@ -117,7 +118,7 @@ SYNC_HOUR = int(os.getenv("SYNC_HOUR", "22"))  # jam WITA, sekali sehari
 
 DASH_URL = "https://fasih-dashboard.bps.go.id"
 
-PAGE_SIZE = 5000      # dicek manual via raw SELECT (bukan COUNT) — lihat docstring modul
+PAGE_SIZE = 9000      # dicek manual via raw SELECT (bukan COUNT) — lihat docstring modul
 PAGE_DELAY_MIN = 3    # jeda antar halaman (detik) — biar traffic gak seragam
 PAGE_DELAY_MAX = 8
 

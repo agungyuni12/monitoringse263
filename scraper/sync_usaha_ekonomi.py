@@ -84,7 +84,7 @@ Sumber data (ditelusuri manual lewat SQL Lab — lihat percakapan):
     dua kolom sendiri2 — nama_kk cuma keisi kalau jenis_prelist='keluarga'.
 
 Pagination & anti-bot-wall: identik dgn sync_usaha.py (baca docstring modul
-itu) — LIMIT/OFFSET langsung se-kabupaten, PAGE_SIZE 5000/eksekusi, ORDER BY
+itu) — LIMIT/OFFSET langsung se-kabupaten, PAGE_SIZE 9000/eksekusi, ORDER BY
 assignment_id biar pagination stabil, baca response /execute/ langsung tanpa
 reload biar gak kena WAF F5.
 
@@ -129,7 +129,7 @@ SYNC_HOUR = int(os.getenv("SYNC_HOUR", "23"))  # jam WITA, sekali sehari
 
 DASH_URL = "https://fasih-dashboard.bps.go.id"
 
-PAGE_SIZE = 5000      # dicek manual via raw SELECT (bukan COUNT) — lihat sync_usaha.py
+PAGE_SIZE = 9000      # dicek manual via raw SELECT (bukan COUNT) — lihat sync_usaha.py
 PAGE_DELAY_MIN = 3    # jeda antar halaman (detik) — biar traffic gak seragam
 PAGE_DELAY_MAX = 8
 
