@@ -128,16 +128,16 @@
 
     /* Metric cards: one dark hero, organic rings, and quieter supporting cards. */
     body:not(.login-shell) .metric-card { position: relative; min-height: 148px; overflow: hidden; padding: 1.5rem !important; }
-    body:not(.login-shell) .metric-card::before { content: ''; position: absolute; width: 170px; height: 170px; right: -72px; top: -96px; border: 20px solid color-mix(in srgb, var(--signal) 12%, transparent); border-radius: 50%; pointer-events: none; }
-    body:not(.login-shell) .metric-card::after { content: ''; position: absolute; width: 110px; height: 110px; right: -42px; top: -60px; border: 14px solid color-mix(in srgb, var(--signal) 7%, transparent); border-radius: 50%; pointer-events: none; }
+    body:not(.login-shell) .metric-card::before, body:not(.login-shell) .metric-card::after { pointer-events: none; }
+    body:not(.login-shell) .metric-card:nth-child(3)::before { content: ''; position: absolute; width: 90px; height: 90px; right: -34px; bottom: -44px; border: 13px solid color-mix(in srgb, var(--signal) 10%, transparent); border-radius: 50%; }
     body:not(.login-shell) .metric-card > * { position: relative; z-index: 1; }
     body:not(.login-shell) .metric-card > p:first-of-type { margin-top: 1.4rem; font-family: 'Manrope', sans-serif; font-size: 2.35rem !important; line-height: 1 !important; letter-spacing: -.06em; }
     body:not(.login-shell) .metric-card > div:first-child p { max-width: 80%; }
     body:not(.login-shell) .metric-primary { background: var(--ink) !important; border-color: var(--ink) !important; color: #fff; box-shadow: 0 22px 48px rgba(23,33,27,.17) !important; }
     body:not(.login-shell) .metric-primary { min-height: 220px; }
     body:not(.login-shell) .metric-primary > p:first-of-type { font-size: 3.5rem !important; }
-    body:not(.login-shell) .metric-primary::before { width: 220px; height: 220px; right: -82px; top: -132px; border-width: 28px; border-color: rgba(200,239,99,.12); }
-    body:not(.login-shell) .metric-primary::after { width: 150px; height: 150px; right: -48px; top: -88px; border-width: 20px; border-color: rgba(200,239,99,.08); }
+    body:not(.login-shell) .metric-primary::before { content: ''; position: absolute; width: 220px; height: 220px; right: -82px; top: -132px; border: 28px solid rgba(200,239,99,.12); border-radius: 50%; }
+    body:not(.login-shell) .metric-primary::after { content: ''; position: absolute; width: 150px; height: 150px; right: -48px; top: -88px; border: 20px solid rgba(200,239,99,.08); border-radius: 50%; }
     body:not(.login-shell) .metric-primary p { color: #fff !important; }
     body:not(.login-shell) .metric-primary > div:first-child p { color: rgba(255,255,255,.58) !important; }
     body:not(.login-shell) .metric-primary svg { color: var(--lime); }
@@ -151,7 +151,12 @@
     body:not(.login-shell) button.bg-se:hover, body:not(.login-shell) a.bg-se:hover { background: var(--signal-dark) !important; }
     body:not(.login-shell) table { font-size: 12px; }
     body:not(.login-shell) table thead th { background: var(--surface-soft) !important; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    body:not(.login-shell) table th { padding-top: 1rem; padding-bottom: 1rem; }
+    body:not(.login-shell) table td { padding-top: .95rem; padding-bottom: .95rem; }
+    body:not(.login-shell) table tbody tr { border-color: var(--line); }
     body:not(.login-shell) table tbody tr:hover { background: color-mix(in srgb, var(--signal) 5%, var(--surface)) !important; box-shadow: inset 3px 0 0 var(--signal); }
+    body:not(.login-shell) .h-3, body:not(.login-shell) .h-3\.5 { height: .7rem; border-radius: 999px; background: var(--surface-soft); }
+    body:not(.login-shell) .h-3 > div, body:not(.login-shell) .h-3\.5 > div { border-radius: 999px; }
     body:not(.login-shell) .tabular-nums { font-family: 'DM Mono', monospace; }
     .pill-tabs { max-width: 100%; overflow-x: auto; padding: .35rem; gap: .25rem; border-radius: 14px; background: var(--surface-soft); }
     .tab-btn.active:not(.sidebar-nav-btn) { background: var(--surface); color: var(--signal); box-shadow: 0 5px 14px -10px rgba(19,28,56,.75); }
