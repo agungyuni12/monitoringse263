@@ -137,7 +137,7 @@
     body:not(.login-shell) .metric-card > * { position: relative; z-index: 1; }
     body:not(.login-shell) .metric-card > p:first-of-type { margin-top: 1.4rem; font-family: 'Manrope', sans-serif; font-size: 2.35rem !important; line-height: 1 !important; letter-spacing: -.06em; }
     body:not(.login-shell) .metric-card > div:first-child p { max-width: 80%; }
-    body:not(.login-shell) .metric-primary { background: var(--ink) !important; border-color: var(--ink) !important; color: #fff; box-shadow: 0 22px 48px rgba(23,33,27,.17) !important; }
+    body:not(.login-shell) .metric-primary { background: var(--ink) !important; border-color: transparent !important; color: #fff; box-shadow: 0 22px 48px rgba(23,33,27,.17) !important; }
     body:not(.login-shell) .metric-primary { min-height: 220px; }
     body:not(.login-shell) .metric-primary > p:first-of-type { font-size: 3.5rem !important; }
     body:not(.login-shell) .metric-primary::before { content: ''; position: absolute; width: 220px; height: 220px; right: -82px; top: -132px; border: 28px solid rgba(200,239,99,.12); border-radius: 50%; }
@@ -148,7 +148,8 @@
     body:not(.login-shell) .metric-card:not(.metric-primary):nth-child(2) { background: var(--mint) !important; }
     body:not(.login-shell) .metric-card:not(.metric-primary):nth-child(3) { background: var(--signal-soft) !important; }
     body:not(.login-shell) .metric-card:not(.metric-primary):nth-child(4) { background: var(--surface-soft) !important; }
-    html.dark body:not(.login-shell) .metric-primary { background: #1b2a21 !important; }
+    html.dark body:not(.login-shell) .metric-card { border-color: rgba(255,255,255,.07) !important; }
+    html.dark body:not(.login-shell) .metric-primary { background: #1b2a21 !important; border-color: transparent !important; }
     html.dark body:not(.login-shell) .metric-card:not(.metric-primary):nth-child(2) { background: #20372a !important; }
     html.dark body:not(.login-shell) .metric-card:not(.metric-primary):nth-child(3) { background: #35251f !important; }
     html.dark body:not(.login-shell) .metric-card:not(.metric-primary):nth-child(4) { background: #202b3d !important; }
