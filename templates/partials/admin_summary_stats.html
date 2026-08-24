@@ -1,7 +1,7 @@
 {{define "admin_summary_stats.html"}}
 <!-- Coverage Usaha & Keluarga se-kabupaten -->
 <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5 mb-3.5">
-  <div class="group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
+  <div class="metric-card metric-primary group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
     <div class="flex items-center justify-between mb-2.5">
       <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Coverage Usaha BKU</p>
       <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 {{if gt .Summary.PctCoverageUsahaBKU 100.0}}bg-purple-50 dark:bg-purple-950/50{{else}}bg-amber-50 dark:bg-amber-950/50{{end}}">
@@ -11,7 +11,7 @@
     <p class="text-[30px] leading-none font-extrabold tracking-tight {{if gt .Summary.PctCoverageUsahaBKU 100.0}}text-purple-600 dark:text-purple-400{{else}}text-amber-600 dark:text-amber-400{{end}}">{{pctf .Summary.PctCoverageUsahaBKU}}<span class="text-lg font-bold">%</span></p>
     <p class="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Ditemukan+Baru vs Prelist</p>
   </div>
-  <div class="group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
+  <div class="metric-card group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
     <div class="flex items-center justify-between mb-2.5">
       <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Coverage Usaha Keluarga</p>
       <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 {{if gt .Summary.PctCoverageUsahaKeluarga 100.0}}bg-purple-50 dark:bg-purple-950/50{{else}}bg-amber-50 dark:bg-amber-950/50{{end}}">
@@ -21,7 +21,7 @@
     <p class="text-[30px] leading-none font-extrabold tracking-tight {{if gt .Summary.PctCoverageUsahaKeluarga 100.0}}text-purple-600 dark:text-purple-400{{else}}text-amber-600 dark:text-amber-400{{end}}">{{pctf .Summary.PctCoverageUsahaKeluarga}}<span class="text-lg font-bold">%</span></p>
     <p class="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Ditemukan+Baru vs Prelist</p>
   </div>
-  <div class="group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
+  <div class="metric-card group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
     <div class="flex items-center justify-between mb-2.5">
       <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Coverage Keluarga</p>
       <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 {{if gt .Summary.PctCoverageKeluarga 100.0}}bg-purple-50 dark:bg-purple-950/50{{else}}bg-amber-50 dark:bg-amber-950/50{{end}}">
@@ -34,7 +34,7 @@
 </div>
 
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-3.5">
-  <div class="group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
+  <div class="metric-card group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
     <div class="flex items-center justify-between mb-2.5">
       <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Total SLS</p>
       <div class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0">
@@ -43,7 +43,7 @@
     </div>
     <p class="text-[30px] leading-none font-extrabold tracking-tight text-gray-700 dark:text-gray-100">{{.Summary.TotalSLS}}</p>
   </div>
-  <div class="group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
+  <div class="metric-card group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
     <div class="flex items-center justify-between mb-2.5">
       <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Total Target</p>
       <div class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0">
@@ -52,7 +52,7 @@
     </div>
     <p class="text-[30px] leading-none font-extrabold tracking-tight text-gray-700 dark:text-gray-100">{{.Summary.TotalTarget}}</p>
   </div>
-  <div class="group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
+  <div class="metric-card group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
     <div class="flex items-center justify-between mb-2.5">
       <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Submit PPL</p>
       <div class="w-8 h-8 rounded-full bg-green-50 dark:bg-green-950/50 flex items-center justify-center shrink-0">
@@ -62,7 +62,7 @@
     <p class="text-[30px] leading-none font-extrabold tracking-tight text-green-600 dark:text-green-400">{{.Summary.TotalFasihSubmit}}</p>
     <p class="text-xs text-gray-400 dark:text-gray-500 mt-1.5">Pending review PML</p>
   </div>
-  <div class="group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
+  <div class="metric-card group bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-4 hover:-translate-y-0.5 transition-all duration-200">
     <div class="flex items-center justify-between mb-2.5">
       <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Draft PPL</p>
       <div class="w-8 h-8 rounded-full bg-se-bg dark:bg-orange-950/50 flex items-center justify-center shrink-0">

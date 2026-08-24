@@ -125,7 +125,7 @@
 
     <!-- Summary Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-6">
-      <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
+      <div class="metric-card metric-primary bg-white dark:bg-gray-900 rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
         <div class="flex items-center justify-between mb-2">
           <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Total Target</p>
           <div class="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0">
@@ -135,7 +135,7 @@
         <p class="text-[26px] leading-none font-extrabold tracking-tight text-gray-700 dark:text-gray-200">{{.TotalTarget}}</p>
         <p class="text-xs text-gray-400 dark:text-gray-500 mt-1.5">usaha (total fasih)</p>
       </div>
-      <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
+      <div class="metric-card bg-white dark:bg-gray-900 rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
         <div class="flex items-center justify-between mb-2">
           <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Submit</p>
           <div class="w-7 h-7 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center shrink-0">
@@ -145,7 +145,7 @@
         <p class="text-[26px] leading-none font-extrabold tracking-tight text-green-600 dark:text-green-400">{{.TotalSubmit}}</p>
         <p class="text-xs text-gray-400 dark:text-gray-500 mt-1.5">{{pct .TotalSubmit .TotalTarget}}% dari target</p>
       </div>
-      <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
+      <div class="metric-card bg-white dark:bg-gray-900 rounded-2xl p-4 hover:-translate-y-0.5 transition-all duration-200">
         <div class="flex items-center justify-between mb-2">
           <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold">Draft</p>
           <div class="w-7 h-7 rounded-full bg-se-bg dark:bg-gray-800 flex items-center justify-center shrink-0">

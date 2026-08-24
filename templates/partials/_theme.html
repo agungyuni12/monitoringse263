@@ -1,4 +1,4 @@
-{{/* SIGEMPAR workspace UI. Menus, forms, tables, and HTMX endpoints remain unchanged. */}}
+{{/* SIGEMPAR visual system. Data, menus, filters, forms, and HTMX behavior stay intact. */}}
 
 {{define "theme_init_script"}}
   <script>
@@ -23,18 +23,15 @@
       darkMode: 'class',
       theme: { extend: {
         colors: {
-          se: { DEFAULT:'#5267e8', dark:'#354bd0', light:'#8795f1', bg:'#eef0ff' },
-          ink: '#131c38', sun: '#f5c84c', cream: '#f4f6fb', line: '#e0e5f0'
+          se: { DEFAULT:'#e85d20', dark:'#bd4311', light:'#f49a65', bg:'#fff1e9' },
+          ink: '#17211b', moss: '#315b43', mint: '#dff3e5', cream: '#f7f8f4', line: '#dfe6dd', sun: '#c8ef63'
         },
         fontFamily: {
           sans: ['DM Sans', 'ui-sans-serif', 'system-ui', 'sans-serif'],
           display: ['Manrope', 'DM Sans', 'ui-sans-serif', 'sans-serif'],
           mono: ['DM Mono', 'ui-monospace', 'SFMono-Regular', 'monospace']
         },
-        boxShadow: {
-          soft: '0 18px 45px rgba(19, 28, 56, .08)',
-          lift: '0 24px 55px rgba(19, 28, 56, .17)'
-        }
+        boxShadow: { soft: '0 16px 40px rgba(23,33,27,.07)', lift: '0 20px 45px rgba(49,91,67,.16)' }
       }}
     }
   </script>
@@ -44,135 +41,112 @@
   <style>
     :root {
       color-scheme: light;
-      --canvas: #f4f6fb;
+      --canvas: #f7f8f4;
       --surface: #ffffff;
-      --surface-soft: #eef1f8;
-      --ink: #131c38;
-      --muted: #7b8498;
-      --line: #e0e5f0;
-      --signal: #5267e8;
-      --signal-dark: #354bd0;
-      --signal-soft: #eef0ff;
-      --sun: #f5c84c;
-      --success: #2c9b78;
-      --shadow: 0 18px 45px rgba(19, 28, 56, .08);
+      --surface-soft: #f0f3ed;
+      --ink: #17211b;
+      --moss: #315b43;
+      --mint: #e3f4e6;
+      --signal-soft: #fff1e9;
+      --mint: #dff3e5;
+      --signal: #e85d20;
+      --signal-dark: #bd4311;
+      --signal-soft: #fff1e9;
+      --lime: #c8ef63;
+      --line: #dfe6dd;
+      --muted: #78857d;
+      --shadow: 0 16px 40px rgba(23,33,27,.07);
     }
     html.dark {
       color-scheme: dark;
-      --canvas: #0d1225;
-      --surface: #151c35;
-      --surface-soft: #1d2744;
-      --ink: #f1f3ff;
-      --muted: #929bb5;
-      --line: #293452;
-      --signal: #8795ff;
-      --signal-dark: #6d7df0;
-      --signal-soft: #20284e;
-      --sun: #f5c84c;
-      --success: #6bd0ac;
-      --shadow: 0 24px 55px rgba(0, 0, 0, .3);
+      --canvas: #0f1712;
+      --surface: #18231c;
+      --surface-soft: #202e24;
+      --ink: #edf4ed;
+      --moss: #a8d5b6;
+      --mint: #183024;
+      --signal-soft: #352219;
+      --mint: #183024;
+      --signal: #ff8b50;
+      --signal-dark: #e3632d;
+      --signal-soft: #352219;
+      --lime: #c8ef63;
+      --line: #2a3a2f;
+      --muted: #91a496;
+      --shadow: 0 20px 45px rgba(0,0,0,.28);
     }
     * { box-sizing: border-box; }
     html { background: var(--canvas); scroll-behavior: smooth; }
     body { min-height: 100vh; background: var(--canvas); color: var(--ink); font-family: 'DM Sans', sans-serif; transition: background-color .25s ease, color .25s ease; }
     body.bg-gray-50, body.bg-se-bg, body.dark\:bg-gray-950 { background: var(--canvas) !important; }
-    body::before { content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .38; background-image: linear-gradient(rgba(82,103,232,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(82,103,232,.035) 1px, transparent 1px); background-size: 42px 42px; mask-image: linear-gradient(to bottom, black, transparent 70%); }
+    body::before { content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .035; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
     body > .flex, body > main { position: relative; z-index: 1; }
     h1, h2, h3, h4 { font-family: 'Manrope', sans-serif; }
     .font-mono { font-family: 'DM Mono', monospace; }
-    ::selection { color: #fff; background: var(--signal); }
+    ::selection { color: var(--ink); background: var(--lime); }
     button, a, input, select, textarea { transition: color .2s ease, background-color .2s ease, border-color .2s ease, box-shadow .2s ease, transform .2s ease, opacity .2s ease; }
     button:active, a.active\:scale-95:active, .btn-press:active { transform: scale(.98) translateY(1px); }
     input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
 
-    /* Desktop layout: a calm FinAI-style left workspace rail and a wide canvas. */
+    /* Left workspace rail, matching the FinAI composition while keeping SIGEMPAR navigation. */
     @media (min-width: 1024px) {
-      body:not(.login-shell) > .flex { min-height: 100vh; }
-      body:not(.login-shell) #sidebar,
-      html.sidebar-collapsed body:not(.login-shell) #sidebar {
-        position: sticky !important;
-        inset: 0 auto auto 0 !important;
-        align-self: flex-start;
-        display: flex;
-        flex-direction: column;
-        width: 250px !important;
-        height: 100dvh;
-        min-height: 100dvh;
-        padding: 1.5rem 1.25rem !important;
-        border-right: 1px solid var(--line);
-        border-bottom: 0;
-        background: color-mix(in srgb, var(--surface-soft) 88%, var(--canvas));
-        box-shadow: none;
-      }
-      html.sidebar-collapsed body:not(.login-shell) #sidebar { width: 80px !important; padding-left: .75rem !important; padding-right: .75rem !important; }
-      body:not(.login-shell) .sidebar-brand-row {
-        width: 100%;
-        min-height: 36px;
-        margin: 0 0 3rem;
-        padding: 0 .5rem;
-        border: 0 !important;
-      }
+      body:not(.login-shell) #sidebar { position: fixed !important; inset: 0 auto 0 0 !important; z-index: 40; display: flex; flex-direction: column; width: 250px !important; height: 100dvh; min-height: 100dvh; padding: 1.5rem 1.25rem !important; border-right: 1px solid var(--line); background: color-mix(in srgb, var(--surface-soft) 88%, var(--canvas)); box-shadow: none; }
+      body:not(.login-shell) > .flex > .flex-1 { width: calc(100% - 250px); margin-left: 250px; min-width: 0; }
+      body:not(.login-shell) .sidebar-brand-row { width: 100%; min-height: 36px; margin: 0 0 3rem; padding: 0 .5rem; border: 0 !important; }
       body:not(.login-shell) .sidebar-brand-row::after { content: none; }
       body:not(.login-shell) .sidebar-brand-row h1 { font-family: 'Manrope', sans-serif; font-size: 18px; letter-spacing: -.05em; }
       body:not(.login-shell) .sidebar-brand-row p { font-size: 10px; }
-      body:not(.login-shell) .sidebar-brand-row > button { margin-left: auto; }
       body:not(.login-shell) aside nav { display: block; flex: 1; min-height: 0; overflow-y: auto; padding: 0 !important; }
       body:not(.login-shell) aside nav::before { content: 'Ruang kerja'; display: block; margin: 0 .75rem .7rem; color: var(--muted); font: 500 9px/1 'DM Mono', monospace; letter-spacing: .16em; text-transform: uppercase; }
-      body:not(.login-shell) aside details { display: block; }
-      body:not(.login-shell) aside details > div { display: block; margin: .2rem 0 0; }
-      body:not(.login-shell) aside details > div > * { margin-top: 0 !important; }
-      body:not(.login-shell) .sidebar-group-summary { margin: 1.15rem 0 0; padding: .7rem .75rem; border-radius: 12px; white-space: nowrap; }
-      body:not(.login-shell) .sidebar-nav-btn { width: 100%; min-height: 43px; padding: .7rem .9rem; border: 0; border-radius: 12px; white-space: nowrap; }
-      body:not(.login-shell) .sidebar-nav-btn.active { background: var(--ink) !important; color: #fff !important; border: 0 !important; box-shadow: 0 12px 22px -18px rgba(19,28,56,.9); }
-      body:not(.login-shell) .sidebar-nav-btn.active svg { color: var(--sun); }
-      body:not(.login-shell) aside > div:last-child { display: block; flex: 0 0 auto; margin: 1.5rem 0 0; padding: 1.25rem 0 0; border: 0 !important; border-top: 1px solid var(--line) !important; }
-      body:not(.login-shell) aside > div:last-child .sidebar-nav-btn { min-height: 40px; }
-      html.sidebar-collapsed body:not(.login-shell) .sidebar-label { display: none !important; }
-      html.sidebar-collapsed body:not(.login-shell) .sidebar-brand-text { display: none !important; }
+      body:not(.login-shell) .sidebar-nav-btn { width: 100%; min-height: 44px; border: 0; border-radius: 12px; color: var(--muted); font-size: 13px; font-weight: 500; }
+      body:not(.login-shell) .sidebar-nav-btn:hover { background: var(--surface); color: var(--ink); }
+      body:not(.login-shell) .sidebar-nav-btn.active { background: var(--ink) !important; color: #fff !important; border: 0 !important; box-shadow: 0 12px 22px -18px rgba(23,33,27,.9); }
+      body:not(.login-shell) .sidebar-nav-btn.active svg { color: var(--signal); }
+      body:not(.login-shell) .sidebar-group-summary { margin-top: 1.15rem; padding: .7rem .75rem; border-radius: 12px; color: var(--muted); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+      body:not(.login-shell) .sidebar-group-summary:hover { background: var(--surface); color: var(--ink); }
+      body:not(.login-shell) aside > div:last-child { flex: 0 0 auto; margin: 1.5rem 0 0; padding: 1.25rem 0 0; border: 0 !important; border-top: 1px solid var(--line) !important; }
+      html.sidebar-collapsed body:not(.login-shell) #sidebar { width: 80px !important; padding-left: .75rem !important; padding-right: .75rem !important; }
+      html.sidebar-collapsed body:not(.login-shell) > .flex > .flex-1 { width: calc(100% - 80px); margin-left: 80px; }
+      html.sidebar-collapsed body:not(.login-shell) .sidebar-label, html.sidebar-collapsed body:not(.login-shell) .sidebar-brand-text { display: none !important; }
       html.sidebar-collapsed body:not(.login-shell) aside nav::before { content: none; }
-      body:not(.login-shell) > .flex > .flex-1 { width: 100%; min-width: 0; }
     }
 
-    /* Work area */
-    body:not(.login-shell) header { background: color-mix(in srgb, var(--canvas) 91%, transparent); border-color: var(--line); backdrop-filter: blur(18px); }
-    body:not(.login-shell) header > div { max-width: 1480px; margin: 0 auto; padding: 1.3rem clamp(1.25rem, 5vw, 4.5rem); }
-    body:not(.login-shell) main { width: 100%; max-width: 1600px !important; margin: 0 auto; padding: clamp(1.5rem, 4vw, 3.75rem) clamp(1.25rem, 5vw, 4.5rem) 5rem; }
-    body:not(.login-shell) main h1 { font-size: clamp(1.7rem, 3vw, 2.65rem); letter-spacing: -.06em; }
+    /* Wide bento canvas */
+    body:not(.login-shell) header { background: color-mix(in srgb, var(--canvas) 92%, transparent); border-color: var(--line); backdrop-filter: blur(18px); }
+    body:not(.login-shell) header > div { max-width: 1480px; margin: 0 auto; padding: 1.25rem clamp(1.25rem, 4vw, 4rem); }
+    body:not(.login-shell) main { width: 100%; max-width: 1480px !important; margin: 0 auto; padding: clamp(1.5rem, 4vw, 3.5rem) clamp(1.25rem, 4vw, 4rem) 5rem; }
+    body:not(.login-shell) main h1 { font-size: clamp(1.7rem, 3vw, 2.75rem); letter-spacing: -.06em; }
     body:not(.login-shell) main h2 { letter-spacing: -.045em; }
     body:not(.login-shell) main > .grid { gap: 1.25rem; }
-    body:not(.login-shell) .bg-white,
-    body:not(.login-shell) .dark\:bg-gray-900 { background: var(--surface) !important; }
-    body:not(.login-shell) .bg-white.rounded-xl,
-    body:not(.login-shell) .bg-white.rounded-2xl,
-    body:not(.login-shell) .dark\:bg-gray-900.rounded-xl,
-    body:not(.login-shell) .dark\:bg-gray-900.rounded-2xl { border: 1px solid var(--line); border-radius: 26px; box-shadow: var(--shadow); }
+    body:not(.login-shell) .bg-white, body:not(.login-shell) .dark\:bg-gray-900 { background: var(--surface) !important; }
+    body:not(.login-shell) .bg-white.rounded-xl, body:not(.login-shell) .bg-white.rounded-2xl, body:not(.login-shell) .dark\:bg-gray-900.rounded-xl, body:not(.login-shell) .dark\:bg-gray-900.rounded-2xl { border: 1px solid var(--line); border-radius: 28px; box-shadow: var(--shadow); }
     body:not(.login-shell) .rounded-xl { border-radius: 14px; }
     body:not(.login-shell) .rounded-lg { border-radius: 10px; }
     body:not(.login-shell) .rounded-full { border-radius: 999px; }
-    body:not(.login-shell) .border-gray-100,
-    body:not(.login-shell) .border-gray-200,
-    body:not(.login-shell) .border-gray-300,
-    body:not(.login-shell) .dark\:border-gray-700,
-    body:not(.login-shell) .dark\:border-gray-800 { border-color: var(--line) !important; }
-    body:not(.login-shell) .shadow-sm,
-    body:not(.login-shell) .shadow-lg,
-    body:not(.login-shell) .shadow-2xl { box-shadow: var(--shadow); }
-    body:not(.login-shell) main .grid > .bg-white.rounded-2xl:hover,
-    body:not(.login-shell) main .grid > .dark\:bg-gray-900.rounded-2xl:hover { transform: translateY(-4px); box-shadow: 0 26px 48px rgba(19,28,56,.12); }
-    @media (min-width: 768px) {
-      body:not(.login-shell) main > div.grid:first-child > :first-child { background: var(--ink) !important; border-color: var(--ink) !important; color: #fff; box-shadow: 0 24px 48px rgba(19,28,56,.16); }
-      body:not(.login-shell) main > div.grid:first-child > :first-child p { color: #fff !important; }
-      body:not(.login-shell) main > div.grid:first-child > :first-child p:first-of-type { color: rgba(255,255,255,.58) !important; }
-      body:not(.login-shell) main > div.grid:first-child > :first-child svg { color: var(--sun); }
-    }
+    body:not(.login-shell) .border-gray-100, body:not(.login-shell) .border-gray-200, body:not(.login-shell) .border-gray-300, body:not(.login-shell) .dark\:border-gray-700, body:not(.login-shell) .dark\:border-gray-800 { border-color: var(--line) !important; }
+    body:not(.login-shell) .shadow-sm, body:not(.login-shell) .shadow-lg, body:not(.login-shell) .shadow-2xl { box-shadow: var(--shadow); }
 
-    /* Controls and tables */
-    body:not(.login-shell) input,
-    body:not(.login-shell) select,
-    body:not(.login-shell) textarea { border-color: var(--line) !important; border-radius: 12px; background: var(--surface) !important; color: var(--ink); font-family: 'DM Sans', sans-serif; font-size: 13px; }
-    body:not(.login-shell) input:focus,
-    body:not(.login-shell) select:focus,
-    body:not(.login-shell) textarea:focus { border-color: var(--signal) !important; box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal) 14%, transparent); }
+    /* Metric cards: one dark hero, organic rings, and quieter supporting cards. */
+    body:not(.login-shell) .metric-card { position: relative; min-height: 148px; overflow: hidden; padding: 1.5rem !important; }
+    body:not(.login-shell) .metric-card::before { content: ''; position: absolute; width: 170px; height: 170px; right: -72px; top: -96px; border: 20px solid color-mix(in srgb, var(--signal) 12%, transparent); border-radius: 50%; pointer-events: none; }
+    body:not(.login-shell) .metric-card::after { content: ''; position: absolute; width: 110px; height: 110px; right: -42px; top: -60px; border: 14px solid color-mix(in srgb, var(--signal) 7%, transparent); border-radius: 50%; pointer-events: none; }
+    body:not(.login-shell) .metric-card > * { position: relative; z-index: 1; }
+    body:not(.login-shell) .metric-card > p:first-of-type { margin-top: 1.4rem; font-family: 'Manrope', sans-serif; font-size: 2.35rem !important; line-height: 1 !important; letter-spacing: -.06em; }
+    body:not(.login-shell) .metric-card > div:first-child p { max-width: 80%; }
+    body:not(.login-shell) .metric-primary { background: var(--ink) !important; border-color: var(--ink) !important; color: #fff; box-shadow: 0 22px 48px rgba(23,33,27,.17) !important; }
+    body:not(.login-shell) .metric-primary { min-height: 220px; }
+    body:not(.login-shell) .metric-primary > p:first-of-type { font-size: 3.5rem !important; }
+    body:not(.login-shell) .metric-primary::before { width: 220px; height: 220px; right: -82px; top: -132px; border-width: 28px; border-color: rgba(200,239,99,.12); }
+    body:not(.login-shell) .metric-primary::after { width: 150px; height: 150px; right: -48px; top: -88px; border-width: 20px; border-color: rgba(200,239,99,.08); }
+    body:not(.login-shell) .metric-primary p { color: #fff !important; }
+    body:not(.login-shell) .metric-primary > div:first-child p { color: rgba(255,255,255,.58) !important; }
+    body:not(.login-shell) .metric-primary svg { color: var(--lime); }
+    body:not(.login-shell) .metric-card:not(.metric-primary):nth-child(2) { background: var(--mint) !important; }
+    body:not(.login-shell) .metric-card:not(.metric-primary):nth-child(3) { background: var(--signal-soft) !important; }
+    body:not(.login-shell) .metric-card:not(.metric-primary):nth-child(4) { background: var(--surface-soft) !important; }
+
+    body:not(.login-shell) input, body:not(.login-shell) select, body:not(.login-shell) textarea { border-color: var(--line) !important; border-radius: 12px; background: var(--surface) !important; color: var(--ink); font-family: 'DM Sans', sans-serif; font-size: 13px; }
+    body:not(.login-shell) input:focus, body:not(.login-shell) select:focus, body:not(.login-shell) textarea:focus { border-color: var(--signal) !important; box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal) 14%, transparent); }
     body:not(.login-shell) button.bg-se, body:not(.login-shell) a.bg-se { background: var(--signal) !important; }
     body:not(.login-shell) button.bg-se:hover, body:not(.login-shell) a.bg-se:hover { background: var(--signal-dark) !important; }
     body:not(.login-shell) table { font-size: 12px; }
@@ -185,31 +159,22 @@
     .tab-panel.active { display: block; animation: pageIn .3s ease-out both; }
     .htmx-swap-fade { animation: pageIn .3s ease-out both; }
     @keyframes pageIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    #htmx-progress { position: fixed; top: 0; left: 0; z-index: 80; width: 0; height: 3px; opacity: 0; background: var(--signal); box-shadow: 0 0 10px color-mix(in srgb, var(--signal) 55%, transparent); }
+    .htmx-indicator { display: none; }
+    .htmx-request .htmx-indicator { display: inline-block; }
     .badge-open { background: #fff7d9; color: #896300; }
     .badge-in_progress { background: #e2f0f6; color: #2b657d; }
-    .badge-resolved { background: #dff3e5; color: #286c53; }
+    .badge-resolved { background: var(--mint); color: var(--moss); }
     .badge-escalated { background: #fff0ed; color: #a64238; }
     .dark .badge-open { background: rgba(218,174,55,.18); color: #f2ce69; }
     .dark .badge-in_progress { background: rgba(66,145,181,.18); color: #91d0e8; }
     .dark .badge-resolved { background: rgba(67,172,121,.18); color: #9be1b9; }
     .dark .badge-escalated { background: rgba(204,74,74,.18); color: #f4a6a6; }
-    #htmx-progress { position: fixed; top: 0; left: 0; z-index: 80; width: 0; height: 3px; opacity: 0; background: var(--signal); box-shadow: 0 0 10px color-mix(in srgb, var(--signal) 55%, transparent); }
-    .htmx-indicator { display: none; }
-    .htmx-request .htmx-indicator { display: inline-block; }
     ::-webkit-scrollbar { width: 10px; height: 10px; }
     ::-webkit-scrollbar-track { background: var(--canvas); }
     ::-webkit-scrollbar-thumb { background: var(--line); border: 3px solid var(--canvas); border-radius: 999px; }
-    @media (max-width: 1023px) {
-      body:not(.login-shell) #sidebar { width: min(86vw, 280px); background: var(--surface); }
-      body:not(.login-shell) main { max-width: 100% !important; }
-    }
-    @media (max-width: 639px) {
-      body:not(.login-shell) main { padding: 1.5rem 1rem 3rem; }
-      body:not(.login-shell) .pill-tabs { width: 100%; }
-      body:not(.login-shell) .pill-tabs .tab-btn { white-space: nowrap; }
-      body:not(.login-shell) #toast { left: .85rem; right: .85rem; max-width: none; }
-      body:not(.login-shell) #modal-content { max-height: 88dvh; }
-    }
+    @media (max-width: 1023px) { body:not(.login-shell) #sidebar { width: min(86vw, 280px); background: var(--surface); } body:not(.login-shell) main { max-width: 100% !important; } }
+    @media (max-width: 639px) { body:not(.login-shell) main { padding: 1.5rem 1rem 3rem; } body:not(.login-shell) .pill-tabs { width: 100%; } body:not(.login-shell) .pill-tabs .tab-btn { white-space: nowrap; } body:not(.login-shell) #toast { left: .85rem; right: .85rem; max-width: none; } body:not(.login-shell) #modal-content { max-height: 88dvh; } body:not(.login-shell) .metric-card { min-height: 138px; } }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
   </style>
 {{end}}
