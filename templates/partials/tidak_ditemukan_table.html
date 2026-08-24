@@ -28,10 +28,6 @@
           {{if ne .Tipe "keluarga"}}
           {{template "sortable_th" dict "Label" "KBLI (Prelist)" "Col" "kbli" "PageInfo" $.PageInfo "Center" true}}
           {{end}}
-          {{if eq .Tipe "keluarga"}}
-          <th class="px-3 py-2.5 font-medium">Nomor KK Prelist</th>
-          <th class="px-3 py-2.5 font-medium">Nomor KK Sekarang</th>
-          {{end}}
           <th class="px-3 py-2.5 font-medium">Alamat</th>
           {{template "sortable_th" dict "Label" "Status Assignment" "Col" "status" "PageInfo" $.PageInfo}}
           {{template "sortable_th" dict "Label" "Tanggal Modified" "Col" "tanggal" "PageInfo" $.PageInfo "Center" true}}
@@ -83,14 +79,6 @@
             {{else}}
             <span class="text-gray-300 dark:text-gray-600">-</span>
             {{end}}
-          </td>
-          {{end}}
-          {{if eq $.Tipe "keluarga"}}
-          <td class="px-3 py-2 whitespace-nowrap font-mono text-gray-600 dark:text-gray-400">
-            {{if $r.NomorKKPrelist}}{{$r.NomorKKPrelist}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
-          </td>
-          <td class="px-3 py-2 whitespace-nowrap font-mono text-gray-600 dark:text-gray-400">
-            {{if $r.NomorKKSekarang}}{{$r.NomorKKSekarang}}{{else}}<span class="text-gray-300 dark:text-gray-600">-</span>{{end}}
           </td>
           {{end}}
           <td class="px-3 py-2 max-w-[220px] truncate" title="{{$r.Alamat}}">

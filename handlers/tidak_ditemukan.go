@@ -26,7 +26,7 @@ type TidakDitemukanRow struct {
 	NamaPML          string
 	Nama             string
 	Skala            string // kosong utk tipe keluarga
-	Keberadaan       string // usaha: Tidak Ditemukan/Tutup/Ganda/Open — keluarga: Tidak Ditemukan/Ditemukan/Baru/Open
+	Keberadaan       string // usaha: Ditemukan/Baru/Tidak Ditemukan/Tutup/Ganda/Non Respon/Open — keluarga: Ditemukan/Tidak Ditemukan/Baru/Meninggal/Tidak Eligible/Tidak Dapat Ditemui/Keluarga Khusus/Open
 	KBLIKategori     string // kosong utk tipe keluarga — kategori 1-huruf dari kategori_2025 (carry-over ST2023/prelist)
 	NomorKKPrelist   string // kosong utk tipe usaha
 	NomorKKSekarang  string // kosong utk tipe usaha
@@ -300,13 +300,17 @@ func tidakDitemukanTable(c echo.Context, tipe, basePath string) error {
 }
 
 // keberadaanUsahaStatuses/keberadaanKeluargaStatuses — nilai kolom
-// keberadaan_usaha/keberadaan_keluarga yg mungkin (lihat scraper/sync_usaha.py):
-// usaha dari '00'/'3'/'4' (Tidak Ditemukan/Tutup/Ganda) + "Open" (assignment
-// blm disentuh, sumbernya base_table_assignment bukan se2026_nested); keluarga
-// cuma Tidak Ditemukan + Open (gak ada status Tutup/Ganda utk keluarga).
-// Dipakai isi dropdown filter status di sub-tab Usaha/Usaha dalam Keluarga/Keluarga.
-var keberadaanUsahaStatuses = []string{"Tidak Ditemukan", "Tutup", "Ganda", "Open"}
-var keberadaanKeluargaStatuses = []string{"Tidak Ditemukan", "Ditemukan", "Baru", "Open"}
+// keberadaan_usaha/keberadaan_keluarga yg mungkin (lihat scraper/sync_usaha.py,
+// yg SEMUA status diambil, bukan cuma subset tertentu): usaha dari
+// keberadaan_usaha_value ('1'=Ditemukan, '2'=Baru, '00'=Tidak Ditemukan,
+// '3'=Tutup, '4'=Ganda, '9'=Non Respon) + "Open" (assignment blm disentuh,
+// sumbernya base_table_assignment bukan se2026_nested); keluarga dari
+// ada_keluarga_value (Ditemukan/Tidak Ditemukan/Baru/Meninggal/Tidak
+// Eligible/Tidak Dapat Ditemui/Keluarga Khusus, gak ada status Tutup/Ganda
+// utk keluarga) + "Open". Dipakai isi dropdown filter status di sub-tab
+// Usaha/Usaha dalam Keluarga/Keluarga.
+var keberadaanUsahaStatuses = []string{"Ditemukan", "Baru", "Tidak Ditemukan", "Tutup", "Ganda", "Non Respon", "Open"}
+var keberadaanKeluargaStatuses = []string{"Ditemukan", "Tidak Ditemukan", "Baru", "Meninggal", "Tidak Eligible", "Tidak Dapat Ditemui", "Keluarga Khusus", "Open"}
 
 // TidakDitemukanRekapRow adalah satu baris di sub-menu Rekap (di samping Usaha/
 // Keluarga) — rekap jumlah usaha & keluarga tidak ditemukan per SLS, atau

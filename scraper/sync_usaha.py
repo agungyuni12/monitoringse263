@@ -1,9 +1,10 @@
 """
-Sync "Usaha Bermasalah" (Tidak Ditemukan/Tutup/Ganda) & "Keluarga Tidak
-Ditemukan" dari Superset SQL Lab FASIH Dashboard → database se2026 (tabel
-tidak_ditemukan_usaha / tidak_ditemukan_keluarga — dipakai LANGSUNG oleh web
-UI monitoringse, lihat handlers/tidak_ditemukan.go, bukan tabel arsip
-terpisah).
+Sync Usaha & Keluarga (SEMUA status, bukan cuma yg bermasalah — lihat
+docstring "Sumber data" di bawah) dari Superset SQL Lab FASIH Dashboard →
+database se2026 (tabel tidak_ditemukan_usaha / tidak_ditemukan_keluarga —
+nama tabel peninggalan scope lama sebelum diperluas ke semua status, dipakai
+LANGSUNG oleh web UI monitoringse, lihat handlers/tidak_ditemukan.go, bukan
+tabel arsip terpisah).
 
 Sumbernya beda dari script sync_* lain di sini: ini bukan FASIH API biasa
 (fasih-sm.bps.go.id) tapi Apache Superset SQL Lab di fasih-dashboard.bps.go.id
@@ -24,14 +25,16 @@ percakapan, bukan asumsi):
     MAUPUN roster keluarga) dalam bentuk ter-unnest satu baris per usaha,
     lengkap dengan status per-usaha sendiri di kolom keberadaan_usaha_value —
     jauh lebih presisi drpd nebak dari jumlah prelist vs ditemukan di level
-    keluarga. Scope-nya BUKAN cuma '00' (Tidak Ditemukan), tapi juga '3'
-    (Tutup) & '4' (Ganda) — dicek manual lewat SQL Lab (GROUP BY
-    keberadaan_usaha_value): '1'=Ditemukan, '2'=Baru, '00'=Tidak Ditemukan,
-    '3'=Tutup, '4'=Ganda, '9'=Non Respon. Ketiganya (Tidak Ditemukan/Tutup/
-    Ganda) sebelumnya cuma keliatan sbg ANGKA agregat di tab "Rekap
-    Keberadaan" (coverage_usaha_keluarga, lihat sync_kbli.py) tanpa detail
-    nama/alamat per usaha — tabel ini isi kekosongan itu, disimpan di kolom
-    keberadaan_usaha (label bersih, prefix angka "N. " dibuang).
+    keluarga. Scope-nya SEMUA status (TIDAK difilter status tertentu lagi) —
+    dicek manual lewat SQL Lab (GROUP BY keberadaan_usaha_value): '1'=Ditemukan,
+    '2'=Baru, '00'=Tidak Ditemukan, '3'=Tutup, '4'=Ganda, '9'=Non Respon.
+    Awalnya cuma diambil '00'/'3'/'4' (Tidak Ditemukan/Tutup/Ganda), yg
+    sebelumnya cuma keliatan sbg ANGKA agregat di tab "Rekap Keberadaan"
+    (coverage_usaha_keluarga, lihat sync_kbli.py) tanpa detail nama/alamat per
+    usaha — tabel ini isi kekosongan itu, disimpan di kolom keberadaan_usaha
+    (label bersih, prefix angka "N. " dibuang). Sekarang SEMUA status diambil
+    supaya tabel ini juga bisa jadi rujukan lengkap per-usaha, bukan cuma yg
+    bermasalah.
     JOIN ke root_table.jenis_prelist (via assignment_id) buat tahu itu usaha
     bangunan mandiri (jenis_prelist != 'keluarga') atau usaha dalam keluarga
     (jenis_prelist = 'keluarga') — disimpan sbg kolom jenis_prelist di
@@ -45,10 +48,10 @@ percakapan, bukan asumsi):
     dari klasifikasi TAHUN LALU (ST2023/prelist carry-over), gak bergantung
     progres kunjungan 2026. Ini yg dipakai, TIDAK ada versi detail 5-digit-nya
     (cuma field ini yg ada, dicek "_2025" di seluruh skema se2026_nested).
-  - "Keluarga tidak ditemukan": root_table.ada_keluarga_value = '0'. TIDAK
-    ada status Tutup/Ganda utk keluarga (dicek juga via GROUP BY
-    ada_keluarga_value: cuma ada Ditemukan/Tidak Ditemukan/Baru/Meninggal/
-    Tidak Eligible/Tidak Dapat Ditemui/Keluarga Khusus).
+  - "Keluarga": root_table, SEMUA status ada_keluarga_value (TIDAK difilter
+    lagi) — dicek via GROUP BY ada_keluarga_value: Ditemukan/Tidak Ditemukan/
+    Baru/Meninggal/Tidak Eligible/Tidak Dapat Ditemui/Keluarga Khusus. TIDAK
+    ada status Tutup/Ganda utk keluarga (itu cuma ada di usaha).
   - "Open" (usaha & keluarga yg assignment-nya belum pernah disentuh SAMA
     SEKALI): sumbernya beda lagi, base_table_assignment (bukan se2026_nested/
     root_table, yg TIDAK punya baris utk assignment yg belum ada progres apa
@@ -118,33 +121,30 @@ PAGE_SIZE = 5000      # dicek manual via raw SELECT (bukan COUNT) — lihat docs
 PAGE_DELAY_MIN = 3    # jeda antar halaman (detik) — biar traffic gak seragam
 PAGE_DELAY_MAX = 8
 
-# ── Usaha bermasalah: Tidak Ditemukan ('00') + Tutup ('3') + Ganda ('4') ────
+# ── Usaha: SEMUA status keberadaan_usaha_value ──────────────────────────────
 # (bangunan mandiri + usaha yg nempel roster keluarga, digabung — lihat
 # docstring modul soal kenapa jenis_prelist dipakai buat bedain, bukan tabel
-# terpisah)
+# terpisah). Sebelumnya cuma diambil '00'/'3'/'4' (Tidak Ditemukan/Tutup/
+# Ganda) — sekarang TANPA filter status sama sekali, jadi ikut juga
+# '1'/'2'/'9' (Ditemukan/Baru/Non Respon).
 
-USAHA_STATUS_VALUES = "'00','3','4'"
+USAHA_COUNT_QUERY = "SELECT COUNT(*) AS n FROM se2026_nested"
 
-USAHA_COUNT_QUERY = (
-    f"SELECT COUNT(*) AS n FROM se2026_nested "
-    f"WHERE keberadaan_usaha_value IN ({USAHA_STATUS_VALUES})"
-)
-
-USAHA_QUERY_TEMPLATE = ("""
+USAHA_QUERY_TEMPLATE = """
 SELECT n.assignment_id, n.index1, n.nama_usaha, n.skala_usaha,
        n.alamat_usaha, n.alamat_usaha_utama, n.level_6_full_code,
        n.assignment_status_alias, n.assignment_date_modified, r.jenis_prelist,
        r.alamat_prelist, r.alamat_klrg, n.keberadaan_usaha_label, n.kategori_2025
 FROM se2026_nested n
 INNER JOIN root_table r ON n.assignment_id = r.assignment_id
-WHERE n.keberadaan_usaha_value IN (""" + USAHA_STATUS_VALUES + """)
 ORDER BY n.assignment_id, n.index1
 LIMIT {limit} OFFSET {offset}
-""").strip()
+""".strip()
 
-# ── Keluarga: Tidak Ditemukan + Ditemukan + Baru ────────────────────────────
-# ('3'/'4'/'5'/'6' — Meninggal/Tidak Eligible/Tidak Dapat Ditemui/Keluarga
-# Khusus — sengaja BELUM diikutkan, gak diminta & jumlahnya kecil ~1.300).
+# ── Keluarga: SEMUA status ada_keluarga_value ───────────────────────────────
+# Sebelumnya cuma diambil '0'/'1'/'2' (Tidak Ditemukan/Ditemukan/Baru) — sekarang
+# TANPA filter status sama sekali, jadi ikut juga Meninggal/Tidak Eligible/
+# Tidak Dapat Ditemui/Keluarga Khusus.
 # root_table.no_kk vs dtsen_no_kk: dicek manual (GROUP BY ada_keluarga_value)
 # — no_kk SELALU ada dari awal (termasuk 100% di kasus Tidak Ditemukan, jadi
 # ini nomor KK PRELIST), dtsen_no_kk baru keisi kalau ada proses pemutakhiran/
@@ -153,21 +153,16 @@ LIMIT {limit} OFFSET {offset}
 # beda), konsisten sama teori ini: pemutakhiran cuma "mengkonfirmasi ulang"
 # nomor yg sama, bukan ganti nomor baru.
 
-KELUARGA_STATUS_VALUES = "'0','1','2'"
+KELUARGA_COUNT_QUERY = "SELECT COUNT(*) AS n FROM root_table"
 
-KELUARGA_COUNT_QUERY = (
-    f"SELECT COUNT(*) AS n FROM root_table WHERE ada_keluarga_value IN ({KELUARGA_STATUS_VALUES})"
-)
-
-KELUARGA_QUERY_TEMPLATE = ("""
+KELUARGA_QUERY_TEMPLATE = """
 SELECT assignment_id, nama_kk, dtsen_nama_kk, alamat_klrg, alamat_prelist,
        level_6_full_code, assignment_status_alias, assignment_date_modified,
        ada_keluarga_label, no_kk, dtsen_no_kk
 FROM root_table
-WHERE ada_keluarga_value IN (""" + KELUARGA_STATUS_VALUES + """)
 ORDER BY assignment_id
 LIMIT {limit} OFFSET {offset}
-""").strip()
+""".strip()
 
 # ── "Open" (assignment belum pernah disentuh sama sekali) ───────────────────
 # BEDA SUMBER dari dua di atas: se2026_nested/root_table cuma berisi baris yg
@@ -642,10 +637,10 @@ def run_once():
                 page.goto(f"{DASH_URL}/superset/sqllab/", wait_until="networkidle", timeout=180_000)
                 _check_bot_wall(page.content(), "buka SQL Lab")
 
-                # Fase 1: usaha bermasalah (Tidak Ditemukan/Tutup/Ganda; bangunan
-                # mandiri + roster keluarga digabung) + usaha Open (belum disentuh)
+                # Fase 1: usaha semua status (bangunan mandiri + roster keluarga
+                # digabung) + usaha Open (belum disentuh)
                 if usaha_rows is None:
-                    print("\n[FASE 1] Usaha (Tidak Ditemukan/Tutup/Ganda)...", flush=True)
+                    print("\n[FASE 1] Usaha (semua status)...", flush=True)
                     usaha_total = get_count(page, USAHA_COUNT_QUERY)
                     print(f"[FASE 1] Total baris (perkiraan): {usaha_total}", flush=True)
                     usaha_rows = scrape_paginated(page, USAHA_QUERY_TEMPLATE, "usaha", usaha_total)
@@ -663,9 +658,9 @@ def run_once():
                 else:
                     print(f"\n[FASE 1] Pakai checkpoint tersimpan ({len(usaha_rows)} baris) — skip scraping ulang.", flush=True)
 
-                # Fase 2: keluarga Tidak Ditemukan/Ditemukan/Baru + keluarga Open (belum disentuh)
+                # Fase 2: keluarga semua status + keluarga Open (belum disentuh)
                 if keluarga_rows is None:
-                    print("\n[FASE 2] Keluarga (Tidak Ditemukan/Ditemukan/Baru)...", flush=True)
+                    print("\n[FASE 2] Keluarga (semua status)...", flush=True)
                     keluarga_total = get_count(page, KELUARGA_COUNT_QUERY)
                     print(f"[FASE 2] Total baris (perkiraan): {keluarga_total}", flush=True)
                     keluarga_rows = scrape_paginated(page, KELUARGA_QUERY_TEMPLATE, "keluarga", keluarga_total)
