@@ -411,9 +411,12 @@
           <select name="status" id="tidak-ditemukan-status-select" onchange="reloadTidakDitemukanTable()"
             class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
             <option value="">Semua Status</option>
+            <option value="Ditemukan">Ditemukan</option>
+            <option value="Baru">Baru</option>
             <option value="Tidak Ditemukan">Tidak Ditemukan</option>
             <option value="Tutup">Tutup</option>
             <option value="Ganda">Ganda</option>
+            <option value="Non Respon">Non Respon</option>
             <option value="Open">Open</option>
           </select>
           <select name="pml_id" id="tidak-ditemukan-pml-select"
@@ -559,11 +562,17 @@
       reloadTidakDitemukanTable();
     }
 
+    // Opsi dropdown status beda per tipe — usaha dari keberadaan_usaha_value
+    // (Ditemukan/Baru/Tidak Ditemukan/Tutup/Ganda/Non Respon/Open), keluarga
+    // dari ada_keluarga_value (gak ada Tutup/Ganda, tapi ada Meninggal/Tidak
+    // Eligible/Tidak Dapat Ditemui/Keluarga Khusus) — lihat
+    // handlers/tidak_ditemukan.go keberadaanUsahaStatuses/keberadaanKeluargaStatuses
+    // & scraper/sync_usaha.py (semua status diambil, bukan subset tertentu).
     function updateTidakDitemukanStatusOptions(mode) {
       var statusSel = document.getElementById('tidak-ditemukan-status-select');
       var opts = mode === 'keluarga'
-        ? [['', 'Semua Status'], ['Tidak Ditemukan', 'Tidak Ditemukan'], ['Ditemukan', 'Ditemukan'], ['Baru', 'Baru'], ['Open', 'Open']]
-        : [['', 'Semua Status'], ['Tidak Ditemukan', 'Tidak Ditemukan'], ['Tutup', 'Tutup'], ['Ganda', 'Ganda'], ['Open', 'Open']];
+        ? [['', 'Semua Status'], ['Ditemukan', 'Ditemukan'], ['Tidak Ditemukan', 'Tidak Ditemukan'], ['Baru', 'Baru'], ['Meninggal', 'Meninggal'], ['Tidak Eligible', 'Tidak Eligible'], ['Tidak Dapat Ditemui', 'Tidak Dapat Ditemui'], ['Keluarga Khusus', 'Keluarga Khusus'], ['Open', 'Open']]
+        : [['', 'Semua Status'], ['Ditemukan', 'Ditemukan'], ['Baru', 'Baru'], ['Tidak Ditemukan', 'Tidak Ditemukan'], ['Tutup', 'Tutup'], ['Ganda', 'Ganda'], ['Non Respon', 'Non Respon'], ['Open', 'Open']];
       statusSel.innerHTML = opts.map(function(o) {
         return '<option value="' + o[0] + '">' + o[1] + '</option>';
       }).join('');
