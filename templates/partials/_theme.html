@@ -103,6 +103,9 @@
       body:not(.login-shell) .sidebar-nav-btn:hover { background: var(--surface); color: var(--ink); }
       body:not(.login-shell) .sidebar-nav-btn.active { background: var(--ink) !important; color: #fff !important; border: 0 !important; box-shadow: 0 12px 22px -18px rgba(23,33,27,.9); }
       body:not(.login-shell) .sidebar-nav-btn.active svg { color: var(--signal); }
+      html.dark body:not(.login-shell) .sidebar-nav-btn.active,
+      html.dark body:not(.login-shell) .sidebar-nav-btn.active .sidebar-label { background: #315b43 !important; color: #ffffff !important; }
+      html.dark body:not(.login-shell) .sidebar-nav-btn.active svg { color: #c8ef63 !important; }
       body:not(.login-shell) .sidebar-group-summary { margin-top: 1.15rem; padding: .7rem .75rem; border-radius: 12px; color: var(--muted); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
       body:not(.login-shell) .sidebar-group-summary:hover { background: var(--surface); color: var(--ink); }
       body:not(.login-shell) aside > div:last-child { flex: 0 0 auto; margin: 1.5rem 0 0; padding: 1.25rem 0 0; border: 0 !important; border-top: 1px solid var(--line) !important; }
