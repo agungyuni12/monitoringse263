@@ -169,6 +169,25 @@ func AdminTableOrganik(c echo.Context) error {
 	})
 }
 
+// AdminTableOrganikKendala — sub-tab "Daftar Kendala" di dalam tab Pengawasan
+// Organik: data yang sama persis dengan halaman publik /kendala (gabungan
+// laporan Organik + PML yg ada isi kendalanya, lihat queryKendalaRows di
+// handlers/kendala.go), cuma di-render dgn target div beda biar bisa jadi
+// sub-tab terpisah dari tabel laporan harian organik di atas.
+func AdminTableOrganikKendala(c echo.Context) error {
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page < 1 {
+		page = 1
+	}
+	q := c.QueryParam("q")
+	rows, pageInfo := paginateKendala(queryKendalaRows(q), page, q, "/admin/table/organik-kendala", "admin-organik-kendala-wrap")
+	return c.Render(http.StatusOK, "admin_organik_kendala_table.html", map[string]interface{}{
+		"KendalaRows": rows,
+		"KendalaPage": pageInfo,
+		"Q":           q,
+	})
+}
+
 var adminOrganikSortCols = map[string]string{
 	"tanggal": "lo.tanggal",
 	"organik": "org.name",

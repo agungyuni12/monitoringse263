@@ -23,12 +23,11 @@ type KendalaRow struct {
 	Solusi      string
 }
 
-func KendalaList(c echo.Context) error {
-	page, _ := strconv.Atoi(c.QueryParam("page"))
-	if page < 1 {
-		page = 1
-	}
-	q := c.QueryParam("q")
+// queryKendalaRows narik & gabung laporan kendala dari dua sumber (Organik +
+// PML) yang skema tabelnya beda — dipakai bareng oleh halaman Daftar Kendala
+// (/kendala) dan tab "Pengawasan Organik" di admin (lihat handlers/organik.go),
+// dua tempat itu sekarang nampilin data yang sama persis.
+func queryKendalaRows(q string) []KendalaRow {
 	like := "%" + q + "%"
 
 	var list []KendalaRow
@@ -95,6 +94,14 @@ func KendalaList(c echo.Context) error {
 		return list[i].Sumber < list[j].Sumber
 	})
 
+	return list
+}
+
+// paginateKendala motong hasil queryKendalaRows (yg selalu ambil SEMUA baris,
+// gak ada LIMIT/OFFSET di SQL-nya krn dua sumber digabung & di-sort di Go)
+// jadi satu halaman sesuai models.PerPage — dipakai bareng oleh /kendala &
+// tab "Pengawasan Organik" > sub "Daftar Kendala" di admin.
+func paginateKendala(list []KendalaRow, page int, q, basePath, targetID string) ([]KendalaRow, models.PageInfo) {
 	total := len(list)
 	offset := (page - 1) * models.PerPage
 	if offset > total {
@@ -104,16 +111,25 @@ func KendalaList(c echo.Context) error {
 	if end > total {
 		end = total
 	}
-
 	extra := ""
 	if q != "" {
 		extra = "&q=" + q
 	}
+	return list[offset:end], models.NewPageInfo(page, total, basePath, targetID, extra)
+}
+
+func KendalaList(c echo.Context) error {
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page < 1 {
+		page = 1
+	}
+	q := c.QueryParam("q")
+	rows, pageInfo := paginateKendala(queryKendalaRows(q), page, q, "/kendala", "kendala-wrap")
 
 	data := map[string]interface{}{
 		"Q":        q,
-		"PageInfo": models.NewPageInfo(page, total, "/kendala", "kendala-wrap", extra),
-		"Rows":     list[offset:end],
+		"PageInfo": pageInfo,
+		"Rows":     rows,
 	}
 
 	if c.Request().Header.Get("HX-Request") == "true" {

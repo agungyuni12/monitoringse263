@@ -329,17 +329,19 @@
           </div>
         </div>
 
-        <!-- TAB: Pengawasan Organik -->
+        <!-- TAB: Pengawasan Organik (sub: laporan harian & daftar kendala) -->
         <div id="panel-organik" class="tab-panel">
-          <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center">
-            <input type="text" name="q"
-              hx-get="/admin/table/organik"
-              hx-target="#admin-organik-wrap"
-              hx-swap="innerHTML"
-              hx-trigger="input changed delay:300ms"
+          <div id="organik-sub-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" data-mode="laporan">
+            <div class="flex gap-1.5">
+              <button type="button" onclick="switchOrganikSub(this,'laporan')"
+                class="organik-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-se text-white transition-colors">Pengawasan Organik</button>
+              <button type="button" onclick="switchOrganikSub(this,'kendala')"
+                class="organik-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Daftar Kendala</button>
+            </div>
+            <input type="text" name="q" id="organik-sub-search" oninput="onOrganikSubSearch()"
               placeholder="Cari nama organik, SLS, PPL, desa..."
-              class="w-full md:w-80 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
-            <a href="/admin/download/organik"
+              class="w-full md:w-72 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <a id="organik-sub-dl-btn" href="/admin/download/organik"
               class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
@@ -347,8 +349,15 @@
               Download Excel
             </a>
           </div>
-          <div id="admin-organik-wrap">
-            {{template "admin_organik_table.html" .}}
+          <div id="organik-sub-laporan">
+            <div id="admin-organik-wrap">
+              {{template "admin_organik_table.html" .}}
+            </div>
+          </div>
+          <div id="organik-sub-kendala" class="hidden">
+            <div id="admin-organik-kendala-wrap">
+              {{template "admin_organik_kendala_table.html" .}}
+            </div>
           </div>
         </div>
 
@@ -864,6 +873,48 @@
         toggleSidebar();
       }
     }
+    // ===== Tab Pengawasan Organik: sub-menu Pengawasan Organik/Daftar Kendala =====
+    // 2 mode beda sumber data & beda endpoint: "laporan" (semua laporan harian
+    // organik, /admin/table/organik) vs "kendala" (gabungan kendala Organik+PML,
+    // sama persis dgn halaman publik /kendala, lihat handlers/kendala.go) — jadi
+    // search & download perlu diarahkan manual sesuai mode aktif.
+    function organikSubPaths() {
+      var mode = document.getElementById('organik-sub-bar').dataset.mode || 'laporan';
+      return mode === 'kendala'
+        ? { tbl: '/admin/table/organik-kendala', wrap: '#admin-organik-kendala-wrap', dl: '/kendala/download' }
+        : { tbl: '/admin/table/organik', wrap: '#admin-organik-wrap', dl: '/admin/download/organik' };
+    }
+
+    function reloadOrganikSubTable() {
+      var paths = organikSubPaths();
+      var q = document.getElementById('organik-sub-search').value;
+      var qs = q ? ('?q=' + encodeURIComponent(q)) : '';
+      htmx.ajax('GET', paths.tbl + qs, { target: paths.wrap, swap: 'innerHTML' });
+      document.getElementById('organik-sub-dl-btn').href = paths.dl + qs;
+    }
+
+    var _organikSubSearchDebounce = null;
+    function onOrganikSubSearch() {
+      clearTimeout(_organikSubSearchDebounce);
+      _organikSubSearchDebounce = setTimeout(reloadOrganikSubTable, 400);
+    }
+
+    function switchOrganikSub(btn, mode) {
+      document.getElementById('organik-sub-bar').dataset.mode = mode;
+      document.querySelectorAll('.organik-subtab-btn').forEach(function(b) {
+        b.classList.remove('bg-se', 'text-white');
+        b.classList.add('text-gray-600', 'dark:text-gray-400');
+      });
+      btn.classList.add('bg-se', 'text-white');
+      btn.classList.remove('text-gray-600', 'dark:text-gray-400');
+      document.getElementById('organik-sub-laporan').classList.toggle('hidden', mode !== 'laporan');
+      document.getElementById('organik-sub-kendala').classList.toggle('hidden', mode !== 'kendala');
+      document.getElementById('organik-sub-search').placeholder = mode === 'kendala'
+        ? 'Cari nama petugas, SLS, desa, kecamatan, atau isi kendala...'
+        : 'Cari nama organik, SLS, PPL, desa...';
+      reloadOrganikSubTable();
+    }
+
     // ===== Tab Keberadaan: sub-menu Usaha/Keluarga/Rekap =====
     // 3 mode beda endpoint: Usaha & Keluarga sama-sama /admin/table/tidak-ditemukan
     // (dibedakan query param `tipe`), Rekap pakai /admin/table/tidak-ditemukan-rekap

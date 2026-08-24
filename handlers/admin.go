@@ -446,12 +446,17 @@ func AdminDashboard(c echo.Context) error {
 	if orgPage < 1 {
 		orgPage = 1
 	}
+	orgKendalaPage, _ := strconv.Atoi(c.QueryParam("org_kendala_page"))
+	if orgKendalaPage < 1 {
+		orgKendalaPage = 1
+	}
 	q := c.QueryParam("q")
 
 	pmls, pmlPage2 := queryAdminPML(pmlPage, "", "", "", MetodeTotalVsTotal)
 	ppls, pplPage2 := queryAdminPPL(pplPage, "", 0, "", "", MetodeTotalVsTotal)
 	slsList, slsPage2 := queryAdminSLS(slsPage, q, "", "", MetodeTotalVsTotal)
 	orgList, orgPage2 := queryAdminOrganik(orgPage, "", "", "")
+	orgKendalaList, orgKendalaPage2 := paginateKendala(queryKendalaRows(""), orgKendalaPage, "", "/admin/table/organik-kendala", "admin-organik-kendala-wrap")
 
 	return c.Render(http.StatusOK, "admin.html", map[string]interface{}{
 		"Name":        mw.SessionName(c),
@@ -461,10 +466,12 @@ func AdminDashboard(c echo.Context) error {
 		"SLSList":     slsList,
 		"Metode":      MetodeTotalVsTotal,
 		"OrganikRows": orgList,
+		"KendalaRows": orgKendalaList,
 		"PMLPage":     pmlPage2,
 		"PPLPage":     pplPage2,
 		"SLSPage":     slsPage2,
 		"OrganikPage": orgPage2,
+		"KendalaPage": orgKendalaPage2,
 		"Q":           q,
 		"StatusOpts":  models.StatusOptions,
 		"PMLUserList": queryPMLUsers(),

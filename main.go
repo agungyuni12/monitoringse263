@@ -144,6 +144,7 @@ func main() {
 	adminGrp.GET("/table/sls", handlers.AdminTableSLS)
 	adminGrp.GET("/summary", handlers.AdminSummaryPartial)
 	adminGrp.GET("/table/organik", handlers.AdminTableOrganik)
+	adminGrp.GET("/table/organik-kendala", handlers.AdminTableOrganikKendala)
 	adminGrp.GET("/table/anomali", handlers.AdminAnomaliTable)
 	adminGrp.GET("/table/progres-rekap", handlers.AdminProgresRekapTable)
 	adminGrp.GET("/table/kbli", handlers.AdminKBLITable)
