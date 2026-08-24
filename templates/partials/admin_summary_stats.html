@@ -75,12 +75,19 @@
 </div>
 
 <!-- Breakdown approval per level -->
-<div class="bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-5 mb-3.5">
-  <p class="text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-semibold mb-3.5">Breakdown approval per level</p>
-  <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+<div class="breakdown-panel bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-5 mb-3.5">
+  <div class="flex items-end justify-between gap-4 mb-4">
+    <div>
+      <p class="section-kicker">Alur persetujuan</p>
+      <p class="mt-1 text-base font-bold text-gray-800 dark:text-gray-100">Breakdown approval per level</p>
+    </div>
+    <span class="hidden sm:inline-flex items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500"><span class="w-2 h-2 rounded-full bg-green-500"></span>Berjalan berurutan</span>
+  </div>
+  <div class="breakdown-grid grid grid-cols-2 md:grid-cols-5 gap-3">
     <!-- Pengawas -->
-    <div class="rounded-xl bg-green-50/70 dark:bg-green-950/30 p-3.5">
-      <p class="text-xs font-bold text-green-700 dark:text-green-400 mb-2">Pengawas</p>
+    <div class="breakdown-card rounded-xl bg-green-50/70 dark:bg-green-950/30 p-3.5">
+      <div class="flex items-center justify-between mb-3"><p class="text-xs font-bold text-green-700 dark:text-green-400">Pengawas</p><span class="breakdown-index">01</span></div>
+      <div class="breakdown-rule bg-green-500"></div>
       <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
         <span>Approved</span>
         <span class="font-bold text-green-700 dark:text-green-400 tabular-nums">{{.Summary.TotalApprovedPengawas}}</span>
@@ -95,8 +102,9 @@
       </div>
     </div>
     <!-- Kabupaten -->
-    <div class="rounded-xl bg-blue-50/70 dark:bg-blue-950/30 p-3.5">
-      <p class="text-xs font-bold text-blue-700 dark:text-blue-400 mb-2">Kabupaten</p>
+    <div class="breakdown-card rounded-xl bg-blue-50/70 dark:bg-blue-950/30 p-3.5">
+      <div class="flex items-center justify-between mb-3"><p class="text-xs font-bold text-blue-700 dark:text-blue-400">Kabupaten</p><span class="breakdown-index">02</span></div>
+      <div class="breakdown-rule bg-blue-500"></div>
       <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
         <span>Approved</span>
         <span class="font-bold text-blue-700 dark:text-blue-400 tabular-nums">{{.Summary.TotalApprovedKabupaten}}</span>
@@ -107,8 +115,9 @@
       </div>
     </div>
     <!-- Provinsi -->
-    <div class="rounded-xl bg-purple-50/70 dark:bg-purple-950/30 p-3.5">
-      <p class="text-xs font-bold text-purple-700 dark:text-purple-400 mb-2">Provinsi</p>
+    <div class="breakdown-card rounded-xl bg-purple-50/70 dark:bg-purple-950/30 p-3.5">
+      <div class="flex items-center justify-between mb-3"><p class="text-xs font-bold text-purple-700 dark:text-purple-400">Provinsi</p><span class="breakdown-index">03</span></div>
+      <div class="breakdown-rule bg-purple-500"></div>
       <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
         <span>Approved</span>
         <span class="font-bold text-purple-700 dark:text-purple-400 tabular-nums">{{.Summary.TotalApprovedProvinsi}}</span>
@@ -119,8 +128,9 @@
       </div>
     </div>
     <!-- Pusat -->
-    <div class="rounded-xl bg-gray-100/70 dark:bg-gray-800/60 p-3.5">
-      <p class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">Pusat</p>
+    <div class="breakdown-card rounded-xl bg-gray-100/70 dark:bg-gray-800/60 p-3.5">
+      <div class="flex items-center justify-between mb-3"><p class="text-xs font-bold text-gray-700 dark:text-gray-300">Pusat</p><span class="breakdown-index">04</span></div>
+      <div class="breakdown-rule bg-gray-500"></div>
       <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
         <span>Approved</span>
         <span class="font-bold text-gray-800 dark:text-gray-200 tabular-nums">{{.Summary.TotalApprovedPusat}}</span>
@@ -131,8 +141,9 @@
       </div>
     </div>
     <!-- Admin (Edited/Completed) -->
-    <div class="rounded-xl bg-teal-50/70 dark:bg-teal-950/30 p-3.5">
-      <p class="text-xs font-bold text-teal-700 dark:text-teal-400 mb-2">Admin</p>
+    <div class="breakdown-card rounded-xl bg-teal-50/70 dark:bg-teal-950/30 p-3.5">
+      <div class="flex items-center justify-between mb-3"><p class="text-xs font-bold text-teal-700 dark:text-teal-400">Admin</p><span class="breakdown-index">05</span></div>
+      <div class="breakdown-rule bg-teal-500"></div>
       <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
         <span>Edited</span>
         <span class="font-bold text-teal-700 dark:text-teal-400 tabular-nums">{{.Summary.TotalEditedAdmin}}</span>
@@ -146,14 +157,18 @@
 </div>
 
 <!-- Progress Bars -->
-<div class="bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-5 space-y-5">
+<div class="progress-panel bg-white dark:bg-gray-900 rounded-2xl dark:ring-1 dark:ring-gray-800 p-5 space-y-6">
+  <div class="flex items-end justify-between gap-4">
+    <div><p class="section-kicker">Capaian lapangan</p><p class="mt-1 text-base font-bold text-gray-800 dark:text-gray-100">Progress overview</p></div>
+    <span class="text-[11px] text-gray-400 dark:text-gray-500 font-mono">LIVE / SE2026</span>
+  </div>
   <div>
-    <div class="flex justify-between items-baseline text-sm text-gray-600 dark:text-gray-400 mb-2">
+    <div class="progress-heading flex justify-between items-baseline text-sm text-gray-600 dark:text-gray-400 mb-2">
       <span class="font-semibold text-gray-700 dark:text-gray-300">Progres submit+reject+approve vs total assignment</span>
       <span class="font-bold text-green-600 dark:text-green-400 tabular-nums">{{.Summary.TotalSubmit}} / {{.Summary.TotalFasihTotal}} <span class="text-gray-400 dark:text-gray-500 font-medium">({{pctf .Summary.PctProgres}}%)</span></span>
     </div>
     <!-- Stacked bar: Approved Pengawas (hijau) + Submit pending (kuning) + Rejected Pengawas (merah) -->
-    <div class="h-3.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden flex">
+    <div class="progress-track h-3.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden flex">
       <div class="h-full bg-green-600 transition-all" style="width:{{pctraw .Summary.TotalApprovedPengawas .Summary.TotalFasihTotal}}%" title="Approved Pengawas"></div>
       <div class="h-full bg-blue-500 transition-all" style="width:{{pctraw .Summary.TotalApprovedKabupaten .Summary.TotalFasihTotal}}%" title="Approved Kabupaten"></div>
       <div class="h-full bg-purple-500 transition-all" style="width:{{pctraw .Summary.TotalApprovedProvinsi .Summary.TotalFasihTotal}}%" title="Approved Provinsi"></div>
@@ -161,7 +176,7 @@
       <div class="h-full bg-yellow-400 transition-all" style="width:{{pctraw .Summary.TotalFasihSubmit .Summary.TotalFasihTotal}}%" title="Submit pending"></div>
       <div class="h-full bg-red-500 transition-all" style="width:{{pctraw .Summary.TotalRejectedPengawas .Summary.TotalFasihTotal}}%" title="Rejected"></div>
     </div>
-    <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-gray-500 dark:text-gray-400">
+    <div class="progress-legend flex flex-wrap gap-x-4 gap-y-2 mt-3 text-xs text-gray-500 dark:text-gray-400">
       <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-green-600 inline-block"></span>Appr. Pengawas <span class="tabular-nums font-medium">{{.Summary.TotalApprovedPengawas}}</span></span>
       <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>Appr. Kab. <span class="tabular-nums font-medium">{{.Summary.TotalApprovedKabupaten}}</span></span>
       <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-purple-500 inline-block"></span>Appr. Prov. <span class="tabular-nums font-medium">{{.Summary.TotalApprovedProvinsi}}</span></span>
@@ -171,11 +186,11 @@
     </div>
   </div>
   <div>
-    <div class="flex justify-between items-baseline text-sm text-gray-600 dark:text-gray-400 mb-2">
+    <div class="progress-heading flex justify-between items-baseline text-sm text-gray-600 dark:text-gray-400 mb-2">
       <span class="font-semibold text-gray-700 dark:text-gray-300">Progres approved vs submit</span>
       <span class="font-bold text-green-700 dark:text-green-400 tabular-nums">{{.Summary.TotalDiperiksa}} / {{.Summary.TotalSubmit}} <span class="text-gray-400 dark:text-gray-500 font-medium">({{pct .Summary.TotalDiperiksa .Summary.TotalSubmit}}%)</span></span>
     </div>
-    <div class="h-3.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+    <div class="progress-track h-3.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
       <div class="h-full bg-green-600 rounded-full transition-all" style="width:{{pctraw .Summary.TotalDiperiksa .Summary.TotalSubmit}}%"></div>
     </div>
   </div>

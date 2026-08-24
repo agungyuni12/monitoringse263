@@ -145,6 +145,45 @@
     body:not(.login-shell) .metric-card:not(.metric-primary):nth-child(3) { background: var(--signal-soft) !important; }
     body:not(.login-shell) .metric-card:not(.metric-primary):nth-child(4) { background: var(--surface-soft) !important; }
 
+    /* Breakdown cards turn the approval chain into a readable visual sequence. */
+    body:not(.login-shell) .breakdown-panel, body:not(.login-shell) .progress-panel { padding: 1.75rem !important; }
+    body:not(.login-shell) .breakdown-panel { background: var(--surface) !important; }
+    body:not(.login-shell) .section-kicker { color: var(--muted); font: 500 10px/1.2 'DM Mono', monospace; letter-spacing: .16em; text-transform: uppercase; }
+    body:not(.login-shell) .breakdown-grid { gap: .75rem; }
+    body:not(.login-shell) .breakdown-card { position: relative; min-height: 155px; padding: 1rem !important; border: 1px solid rgba(23,33,27,.06); border-radius: 20px; box-shadow: none; }
+    @media (min-width: 768px) { body:not(.login-shell) .breakdown-grid { position: relative; } body:not(.login-shell) .breakdown-grid::before { content: ''; position: absolute; top: 1.75rem; left: 5%; right: 5%; height: 1px; background: var(--line); } body:not(.login-shell) .breakdown-card { z-index: 1; } }
+    html.dark body:not(.login-shell) .breakdown-card { border-color: rgba(255,255,255,.06); }
+    body:not(.login-shell) .breakdown-index { color: var(--muted); font: 500 9px/1 'DM Mono', monospace; letter-spacing: .08em; }
+    body:not(.login-shell) .breakdown-rule { width: 100%; height: 4px; margin-bottom: .85rem; border-radius: 999px; opacity: .75; }
+    body:not(.login-shell) .breakdown-card .tabular-nums { font-family: 'DM Mono', monospace; }
+    body:not(.login-shell) .progress-panel { position: relative; overflow: hidden; }
+    body:not(.login-shell) .progress-panel::after { content: ''; position: absolute; right: -76px; top: -108px; width: 220px; height: 220px; border: 28px solid color-mix(in srgb, var(--signal) 7%, transparent); border-radius: 50%; pointer-events: none; }
+    body:not(.login-shell) .progress-panel > * { position: relative; z-index: 1; }
+    body:not(.login-shell) .progress-heading > span { font-family: 'DM Mono', monospace; font-size: 12px; }
+    body:not(.login-shell) .progress-track { height: 14px; padding: 2px; background: var(--surface-soft) !important; border-radius: 999px; }
+    body:not(.login-shell) .progress-track > div { height: 10px; border-radius: 999px; box-shadow: inset -2px 0 rgba(255,255,255,.45); }
+    body:not(.login-shell) .progress-legend > span { padding: .35rem .55rem; border-radius: 999px; background: var(--surface-soft); }
+    body:not(.login-shell) .progress-legend > span > span:first-child { flex: 0 0 auto; }
+
+    /* Table treatment: calm header, generous rows, strong first column, no visual noise. */
+    body:not(.login-shell) .data-table { background: var(--surface); }
+    body:not(.login-shell) .data-table table { min-width: 940px; border-collapse: separate; border-spacing: 0; }
+    body:not(.login-shell) .data-table thead { position: sticky; top: 0; z-index: 2; }
+    body:not(.login-shell) .data-table tbody tr { background: var(--surface); }
+    body:not(.login-shell) .data-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-soft) 33%, var(--surface)); }
+    body:not(.login-shell) .data-table tbody tr:hover { background: color-mix(in srgb, var(--signal-soft) 65%, var(--surface)) !important; }
+    body:not(.login-shell) .data-table tbody td:first-child { color: var(--ink); font-weight: 700; }
+    body:not(.login-shell) .data-table tbody td:nth-child(n+3) { font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; }
+    body:not(.login-shell) .table-progress { height: 8px !important; background: var(--surface-soft) !important; border-radius: 999px; }
+    body:not(.login-shell) .table-progress > div { height: 8px; border-radius: 999px; }
+    body:not(.login-shell) .overflow-x-auto table { border-spacing: 0; }
+    body:not(.login-shell) .overflow-x-auto tbody tr { border-color: var(--line); }
+    body:not(.login-shell) .overflow-x-auto tbody tr:hover { background: color-mix(in srgb, var(--signal-soft) 65%, var(--surface)) !important; }
+    body:not(.login-shell) [id$="-filter-bar"] { background: color-mix(in srgb, var(--surface-soft) 62%, var(--surface)); }
+    body:not(.login-shell) .pagination-bar button, body:not(.login-shell) .pagination-bar > div > span { border-radius: 999px; }
+    body:not(.login-shell) .pagination-bar button:hover { background: var(--signal-soft); border-color: var(--signal); color: var(--signal); }
+    body:not(.login-shell) [id$="-filter-bar"] input { min-height: 42px; }
+
     body:not(.login-shell) input, body:not(.login-shell) select, body:not(.login-shell) textarea { border-color: var(--line) !important; border-radius: 12px; background: var(--surface) !important; color: var(--ink); font-family: 'DM Sans', sans-serif; font-size: 13px; }
     body:not(.login-shell) input:focus, body:not(.login-shell) select:focus, body:not(.login-shell) textarea:focus { border-color: var(--signal) !important; box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal) 14%, transparent); }
     body:not(.login-shell) button.bg-se, body:not(.login-shell) a.bg-se { background: var(--signal) !important; }

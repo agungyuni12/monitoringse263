@@ -1,6 +1,6 @@
 {{define "pagination"}}
 {{if gt .TotalPage 1}}
-<div class="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
+<div class="pagination-bar flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-4 border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
   <p class="text-xs text-gray-500 dark:text-gray-400">
     {{if eq .TotalRow 0}}
       Tidak ada data

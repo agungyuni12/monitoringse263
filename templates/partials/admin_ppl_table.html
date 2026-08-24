@@ -1,7 +1,7 @@
 {{define "admin_ppl_table.html"}}
 {{$totalIsPrelist := or (eq .Metode "2") (eq .Metode "3")}}
 {{$totalLabel := "Total"}}{{if $totalIsPrelist}}{{$totalLabel = "Prelist"}}{{end}}
-<div class="overflow-x-auto">
+<div class="data-table overflow-x-auto">
   <table class="w-full text-sm">
     <thead>
       <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left text-xs uppercase tracking-wide">
@@ -42,7 +42,7 @@
         </td>
         <td class="px-4 py-3">
           <div class="flex items-center gap-2">
-            <div class="flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden min-w-16">
+            <div class="table-progress flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden min-w-16">
               <div class="h-full {{if gt .PctSubmit 100.0}}bg-purple-500{{else}}bg-green-500{{end}} rounded-full" style="width:{{if gt .PctSubmit 100.0}}100{{else}}{{.PctSubmit}}{{end}}%"></div>
             </div>
             <span class="text-xs {{if gt .PctSubmit 100.0}}text-purple-600 font-semibold{{else}}text-gray-500 dark:text-gray-400{{end}} w-8 text-right">{{pctf .PctSubmit}}%</span>
@@ -50,7 +50,7 @@
         </td>
         <td class="px-4 py-3">
           <div class="flex items-center gap-2">
-            <div class="flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden min-w-16">
+            <div class="table-progress flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden min-w-16">
               <div class="h-full bg-blue-500 rounded-full" style="width:{{.PctSLSSelesai}}%"></div>
             </div>
             <span class="text-xs text-gray-500 dark:text-gray-400 w-8 text-right">{{pctf .PctSLSSelesai}}%</span>
