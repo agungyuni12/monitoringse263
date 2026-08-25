@@ -104,8 +104,8 @@ Env vars:
   DB_USER       (default: root)
   DB_PASS       (default: kelayu1998)
   DB_NAME       (default: se2026)
-  Sync jalan 4x sehari, jam 02:10, 08:10, 14:10, 20:10 WITA (lihat SYNC_TIMES)
-                — sengaja +40 menit dari sync_usaha.py biar gak berebut sesi
+  Sync jalan 4x sehari, jam 01:50, 07:50, 13:50, 19:50 WITA (lihat SYNC_TIMES)
+                — sengaja +20 menit dari sync_usaha.py biar gak berebut sesi
                 Superset bersamaan.
 """
 
@@ -126,8 +126,8 @@ DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "kelayu1998")
 DB_NAME = os.getenv("DB_NAME", "se2026")
 
-SYNC_TIMES = [(2, 10), (8, 10), (14, 10), (20, 10)]  # (jam, menit) WITA, 4x sehari
-# Sengaja +40 menit dari sync_usaha.py (01:30/07:30/13:30/19:30) biar gak
+SYNC_TIMES = [(1, 50), (7, 50), (13, 50), (19, 50)]  # (jam, menit) WITA, 4x sehari
+# Sengaja +20 menit dari sync_usaha.py (01:30/07:30/13:30/19:30) biar gak
 # nyambung ke FASIH/Superset bersamaan pakai akun yang sama — dua sesi
 # konkuren dari IP+akun yang sama gampang kena bot-detection BPS (lihat
 # _check_bot_wall di bawah).
@@ -629,7 +629,7 @@ def run_once():
 
 
 def _next_run():
-    # 4x sehari jam 02:10, 08:10, 14:10, 20:10 WITA (lihat SYNC_TIMES).
+    # 4x sehari jam 01:50, 07:50, 13:50, 19:50 WITA (lihat SYNC_TIMES).
     now = _now_wita()
     candidates = [now.replace(hour=h, minute=m, second=0, microsecond=0) for h, m in SYNC_TIMES]
     upcoming = [c for c in candidates if c > now]
