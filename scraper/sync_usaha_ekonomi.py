@@ -104,8 +104,7 @@ Env vars:
   DB_USER       (default: root)
   DB_PASS       (default: kelayu1998)
   DB_NAME       (default: se2026)
-  SYNC_HOUR     (default: 23) — jam WITA sync jalan tiap hari (beda jam dari
-                sync_usaha.py biar gak berebut sesi Superset bersamaan)
+  Sync jalan 4x sehari, jam 01:30, 07:30, 13:30, 19:30 WITA (lihat SYNC_TIMES).
 """
 
 import os, json, random, re, subprocess, time, urllib.request
@@ -125,7 +124,7 @@ DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "kelayu1998")
 DB_NAME = os.getenv("DB_NAME", "se2026")
 
-SYNC_HOUR = int(os.getenv("SYNC_HOUR", "23"))  # jam WITA, sekali sehari
+SYNC_TIMES = [(1, 30), (7, 30), (13, 30), (19, 30)]  # (jam, menit) WITA, 4x sehari
 
 DASH_URL = "https://fasih-dashboard.bps.go.id"
 
@@ -624,11 +623,13 @@ def run_once():
 
 
 def _next_run():
+    # 4x sehari jam 01:30, 07:30, 13:30, 19:30 WITA (lihat SYNC_TIMES).
     now = _now_wita()
-    nxt = now.replace(hour=SYNC_HOUR, minute=0, second=0, microsecond=0)
-    if nxt <= now:
-        nxt += timedelta(days=1)
-    return nxt
+    candidates = [now.replace(hour=h, minute=m, second=0, microsecond=0) for h, m in SYNC_TIMES]
+    upcoming = [c for c in candidates if c > now]
+    if upcoming:
+        return min(upcoming)
+    return min(c + timedelta(days=1) for c in candidates)
 
 
 if __name__ == "__main__":
