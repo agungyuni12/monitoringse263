@@ -153,6 +153,7 @@ func main() {
 	adminGrp.GET("/table/keberadaan-keluarga", handlers.AdminKeberadaanKeluargaTable)
 	adminGrp.GET("/table/tidak-ditemukan", handlers.AdminTidakDitemukanTable)
 	adminGrp.GET("/table/tidak-ditemukan-rekap", handlers.AdminTidakDitemukanRekapTable)
+	adminGrp.GET("/table/duplikat-bku", handlers.AdminDuplikatBKUTable)
 	adminGrp.GET("/table/usaha-ekonomi", handlers.AdminUsahaEkonomiTable)
 	adminGrp.GET("/options/pml-by-kec", handlers.OptionsPMLByKec)
 	adminGrp.GET("/options/ppl-by-filter", handlers.OptionsPPLByFilter)

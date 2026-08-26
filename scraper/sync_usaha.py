@@ -135,7 +135,8 @@ USAHA_QUERY_TEMPLATE = """
 SELECT n.assignment_id, n.index1, n.nama_usaha, n.skala_usaha,
        n.alamat_usaha, n.alamat_usaha_utama, n.level_6_full_code,
        n.assignment_status_alias, n.assignment_date_modified, r.jenis_prelist,
-       r.alamat_prelist, r.alamat_klrg, n.keberadaan_usaha_label, n.kategori_2025
+       r.alamat_prelist, r.alamat_klrg, n.keberadaan_usaha_label, n.kategori_2025,
+       n.hp, n.email
 FROM se2026_nested n
 INNER JOIN root_table r ON n.assignment_id = r.assignment_id
 ORDER BY n.assignment_id, n.index1
@@ -469,6 +470,8 @@ def ensure_tables(conn):
               jenis_prelist         VARCHAR(30) DEFAULT NULL,
               keberadaan_usaha      VARCHAR(50) DEFAULT NULL,
               kbli_kategori_prelist VARCHAR(5) DEFAULT NULL,
+              hp                    VARCHAR(30) DEFAULT NULL,
+              email                 VARCHAR(150) DEFAULT NULL,
               alamat                VARCHAR(255) DEFAULT NULL,
               assignment_status     VARCHAR(50) DEFAULT NULL,
               tanggal_modified      DATETIME DEFAULT NULL,
@@ -498,6 +501,34 @@ def ensure_tables(conn):
               CONSTRAINT fk_tdk_sls FOREIGN KEY (sls_id) REFERENCES sls (id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
+        # Kandidat usaha yg nempel roster keluarga (jenis_prelist='keluarga')
+        # tapi hp/email-nya SAMA PERSIS dengan usaha BKU (mandiri) yg sudah
+        # ada — indikasi usaha yg sama sudah tercatat dobel, satu di keluarga
+        # satu lagi sudah berdiri sendiri sbg BKU. Petugas perlu memindahkan/
+        # menutup yg di keluarga lewat FASIH-mobile masing2 (lihat
+        # sync_duplikat_bku). Baris TIDAK dihapus saat sudah tidak terdeteksi
+        # lagi (artinya sudah dipindah) — cuma ditandai resolved_at, supaya
+        # tetap ada riwayatnya (lihat menu Riwayat di admin).
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS usaha_keluarga_bku_duplikat (
+              id                      INT NOT NULL AUTO_INCREMENT,
+              sls_id                  INT NOT NULL,
+              assignment_id_keluarga  VARCHAR(64) NOT NULL,
+              nama_usaha_keluarga     VARCHAR(255) DEFAULT NULL,
+              assignment_id_bku       VARCHAR(64) NOT NULL,
+              nama_usaha_bku          VARCHAR(255) DEFAULT NULL,
+              match_field             VARCHAR(10) NOT NULL,
+              match_value             VARCHAR(150) NOT NULL,
+              first_detected_at       DATETIME NOT NULL,
+              synced_at               DATETIME NOT NULL,
+              resolved_at             DATETIME DEFAULT NULL,
+              PRIMARY KEY (id),
+              UNIQUE KEY uq_ukbd_pair (assignment_id_keluarga, assignment_id_bku, match_field),
+              KEY idx_ukbd_sls (sls_id),
+              KEY idx_ukbd_resolved (resolved_at),
+              CONSTRAINT fk_ukbd_sls FOREIGN KEY (sls_id) REFERENCES sls (id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
     conn.commit()
 
     # Auto-migrate kolom buat DB lama yg tabelnya sudah ada duluan dgn skema
@@ -509,6 +540,10 @@ def ensure_tables(conn):
                     "keberadaan_usaha VARCHAR(50) DEFAULT NULL AFTER jenis_prelist")
     _ensure_column(conn, "tidak_ditemukan_usaha", "kbli_kategori_prelist",
                     "kbli_kategori_prelist VARCHAR(5) DEFAULT NULL AFTER keberadaan_usaha")
+    _ensure_column(conn, "tidak_ditemukan_usaha", "hp",
+                    "hp VARCHAR(30) DEFAULT NULL AFTER kbli_kategori_prelist")
+    _ensure_column(conn, "tidak_ditemukan_usaha", "email",
+                    "email VARCHAR(150) DEFAULT NULL AFTER hp")
     _ensure_column(conn, "tidak_ditemukan_keluarga", "keberadaan_keluarga",
                     "keberadaan_keluarga VARCHAR(50) DEFAULT NULL AFTER nama")
     _ensure_column(conn, "tidak_ditemukan_keluarga", "nomor_kk_prelist",
@@ -535,8 +570,8 @@ def upsert_usaha(conn, rows, sls_map, synced_at):
             cur.execute("""
                 INSERT INTO tidak_ditemukan_usaha
                   (sls_id, assignment_id, nama, skala_usaha, jenis_prelist,
-                   keberadaan_usaha, kbli_kategori_prelist, alamat, assignment_status, tanggal_modified, imported_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   keberadaan_usaha, kbli_kategori_prelist, hp, email, alamat, assignment_status, tanggal_modified, imported_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ON DUPLICATE KEY UPDATE
                   sls_id                = VALUES(sls_id),
                   nama                  = VALUES(nama),
@@ -544,6 +579,8 @@ def upsert_usaha(conn, rows, sls_map, synced_at):
                   jenis_prelist         = VALUES(jenis_prelist),
                   keberadaan_usaha      = VALUES(keberadaan_usaha),
                   kbli_kategori_prelist = VALUES(kbli_kategori_prelist),
+                  hp                    = VALUES(hp),
+                  email                 = VALUES(email),
                   alamat                = VALUES(alamat),
                   assignment_status     = VALUES(assignment_status),
                   tanggal_modified      = VALUES(tanggal_modified),
@@ -551,7 +588,7 @@ def upsert_usaha(conn, rows, sls_map, synced_at):
             """, (
                 sls_id, assignment_id, r.get("nama_usaha"), r.get("skala_usaha"),
                 r.get("jenis_prelist"), _clean_label(r.get("keberadaan_usaha_label")),
-                r.get("kategori_2025"),
+                r.get("kategori_2025"), r.get("hp"), r.get("email"),
                 # se2026_nested.alamat_usaha* nyaris selalu kosong utk usaha yg
                 # TIDAK DITEMUKAN (petugas belum sempat catat alamat detail di
                 # lapangan) — fallback ke alamat prelisting di root_table:
@@ -616,6 +653,81 @@ def delete_stale(conn, table, synced_at):
     conn.commit()
     if deleted:
         print(f"[DB] {table}: {deleted} baris basi dihapus (sudah tidak masuk kriteria lagi).", flush=True)
+
+
+# ── Deteksi usaha keluarga yg perlu dipindah ke BKU ─────────────────────────
+# Dijalankan SETELAH tidak_ditemukan_usaha ter-upsert (butuh hp/email yg baru
+# disync di situ) — cocokkan usaha jenis_prelist='keluarga' dengan usaha BKU
+# (jenis_prelist mandiri) yg hp ATAU email-nya SAMA PERSIS. Kalau ketemu,
+# berarti usaha yg sama sudah tercatat dobel: sekali nempel di roster
+# keluarga, sekali lagi berdiri sendiri sbg BKU — yg di keluarga itu duplikat
+# yg perlu dipindahkan/ditutup petugas via FASIH-mobile.
+
+_DUP_BKU_MATCH_SQL = """
+    SELECT k.sls_id AS sls_id,
+           k.assignment_id AS aid_keluarga, k.nama AS nama_keluarga,
+           b.assignment_id AS aid_bku, b.nama AS nama_bku,
+           %s AS match_field, k.{col} AS match_value
+    FROM tidak_ditemukan_usaha k
+    INNER JOIN tidak_ditemukan_usaha b
+            ON b.{col} = k.{col}
+           AND b.assignment_id != k.assignment_id
+           AND (b.jenis_prelist IS NULL OR b.jenis_prelist != 'keluarga')
+    WHERE k.jenis_prelist = 'keluarga'
+      AND k.{col} IS NOT NULL AND k.{col} != ''
+"""
+
+
+def find_duplikat_bku(conn):
+    """Cari pasangan (usaha keluarga, usaha BKU) yg hp atau email-nya sama
+    persis. Dua query terpisah (hp, email) lalu digabung di Python, bukan
+    UNION SQL — supaya kalau SATU pasang assignment cocok di hp MAUPUN email
+    sekaligus, keduanya tetap tercatat sbg 2 bukti match yg beda (lihat
+    UNIQUE KEY (assignment_id_keluarga, assignment_id_bku, match_field) di
+    usaha_keluarga_bku_duplikat)."""
+    pairs = []
+    with conn.cursor() as cur:
+        for field in ("hp", "email"):
+            cur.execute(_DUP_BKU_MATCH_SQL.format(col=field), (field,))
+            pairs.extend(cur.fetchall())
+    return pairs
+
+
+def sync_duplikat_bku(conn, synced_at):
+    pairs = find_duplikat_bku(conn)
+    with conn.cursor() as cur:
+        for p in pairs:
+            cur.execute("""
+                INSERT INTO usaha_keluarga_bku_duplikat
+                  (sls_id, assignment_id_keluarga, nama_usaha_keluarga,
+                   assignment_id_bku, nama_usaha_bku, match_field, match_value,
+                   first_detected_at, synced_at, resolved_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,NULL)
+                ON DUPLICATE KEY UPDATE
+                  sls_id              = VALUES(sls_id),
+                  nama_usaha_keluarga = VALUES(nama_usaha_keluarga),
+                  nama_usaha_bku      = VALUES(nama_usaha_bku),
+                  match_value         = VALUES(match_value),
+                  synced_at           = VALUES(synced_at),
+                  resolved_at         = NULL
+            """, (
+                p["sls_id"], p["aid_keluarga"], p["nama_keluarga"],
+                p["aid_bku"], p["nama_bku"], p["match_field"], p["match_value"],
+                synced_at, synced_at,
+            ))
+        # Pasangan yg dulu terdeteksi tapi baris ini TIDAK ikut ke-refresh
+        # (synced_at masih yg lama) berarti sudah tidak cocok lagi sekarang —
+        # bisa krn petugas sudah memindahkan/menutup usaha di keluarga, atau
+        # salah satu sisi berubah datanya. Tandai resolved (bukan dihapus,
+        # supaya ada riwayatnya).
+        cur.execute("""
+            UPDATE usaha_keluarga_bku_duplikat
+            SET resolved_at = %s
+            WHERE resolved_at IS NULL AND synced_at < %s
+        """, (synced_at, synced_at))
+        resolved_now = cur.rowcount
+    conn.commit()
+    print(f"[DB] duplikat usaha keluarga→BKU: {len(pairs)} pasangan aktif, {resolved_now} baru selesai (sudah dipindah).", flush=True)
 
 
 def run_once():
@@ -690,6 +802,9 @@ def run_once():
     delete_stale(conn, "tidak_ditemukan_usaha", synced_at)
     _clear_checkpoint("usaha")
     print(f"[FASE 1] Selesai: {len(usaha_rows)} baris usaha di-sync.", flush=True)
+
+    print(f"\n[FASE 1c] Deteksi usaha keluarga duplikat vs usaha BKU (cocok hp/email)...", flush=True)
+    sync_duplikat_bku(conn, synced_at)
 
     print(f"\n[FASE 2] Upsert {len(keluarga_rows)} baris keluarga ke DB...", flush=True)
     upsert_keluarga(conn, keluarga_rows, sls_map, synced_at)

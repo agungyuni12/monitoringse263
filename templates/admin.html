@@ -113,6 +113,11 @@
               <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 21s-7-6.5-7-11a7 7 0 1114 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5" stroke-width="1.5"/></svg>
               <span class="sidebar-label">Keberadaan</span>
             </button>
+            <button onclick="switchTab('dupBku')" id="tab-dupBku" title="Usaha Keluarga &rarr; BKU"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4 4m-4-4l4-4"/></svg>
+              <span class="sidebar-label">Usaha Keluarga &rarr; BKU</span>
+            </button>
           </div>
         </details>
 
@@ -567,6 +572,42 @@
           </div>
         </div>
 
+        <!-- TAB: Usaha Keluarga -> BKU — usaha jenis_prelist='keluarga' yang
+             hp/email-nya sama persis dengan usaha BKU (mandiri) yg sudah ada
+             (lihat scraper/sync_usaha.py: sync_duplikat_bku), kandidat
+             duplikat yang perlu dipindahkan/ditutup petugas via FASIH-mobile. -->
+        <div id="panel-dupBku" class="tab-panel">
+          <div id="duplikat-bku-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" data-mode="pending">
+            <div class="flex gap-1.5">
+              <button type="button" onclick="switchDuplikatBKUSub(this,'pending')"
+                class="duplikat-bku-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-se text-white transition-colors">Perlu Dipindah</button>
+              <button type="button" onclick="switchDuplikatBKUSub(this,'riwayat')"
+                class="duplikat-bku-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Riwayat</button>
+            </div>
+            <input type="text" name="q" oninput="onDuplikatBKUSearch()"
+              placeholder="Cari nama usaha atau SLS..."
+              class="w-full md:w-56 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="kec" onchange="reloadDuplikatBKUTable()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Kecamatan</option>
+              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
+            </select>
+            <select name="pml_id" id="duplikat-bku-pml-select" onchange="reloadDuplikatBKUTable()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PML</option>
+            </select>
+            <select name="ppl_id" id="duplikat-bku-ppl-select" onchange="reloadDuplikatBKUTable()"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PPL</option>
+            </select>
+          </div>
+          <div id="duplikat-bku-result"
+            hx-get="/admin/table/duplikat-bku?status=pending" hx-trigger="tab:dupBku from:body" hx-swap="innerHTML"
+            hx-include="#duplikat-bku-filter-bar">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data...</div>
+          </div>
+        </div>
+
         <!-- TAB: Rekap Progres (per SLS) -->
         <div id="panel-progresRekap" class="tab-panel">
           <div id="progres-rekap-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center">
@@ -994,6 +1035,44 @@
       statusSel.innerHTML = opts.map(function(o) {
         return '<option value="' + o[0] + '">' + o[1] + '</option>';
       }).join('');
+    }
+
+    // ===== Tab Usaha Keluarga -> BKU: sub-menu Perlu Dipindah/Riwayat =====
+    function duplikatBKUFilterParams() {
+      var bar = document.getElementById('duplikat-bku-filter-bar');
+      var status = bar.dataset.mode || 'pending';
+      var params = ['status=' + encodeURIComponent(status)];
+      var q = bar.querySelector('[name="q"]').value;
+      var kec = bar.querySelector('[name="kec"]').value;
+      var pmlID = bar.querySelector('[name="pml_id"]').value;
+      var pplID = bar.querySelector('[name="ppl_id"]').value;
+      if (q) params.push('q=' + encodeURIComponent(q));
+      if (kec) params.push('kec=' + encodeURIComponent(kec));
+      if (pmlID) params.push('pml_id=' + pmlID);
+      if (pplID) params.push('ppl_id=' + pplID);
+      return '?' + params.join('&');
+    }
+
+    function reloadDuplikatBKUTable() {
+      htmx.ajax('GET', '/admin/table/duplikat-bku' + duplikatBKUFilterParams(), { target: '#duplikat-bku-result', swap: 'innerHTML' });
+    }
+
+    var _duplikatBKUSearchDebounce = null;
+    function onDuplikatBKUSearch() {
+      clearTimeout(_duplikatBKUSearchDebounce);
+      _duplikatBKUSearchDebounce = setTimeout(reloadDuplikatBKUTable, 400);
+    }
+
+    function switchDuplikatBKUSub(btn, mode) {
+      var bar = document.getElementById('duplikat-bku-filter-bar');
+      bar.querySelectorAll('.duplikat-bku-subtab-btn').forEach(function(b) {
+        b.classList.remove('bg-se', 'text-white');
+        b.classList.add('text-gray-600', 'dark:text-gray-400');
+      });
+      btn.classList.add('bg-se', 'text-white');
+      btn.classList.remove('text-gray-600', 'dark:text-gray-400');
+      bar.dataset.mode = mode;
+      reloadDuplikatBKUTable();
     }
 
     // Update href download Tidak Ditemukan sesuai sub-tab/mode & filter aktif
