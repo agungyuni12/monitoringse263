@@ -577,10 +577,12 @@
              (lihat scraper/sync_usaha.py: sync_duplikat_bku), kandidat
              duplikat yang perlu dipindahkan/ditutup petugas via FASIH-mobile. -->
         <div id="panel-dupBku" class="tab-panel">
-          <div id="duplikat-bku-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" data-mode="pending">
+          <div id="duplikat-bku-filter-bar" class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" data-mode="tanpa_bku">
             <div class="flex gap-1.5">
-              <button type="button" onclick="switchDuplikatBKUSub(this,'pending')"
-                class="duplikat-bku-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-se text-white transition-colors">Perlu Dipindah</button>
+              <button type="button" onclick="switchDuplikatBKUSub(this,'tanpa_bku')"
+                class="duplikat-bku-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-se text-white transition-colors">Belum Ada BKU</button>
+              <button type="button" onclick="switchDuplikatBKUSub(this,'duplikat')"
+                class="duplikat-bku-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Sudah Ada BKU (Duplikat)</button>
               <button type="button" onclick="switchDuplikatBKUSub(this,'riwayat')"
                 class="duplikat-bku-subtab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">Riwayat</button>
             </div>
@@ -602,7 +604,7 @@
             </select>
           </div>
           <div id="duplikat-bku-result"
-            hx-get="/admin/table/duplikat-bku?status=pending" hx-trigger="tab:dupBku from:body" hx-swap="innerHTML"
+            hx-get="/admin/table/duplikat-bku?view=tanpa_bku" hx-trigger="tab:dupBku from:body" hx-swap="innerHTML"
             hx-include="#duplikat-bku-filter-bar">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data...</div>
           </div>
@@ -1040,8 +1042,8 @@
     // ===== Tab Usaha Keluarga -> BKU: sub-menu Perlu Dipindah/Riwayat =====
     function duplikatBKUFilterParams() {
       var bar = document.getElementById('duplikat-bku-filter-bar');
-      var status = bar.dataset.mode || 'pending';
-      var params = ['status=' + encodeURIComponent(status)];
+      var view = bar.dataset.mode || 'tanpa_bku';
+      var params = ['view=' + encodeURIComponent(view)];
       var q = bar.querySelector('[name="q"]').value;
       var kec = bar.querySelector('[name="kec"]').value;
       var pmlID = bar.querySelector('[name="pml_id"]').value;

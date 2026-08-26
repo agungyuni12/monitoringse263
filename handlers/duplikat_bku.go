@@ -11,12 +11,18 @@ import (
 	"monitoringse/models"
 )
 
-// DuplikatBKURow adalah satu baris di menu "Usaha Keluarga → BKU" — usaha
-// jenis_prelist='keluarga' yang hp/email-nya sama persis dengan usaha BKU
-// (mandiri) yang sudah ada, terdeteksi oleh scraper/sync_usaha.py (lihat
-// sync_duplikat_bku), sumbernya tabel usaha_keluarga_bku_duplikat.
+// DuplikatBKURow adalah satu baris di menu "Usaha Keluarga → BKU". Sumbernya
+// salah satu dari dua tabel (lihat scraper/sync_usaha.py):
+//   - usaha_keluarga_bku_duplikat : usaha keluarga yg hp/email-nya SAMA
+//     dengan usaha BKU yg SUDAH ADA (duplikat, perlu dipindahkan/ditutup).
+//   - usaha_keluarga_tanpa_bku    : usaha keluarga yg hp/email-nya terisi
+//     tapi BELUM ketemu usaha BKU manapun (kandidat diangkat jd BKU baru).
+//
+// Jenis membedakan asalnya ("duplikat" | "tanpa_bku") — dipakai di sub-tab
+// Riwayat yg menggabungkan riwayat dari kedua tabel jadi satu daftar.
 type DuplikatBKURow struct {
 	ID                   int
+	Jenis                string
 	NamaSLS              string
 	NamaKec              string
 	NamaDesa             string
@@ -25,14 +31,15 @@ type DuplikatBKURow struct {
 	NamaUsahaKeluarga    string
 	AssignmentIDKeluarga string
 	FasihLinkKeluarga    string
-	NamaUsahaBKU         string
+	NamaUsahaBKU         string // kosong utk jenis=tanpa_bku
 	AssignmentIDBKU      string
 	FasihLinkBKU         string
-	MatchField           string // 'hp' atau 'email'
+	MatchField           string // 'hp' atau 'email' — utk duplikat: field yg cocok; utk tanpa_bku: field yg terisi
 	MatchValue           string
+	NamaCocok            string // "ya" | "tidak" | "" (kosong = N/A, mis. jenis=tanpa_bku) — lihat _nama_cocok di sync_usaha.py
 	FirstDetectedAt      string
 	SyncedAt             string
-	ResolvedAt           string // kosong = masih perlu dipindah, terisi = sudah selesai (riwayat)
+	ResolvedAt           string // kosong = masih aktif, terisi = riwayat (selesai)
 }
 
 var duplikatBKUSortCols = map[string]string{
@@ -46,16 +53,52 @@ var duplikatBKUSortCols = map[string]string{
 	"selesai":  "d.resolved_at",
 }
 
-// AdminDuplikatBKUTable — GET /admin/table/duplikat-bku?status=pending|riwayat
-// Menu "Usaha Keluarga → BKU": daftar usaha yang nempel roster keluarga tapi
-// hp/email-nya cocok dengan usaha BKU (mandiri) yang sudah ada — kandidat
-// duplikat yang perlu dipindahkan/ditutup petugas lewat FASIH-mobile.
-// status=pending (default) tampilkan yang masih aktif (resolved_at NULL),
-// status=riwayat tampilkan yang sudah tidak terdeteksi lagi di sync terakhir.
+// duplikatBKUSource membangun derived-table (subquery) yg menormalkan kolom
+// dari salah satu/kedua tabel sumber ke bentuk seragam, supaya JOIN sls/users
+// + filter + sort + paginasi di bawahnya bisa satu kode buat ketiga sub-tab.
+func duplikatBKUSource(view string) string {
+	const tanpaBkuSelect = `
+		SELECT 'tanpa_bku' AS jenis, t.id, t.sls_id, t.assignment_id_keluarga, t.nama_usaha_keluarga,
+		       NULL AS assignment_id_bku, NULL AS nama_usaha_bku,
+		       CASE WHEN t.hp IS NOT NULL AND t.hp != '' THEN 'hp' ELSE 'email' END AS match_field,
+		       COALESCE(NULLIF(t.hp,''), t.email) AS match_value,
+		       NULL AS nama_cocok,
+		       t.first_detected_at, t.synced_at, t.resolved_at
+		FROM usaha_keluarga_tanpa_bku t`
+	const dupSelect = `
+		SELECT 'duplikat' AS jenis, d.id, d.sls_id, d.assignment_id_keluarga, d.nama_usaha_keluarga,
+		       d.assignment_id_bku, d.nama_usaha_bku, d.match_field, d.match_value,
+		       d.nama_cocok,
+		       d.first_detected_at, d.synced_at, d.resolved_at
+		FROM usaha_keluarga_bku_duplikat d`
+
+	switch view {
+	case "tanpa_bku":
+		return "(" + tanpaBkuSelect + ` WHERE t.resolved_at IS NULL) d`
+	case "riwayat":
+		return "(" + dupSelect + ` WHERE d.resolved_at IS NOT NULL
+		UNION ALL` + tanpaBkuSelect + ` WHERE t.resolved_at IS NOT NULL) d`
+	default: // "duplikat"
+		return "(" + dupSelect + ` WHERE d.resolved_at IS NULL) d`
+	}
+}
+
+// AdminDuplikatBKUTable — GET /admin/table/duplikat-bku?view=duplikat|tanpa_bku|riwayat
+// Menu "Usaha Keluarga → BKU":
+//   - view=duplikat (default) : usaha keluarga yg sudah ada usaha BKU
+//     kembarannya (hp/email sama) — duplikat aktif, perlu dipindahkan.
+//   - view=tanpa_bku          : usaha keluarga yg hp/email-nya terisi tapi
+//     belum ketemu usaha BKU manapun — kandidat diangkat jd BKU baru.
+//   - view=riwayat            : gabungan riwayat (resolved) dari kedua kasus
+//     di atas — sudah tidak terdeteksi lagi di sync terakhir.
 func AdminDuplikatBKUTable(c echo.Context) error {
-	status := c.QueryParam("status")
-	if status != "riwayat" {
-		status = "pending"
+	view := c.QueryParam("view")
+	if view != "duplikat" && view != "riwayat" {
+		// Default ke "tanpa_bku" — ini yg jadi tujuan utama menu ini: dorong
+		// petugas MEMBUAT usaha BKU baru utk usaha yg belum ada. "duplikat"
+		// (BKU-nya sudah ada, tinggal pindah/tutup yg lama) sifatnya cleanup,
+		// penting tapi bukan prioritas utama saat menu ini dibuka.
+		view = "tanpa_bku"
 	}
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
@@ -71,11 +114,6 @@ func AdminDuplikatBKUTable(c echo.Context) error {
 
 	where := ` WHERE (d.nama_usaha_keluarga LIKE ? OR d.nama_usaha_bku LIKE ? OR s.nama_sls LIKE ?)`
 	args := []interface{}{like, like, like}
-	if status == "riwayat" {
-		where += ` AND d.resolved_at IS NOT NULL`
-	} else {
-		where += ` AND d.resolved_at IS NULL`
-	}
 	if len(kecs) > 0 {
 		where += ` AND s.nama_kec IN (` + placeholders(len(kecs)) + `)`
 		for _, k := range kecs {
@@ -91,10 +129,12 @@ func AdminDuplikatBKUTable(c echo.Context) error {
 		args = append(args, pplID)
 	}
 
-	var total int
-	db.DB.QueryRow(`SELECT COUNT(*) FROM usaha_keluarga_bku_duplikat d JOIN sls s ON s.id = d.sls_id`+where, args...).Scan(&total)
+	source := duplikatBKUSource(view)
 
-	extra := "&status=" + status
+	var total int
+	db.DB.QueryRow(`SELECT COUNT(*) FROM `+source+` JOIN sls s ON s.id = d.sls_id`+where, args...).Scan(&total)
+
+	extra := "&view=" + view
 	if q != "" {
 		extra += "&q=" + q
 	}
@@ -118,15 +158,16 @@ func AdminDuplikatBKUTable(c echo.Context) error {
 
 	queryArgs := append(append([]interface{}{}, args...), models.PerPage, offset)
 	rows, err := db.DB.Query(`
-		SELECT d.id, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
+		SELECT d.jenis, s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
 		       ppl.name, pml.name,
 		       COALESCE(d.nama_usaha_keluarga,''), d.assignment_id_keluarga,
-		       COALESCE(d.nama_usaha_bku,''), d.assignment_id_bku,
+		       COALESCE(d.nama_usaha_bku,''), COALESCE(d.assignment_id_bku,''),
 		       d.match_field, d.match_value,
+		       CASE WHEN d.nama_cocok IS NULL THEN '' WHEN d.nama_cocok = 1 THEN 'ya' ELSE 'tidak' END,
 		       COALESCE(DATE_FORMAT(d.first_detected_at,'%d/%m/%Y %H:%i'),''),
 		       COALESCE(DATE_FORMAT(d.synced_at,'%d/%m/%Y %H:%i'),''),
 		       COALESCE(DATE_FORMAT(d.resolved_at,'%d/%m/%Y %H:%i'),'')
-		FROM usaha_keluarga_bku_duplikat d
+		FROM `+source+`
 		JOIN sls s ON s.id = d.sls_id
 		JOIN users ppl ON ppl.id = s.ppl_id
 		JOIN users pml ON pml.id = s.pml_id`+where+`
@@ -138,10 +179,10 @@ func AdminDuplikatBKUTable(c echo.Context) error {
 		defer rows.Close()
 		for rows.Next() {
 			var r DuplikatBKURow
-			rows.Scan(&r.ID, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML,
+			rows.Scan(&r.Jenis, &r.NamaSLS, &r.NamaKec, &r.NamaDesa, &r.NamaPPL, &r.NamaPML,
 				&r.NamaUsahaKeluarga, &r.AssignmentIDKeluarga,
 				&r.NamaUsahaBKU, &r.AssignmentIDBKU,
-				&r.MatchField, &r.MatchValue,
+				&r.MatchField, &r.MatchValue, &r.NamaCocok,
 				&r.FirstDetectedAt, &r.SyncedAt, &r.ResolvedAt)
 			r.FasihLinkKeluarga = fasihSMLink(r.AssignmentIDKeluarga)
 			r.FasihLinkBKU = fasihSMLink(r.AssignmentIDBKU)
@@ -163,7 +204,7 @@ func AdminDuplikatBKUTable(c echo.Context) error {
 	return c.Render(http.StatusOK, "duplikat_bku_table.html", map[string]interface{}{
 		"Rows":      list,
 		"PageInfo":  pageInfo,
-		"Status":    status,
+		"View":      view,
 		"Q":         q,
 		"Kecs":      kecs,
 		"PmlID":     pmlID,

@@ -3,10 +3,12 @@
 {{template "oob_select" .PPLSelect}}
 <div>
   <div class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800">
-    {{if eq .Status "riwayat"}}
-    Riwayat <span class="font-semibold text-gray-700 dark:text-gray-300">{{.PageInfo.TotalRow}}</span> usaha yang sudah dipindahkan/tidak terdeteksi duplikat lagi
+    {{if eq .View "riwayat"}}
+    Riwayat <span class="font-semibold text-gray-700 dark:text-gray-300">{{.PageInfo.TotalRow}}</span> usaha yang sudah tidak terdeteksi lagi (sudah dibuatkan BKU / sudah dipindah / data berubah)
+    {{else if eq .View "duplikat"}}
+    Ditemukan <span class="font-semibold text-gray-700 dark:text-gray-300">{{.PageInfo.TotalRow}}</span> usaha keluarga yang HP/email-nya sama dengan usaha BKU yang SUDAH dibuat — housekeeping: usaha keluarga ini bisa dipindahkan/ditutup petugas lewat FASIH-mobile, tapi bukan prioritas utama
     {{else}}
-    Ditemukan <span class="font-semibold text-gray-700 dark:text-gray-300">{{.PageInfo.TotalRow}}</span> usaha keluarga yang HP/email-nya sama dengan usaha BKU — perlu dipindahkan petugas lewat FASIH-mobile
+    Ditemukan <span class="font-semibold text-gray-700 dark:text-gray-300">{{.PageInfo.TotalRow}}</span> usaha keluarga dengan HP/email terisi tapi belum ada usaha BKU-nya — <b>prioritas utama:</b> petugas perlu membuatkan usaha BKU baru lewat FASIH-mobile
     {{end}}
   </div>
 
@@ -15,13 +17,19 @@
       <thead>
         <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left uppercase tracking-wide">
           <th class="px-3 py-2.5 font-medium text-center w-8">No</th>
+          {{if eq .View "riwayat"}}
+          <th class="px-3 py-2.5 font-medium text-center">Jenis</th>
+          {{end}}
           {{template "sortable_th" dict "Label" "Lokasi (Kec / Desa / SLS)" "Col" "lokasi" "PageInfo" $.PageInfo}}
           {{template "sortable_th" dict "Label" "Petugas" "Col" "petugas" "PageInfo" $.PageInfo}}
           {{template "sortable_th" dict "Label" "Usaha (Keluarga)" "Col" "keluarga" "PageInfo" $.PageInfo}}
+          {{if ne .View "tanpa_bku"}}
           {{template "sortable_th" dict "Label" "Usaha BKU (Cocok)" "Col" "bku" "PageInfo" $.PageInfo}}
-          {{template "sortable_th" dict "Label" "Cocok Via" "Col" "match" "PageInfo" $.PageInfo "Center" true}}
+          <th class="px-3 py-2.5 font-medium text-center" title="Nama usaha bukan syarat wajib pencocokan (itu tetap HP/email) — ini cuma penanda tambahan buat mastiin">Nama Juga Cocok?</th>
+          {{end}}
+          {{template "sortable_th" dict "Label" "HP / Email" "Col" "match" "PageInfo" $.PageInfo "Center" true}}
           {{template "sortable_th" dict "Label" "Pertama Terdeteksi" "Col" "muncul" "PageInfo" $.PageInfo "Center" true}}
-          {{if eq .Status "riwayat"}}
+          {{if eq .View "riwayat"}}
           {{template "sortable_th" dict "Label" "Selesai Pada" "Col" "selesai" "PageInfo" $.PageInfo "Center" true}}
           {{else}}
           {{template "sortable_th" dict "Label" "Terakhir Terdeteksi" "Col" "sync" "PageInfo" $.PageInfo "Center" true}}
@@ -32,6 +40,15 @@
         {{range $i, $r := .Rows}}
         <tr class="hover:bg-orange-50/20 dark:hover:bg-gray-800/40 transition-colors">
           <td class="px-3 py-2 text-center text-gray-400 dark:text-gray-500">{{add $.PageInfo.From $i}}</td>
+          {{if eq $.View "riwayat"}}
+          <td class="px-3 py-2 text-center">
+            {{if eq $r.Jenis "duplikat"}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-purple-100 text-purple-700 whitespace-nowrap">Duplikat BKU</span>
+            {{else}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-700 whitespace-nowrap">Belum Ada BKU</span>
+            {{end}}
+          </td>
+          {{end}}
           <td class="px-3 py-2 whitespace-nowrap">
             <div class="text-gray-400 dark:text-gray-500">{{$r.NamaKec}} › {{$r.NamaDesa}}</div>
             <div class="font-medium text-gray-700 dark:text-gray-300">{{$r.NamaSLS}}</div>
@@ -51,8 +68,10 @@
               {{end}}
             </div>
           </td>
+          {{if ne $.View "tanpa_bku"}}
           <td class="px-3 py-2 max-w-[200px]">
-            <div class="font-medium text-gray-800 dark:text-gray-100 truncate" title="{{$r.NamaUsahaBKU}}">{{if $r.NamaUsahaBKU}}{{$r.NamaUsahaBKU}}{{else}}-{{end}}</div>
+            {{if $r.NamaUsahaBKU}}
+            <div class="font-medium text-gray-800 dark:text-gray-100 truncate" title="{{$r.NamaUsahaBKU}}">{{$r.NamaUsahaBKU}}</div>
             <div class="flex items-center gap-1 mt-0.5">
               <span class="font-mono text-[10px] text-gray-400 dark:text-gray-500 truncate" title="{{$r.AssignmentIDBKU}}">{{$r.AssignmentIDBKU}}</span>
               {{if $r.FasihLinkBKU}}
@@ -61,25 +80,38 @@
               </a>
               {{end}}
             </div>
+            {{else}}
+            <span class="text-gray-300 dark:text-gray-600">-</span>
+            {{end}}
           </td>
+          <td class="px-3 py-2 text-center">
+            {{if eq $r.NamaCocok "ya"}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700 whitespace-nowrap" title="Nama usaha juga sama persis — makin yakin ini usaha yang sama">Ya, fix</span>
+            {{else if eq $r.NamaCocok "tidak"}}
+            <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-700 whitespace-nowrap" title="Nama usaha beda — HP/email tetap cocok, tapi cek manual dulu sebelum dipindahkan">Beda, cek manual</span>
+            {{else}}
+            <span class="text-gray-300 dark:text-gray-600">-</span>
+            {{end}}
+          </td>
+          {{end}}
           <td class="px-3 py-2 text-center">
             <span class="inline-block px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-700 whitespace-nowrap">{{if eq $r.MatchField "hp"}}HP{{else}}Email{{end}}</span>
             <div class="text-gray-400 dark:text-gray-500 mt-0.5 truncate max-w-[140px]" title="{{$r.MatchValue}}">{{$r.MatchValue}}</div>
           </td>
           <td class="px-3 py-2 text-center text-gray-400 dark:text-gray-500 whitespace-nowrap">{{$r.FirstDetectedAt}}</td>
-          {{if eq $.Status "riwayat"}}
+          {{if eq $.View "riwayat"}}
           <td class="px-3 py-2 text-center text-gray-400 dark:text-gray-500 whitespace-nowrap">{{$r.ResolvedAt}}</td>
           {{else}}
           <td class="px-3 py-2 text-center text-gray-400 dark:text-gray-500 whitespace-nowrap">{{$r.SyncedAt}}</td>
           {{end}}
         </tr>
         {{else}}
-        <tr><td colspan="8" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
+        <tr><td colspan="10" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500">
           <div class="flex flex-col items-center gap-2">
             <svg class="w-8 h-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
-            <span class="text-sm">{{if eq .Status "riwayat"}}Belum ada riwayat{{else}}Tidak ada usaha duplikat terdeteksi{{end}}</span>
+            <span class="text-sm">{{if eq .View "riwayat"}}Belum ada riwayat{{else if eq .View "tanpa_bku"}}Semua usaha keluarga sudah ada BKU-nya{{else}}Tidak ada usaha duplikat terdeteksi{{end}}</span>
           </div>
         </td></tr>
         {{end}}

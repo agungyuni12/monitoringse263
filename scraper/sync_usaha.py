@@ -519,6 +519,7 @@ def ensure_tables(conn):
               nama_usaha_bku          VARCHAR(255) DEFAULT NULL,
               match_field             VARCHAR(10) NOT NULL,
               match_value             VARCHAR(150) NOT NULL,
+              nama_cocok              TINYINT(1) NOT NULL DEFAULT 0,
               first_detected_at       DATETIME NOT NULL,
               synced_at               DATETIME NOT NULL,
               resolved_at             DATETIME DEFAULT NULL,
@@ -527,6 +528,32 @@ def ensure_tables(conn):
               KEY idx_ukbd_sls (sls_id),
               KEY idx_ukbd_resolved (resolved_at),
               CONSTRAINT fk_ukbd_sls FOREIGN KEY (sls_id) REFERENCES sls (id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+        # Kebalikan dari usaha_keluarga_bku_duplikat: usaha jenis_prelist=
+        # 'keluarga' yg hp/email-nya TERISI tapi TIDAK ketemu pasangan usaha
+        # BKU manapun (belum pernah dibuatkan usaha BKU tersendiri). Kandidat
+        # utk "diangkat" jadi usaha BKU baru oleh petugas, beda kasus dari
+        # duplikat (yg BKU-nya sudah ADA). Kalau nanti muncul usaha BKU baru
+        # yg hp/email-nya cocok, baris ini otomatis resolved di sync
+        # berikutnya (lihat sync_tanpa_bku) — DAN baru akan muncul sbg
+        # duplikat aktif di usaha_keluarga_bku_duplikat.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS usaha_keluarga_tanpa_bku (
+              id                      INT NOT NULL AUTO_INCREMENT,
+              sls_id                  INT NOT NULL,
+              assignment_id_keluarga  VARCHAR(64) NOT NULL,
+              nama_usaha_keluarga     VARCHAR(255) DEFAULT NULL,
+              hp                      VARCHAR(30) DEFAULT NULL,
+              email                   VARCHAR(150) DEFAULT NULL,
+              first_detected_at       DATETIME NOT NULL,
+              synced_at               DATETIME NOT NULL,
+              resolved_at             DATETIME DEFAULT NULL,
+              PRIMARY KEY (id),
+              UNIQUE KEY uq_ukttb_assignment (assignment_id_keluarga),
+              KEY idx_ukttb_sls (sls_id),
+              KEY idx_ukttb_resolved (resolved_at),
+              CONSTRAINT fk_ukttb_sls FOREIGN KEY (sls_id) REFERENCES sls (id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
     conn.commit()
@@ -550,6 +577,8 @@ def ensure_tables(conn):
                     "nomor_kk_prelist VARCHAR(20) DEFAULT NULL AFTER keberadaan_keluarga")
     _ensure_column(conn, "tidak_ditemukan_keluarga", "nomor_kk_sekarang",
                     "nomor_kk_sekarang VARCHAR(20) DEFAULT NULL AFTER nomor_kk_prelist")
+    _ensure_column(conn, "usaha_keluarga_bku_duplikat", "nama_cocok",
+                    "nama_cocok TINYINT(1) NOT NULL DEFAULT 0 AFTER match_value")
 
 
 def load_sls_map(conn):
@@ -693,26 +722,40 @@ def find_duplikat_bku(conn):
     return pairs
 
 
+def _nama_cocok(nama_a, nama_b):
+    """Nama usaha BUKAN syarat wajib buat deteksi duplikat (itu tetap HP/email
+    doang) — ini cuma penanda tambahan: kalau nama_a & nama_b (dinormalisasi:
+    lower + strip) sama persis DAN dua2nya keisi, berarti makin yakin usahanya
+    memang sama (bukan cuma kebetulan HP/email-nya sama, mis. satu keluarga
+    beda usaha pakai kontak yg sama). Beda nama TIDAK menggugurkan match HP/
+    email-nya — cuma berarti perlu dicek manual dulu sebelum dipindahkan."""
+    a = (nama_a or "").strip().lower()
+    b = (nama_b or "").strip().lower()
+    return 1 if a and a == b else 0
+
+
 def sync_duplikat_bku(conn, synced_at):
     pairs = find_duplikat_bku(conn)
     with conn.cursor() as cur:
         for p in pairs:
+            nama_cocok = _nama_cocok(p["nama_keluarga"], p["nama_bku"])
             cur.execute("""
                 INSERT INTO usaha_keluarga_bku_duplikat
                   (sls_id, assignment_id_keluarga, nama_usaha_keluarga,
-                   assignment_id_bku, nama_usaha_bku, match_field, match_value,
+                   assignment_id_bku, nama_usaha_bku, match_field, match_value, nama_cocok,
                    first_detected_at, synced_at, resolved_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,NULL)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NULL)
                 ON DUPLICATE KEY UPDATE
                   sls_id              = VALUES(sls_id),
                   nama_usaha_keluarga = VALUES(nama_usaha_keluarga),
                   nama_usaha_bku      = VALUES(nama_usaha_bku),
                   match_value         = VALUES(match_value),
+                  nama_cocok          = VALUES(nama_cocok),
                   synced_at           = VALUES(synced_at),
                   resolved_at         = NULL
             """, (
                 p["sls_id"], p["aid_keluarga"], p["nama_keluarga"],
-                p["aid_bku"], p["nama_bku"], p["match_field"], p["match_value"],
+                p["aid_bku"], p["nama_bku"], p["match_field"], p["match_value"], nama_cocok,
                 synced_at, synced_at,
             ))
         # Pasangan yg dulu terdeteksi tapi baris ini TIDAK ikut ke-refresh
@@ -728,6 +771,72 @@ def sync_duplikat_bku(conn, synced_at):
         resolved_now = cur.rowcount
     conn.commit()
     print(f"[DB] duplikat usaha keluarga→BKU: {len(pairs)} pasangan aktif, {resolved_now} baru selesai (sudah dipindah).", flush=True)
+
+
+# ── Deteksi usaha keluarga yg BELUM ada BKU-nya sama sekali ─────────────────
+# Kebalikan dari find_duplikat_bku: usaha jenis_prelist='keluarga' yg hp ATAU
+# email-nya TERISI, tapi TIDAK ada usaha BKU manapun yg cocok (NOT EXISTS,
+# bukan INNER JOIN). Kandidat utk "diangkat" jadi usaha BKU baru — beda kasus
+# dari duplikat (yg BKU-nya sudah ADA, tinggal dipindahkan/ditutup yg lama).
+
+_TANPA_BKU_MATCH_SQL = """
+    SELECT k.sls_id AS sls_id, k.assignment_id AS aid_keluarga,
+           k.nama AS nama_keluarga, k.hp AS hp, k.email AS email
+    FROM tidak_ditemukan_usaha k
+    WHERE k.jenis_prelist = 'keluarga'
+      AND ((k.hp IS NOT NULL AND k.hp != '') OR (k.email IS NOT NULL AND k.email != ''))
+      AND NOT EXISTS (
+          SELECT 1 FROM tidak_ditemukan_usaha b
+          WHERE b.assignment_id != k.assignment_id
+            AND (b.jenis_prelist IS NULL OR b.jenis_prelist != 'keluarga')
+            AND (
+                 (k.hp IS NOT NULL AND k.hp != '' AND b.hp = k.hp)
+              OR (k.email IS NOT NULL AND k.email != '' AND b.email = k.email)
+            )
+      )
+"""
+
+
+def find_tanpa_bku(conn):
+    with conn.cursor() as cur:
+        cur.execute(_TANPA_BKU_MATCH_SQL)
+        return cur.fetchall()
+
+
+def sync_tanpa_bku(conn, synced_at):
+    rows = find_tanpa_bku(conn)
+    with conn.cursor() as cur:
+        for r in rows:
+            cur.execute("""
+                INSERT INTO usaha_keluarga_tanpa_bku
+                  (sls_id, assignment_id_keluarga, nama_usaha_keluarga, hp, email,
+                   first_detected_at, synced_at, resolved_at)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,NULL)
+                ON DUPLICATE KEY UPDATE
+                  sls_id              = VALUES(sls_id),
+                  nama_usaha_keluarga = VALUES(nama_usaha_keluarga),
+                  hp                  = VALUES(hp),
+                  email               = VALUES(email),
+                  synced_at           = VALUES(synced_at),
+                  resolved_at         = NULL
+            """, (
+                r["sls_id"], r["aid_keluarga"], r["nama_keluarga"], r["hp"], r["email"],
+                synced_at, synced_at,
+            ))
+        # Sama seperti sync_duplikat_bku: baris lama yg gak ke-refresh berarti
+        # sudah tidak masuk kriteria ini lagi — entah krn sudah ketemu usaha
+        # BKU yg cocok (langsung akan muncul sbg duplikat aktif di
+        # usaha_keluarga_bku_duplikat), hp/email-nya dihapus/diubah, atau
+        # usahanya sendiri sudah tidak ada lagi. Ditandai resolved, bukan
+        # dihapus.
+        cur.execute("""
+            UPDATE usaha_keluarga_tanpa_bku
+            SET resolved_at = %s
+            WHERE resolved_at IS NULL AND synced_at < %s
+        """, (synced_at, synced_at))
+        resolved_now = cur.rowcount
+    conn.commit()
+    print(f"[DB] usaha keluarga tanpa BKU: {len(rows)} aktif, {resolved_now} baru selesai (sudah ketemu BKU/berubah).", flush=True)
 
 
 def run_once():
@@ -805,6 +914,9 @@ def run_once():
 
     print(f"\n[FASE 1c] Deteksi usaha keluarga duplikat vs usaha BKU (cocok hp/email)...", flush=True)
     sync_duplikat_bku(conn, synced_at)
+
+    print(f"\n[FASE 1d] Deteksi usaha keluarga yang belum ada BKU-nya...", flush=True)
+    sync_tanpa_bku(conn, synced_at)
 
     print(f"\n[FASE 2] Upsert {len(keluarga_rows)} baris keluarga ke DB...", flush=True)
     upsert_keluarga(conn, keluarga_rows, sls_map, synced_at)

@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS usaha_keluarga_bku_duplikat (
   nama_usaha_bku          VARCHAR(255) DEFAULT NULL,
   match_field             VARCHAR(10) NOT NULL,
   match_value             VARCHAR(150) NOT NULL,
+  nama_cocok              TINYINT(1) NOT NULL DEFAULT 0,
   first_detected_at       DATETIME NOT NULL,
   synced_at               DATETIME NOT NULL,
   resolved_at             DATETIME DEFAULT NULL,
