@@ -78,10 +78,14 @@ Sumber data (ditelusuri manual lewat SQL Lab — lihat percakapan):
     WAJAR (bukan trap kayak no_kk_prelist/kbli_prelist dulu) — blok ekonomi
     kuesioner emang belum semua usaha Ditemukan/Baru selesai diisi
     petugas, bukan field yg salah/gak kepake.
-  - jenis_prelist (root_table, via JOIN assignment_id — sama pola dgn
-    sync_usaha.py): bedain usaha bangunan mandiri (!= 'keluarga') vs usaha yg
-    nempel roster keluarga ('keluarga'). nama_usaha & nama_kk DIPISAH jadi
-    dua kolom sendiri2 — nama_kk cuma keisi kalau jenis_prelist='keluarga'.
+  - jenis_prelist (root_table, via JOIN assignment_id — sama pola & koreksi
+    lewat r.no_kk dgn sync_usaha.py, lihat docstring modul itu knp
+    r.jenis_prelist mentah TIDAK cukup diandalkan): bedain usaha bangunan
+    mandiri vs usaha yg nempel roster keluarga. nama_usaha & nama_kk DIPISAH
+    jadi dua kolom sendiri2 — nama_kk cuma keisi kalau assignment-nya
+    (dikoreksi via no_kk) jenis_prelist='keluarga'. Kolom r.no_kk sendiri
+    TIDAK diekspos terpisah (pas di limit 25 kolom Superset) — cukup dipakai
+    di CASE utk koreksi jenis_prelist & nama_kk.
 
 Pagination & anti-bot-wall: identik dgn sync_usaha.py (baca docstring modul
 itu) — LIMIT/OFFSET langsung se-kabupaten, PAGE_SIZE 9000/eksekusi, ORDER BY
@@ -160,8 +164,8 @@ SELECT n.assignment_id, n.index1, n.nama_usaha,
        n.luas_tanah_bln, n.luas_tanah_thn,
        n.tk_dibayar, n.total_tk_jk, n.keg_utama,
        n.level_6_full_code, n.assignment_status_alias, n.assignment_date_modified,
-       r.jenis_prelist,
-       CASE WHEN r.jenis_prelist = 'keluarga' THEN COALESCE(r.nama_kk, r.dtsen_nama_kk) ELSE NULL END AS nama_kk
+       CASE WHEN r.no_kk IS NOT NULL AND r.no_kk != '' THEN 'keluarga' ELSE r.jenis_prelist END AS jenis_prelist,
+       CASE WHEN r.no_kk IS NOT NULL AND r.no_kk != '' THEN COALESCE(r.nama_kk, r.dtsen_nama_kk) ELSE NULL END AS nama_kk
 FROM se2026_nested n
 INNER JOIN root_table r ON n.assignment_id = r.assignment_id
 WHERE n.keberadaan_usaha_value IN (""" + USAHA_EKONOMI_STATUS_VALUES + """)

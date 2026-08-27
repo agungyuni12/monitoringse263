@@ -35,11 +35,19 @@ percakapan, bukan asumsi):
     (label bersih, prefix angka "N. " dibuang). Sekarang SEMUA status diambil
     supaya tabel ini juga bisa jadi rujukan lengkap per-usaha, bukan cuma yg
     bermasalah.
-    JOIN ke root_table.jenis_prelist (via assignment_id) buat tahu itu usaha
-    bangunan mandiri (jenis_prelist != 'keluarga') atau usaha dalam keluarga
-    (jenis_prelist = 'keluarga') — disimpan sbg kolom jenis_prelist di
+    JOIN ke root_table (via assignment_id) buat tahu itu usaha bangunan
+    mandiri atau usaha dalam keluarga — disimpan sbg kolom jenis_prelist di
     tidak_ditemukan_usaha, TIDAK dipisah jadi query/tabel sendiri2, krn
-    sumber & bentuk query-nya sama persis.
+    sumber & bentuk query-nya sama persis. r.jenis_prelist SENDIRI TIDAK
+    cukup diandalkan (ada baris usaha dalam keluarga yg jenis_prelist-nya
+    bukan 'keluarga'/NULL, kebaca keliru sbg usaha mandiri) — jadi
+    dikoreksi pakai r.no_kk: usaha BKU/mandiri TIDAK PERNAH menanyakan
+    nomor KK (cuma pertanyaan keluarga yg nanya), jadi assignment yg
+    root_table-nya PUNYA no_kk (terisi) SUDAH PASTI assignment keluarga →
+    usaha yg nempel di situ PASTI usaha dalam keluarga, apapun kata
+    r.jenis_prelist. Query pakai CASE WHEN r.no_kk IS NOT NULL/'' THEN
+    'keluarga' ELSE r.jenis_prelist END, no_kk sendiri TIDAK diekspos jadi
+    kolom terpisah (cukup dipakai buat koreksi jenis_prelist-nya saja).
   - "KBLI kategori prelist" (kbli_kategori_prelist): COALESCE(n.kategori,
     n.kategori_2025) — sama pola dgn sync_usaha_ekonomi.py. n.kategori (hasil
     klasifikasi TAHUN INI/2026) cuma keisi kalau usahanya SUDAH dikunjungi &
@@ -137,7 +145,8 @@ USAHA_COUNT_QUERY = "SELECT COUNT(*) AS n FROM se2026_nested"
 USAHA_QUERY_TEMPLATE = """
 SELECT n.assignment_id, n.index1, n.nama_usaha, n.skala_usaha,
        n.alamat_usaha, n.alamat_usaha_utama, n.level_6_full_code,
-       n.assignment_status_alias, n.assignment_date_modified, r.jenis_prelist,
+       n.assignment_status_alias, n.assignment_date_modified,
+       CASE WHEN r.no_kk IS NOT NULL AND r.no_kk != '' THEN 'keluarga' ELSE r.jenis_prelist END AS jenis_prelist,
        r.alamat_prelist, r.alamat_klrg, n.keberadaan_usaha_label,
        COALESCE(n.kategori, n.kategori_2025) AS kategori,
        n.hp, n.email
