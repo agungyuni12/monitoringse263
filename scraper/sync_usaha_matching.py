@@ -160,6 +160,11 @@ def ensure_tables(conn):
 # sama sudah tercatat dobel: sekali nempel di roster keluarga, sekali lagi
 # berdiri sendiri sbg BKU — yg di keluarga itu duplikat yg perlu dipindahkan/
 # ditutup petugas via FASIH-mobile.
+#
+# KBLI kategori A (Pertanian, Kehutanan, Perikanan) DIKECUALIKAN — sama
+# alasannya dgn find_tanpa_bku (lihat di bawah): usaha pertanian yg nempel
+# roster keluarga itu wajar (carry-over ST2023), BUKAN indikasi duplikat
+# beneran cuma krn kebetulan hp/email-nya sama dgn usaha BKU lain.
 
 # hp='9999' adalah kode sentinel BPS ("tidak diisi"), BUKAN nomor HP asli —
 # tapi lolos filter IS NOT NULL/!= '' krn bukan string kosong. Dicek manual
@@ -183,6 +188,7 @@ _DUP_BKU_MATCH_SQL = """
            AND (b.jenis_prelist IS NULL OR b.jenis_prelist != 'keluarga')
     WHERE k.jenis_prelist = 'keluarga'
       AND k.{col} IS NOT NULL AND k.{col} != ''
+      AND (k.kbli_kategori_prelist IS NULL OR k.kbli_kategori_prelist != 'A')
       {junk}
 """
 
