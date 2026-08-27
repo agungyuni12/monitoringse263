@@ -140,6 +140,11 @@ def apply_status(a, status, cnt):
             a["fasih_approved_provinsi"] += cnt
         elif "PUSAT" in su:
             a["fasih_approved_pusat"] += cnt
+        elif "ADMIN" in su:
+            # FASIH sekarang cuma pakai "BY Admin" polos (hierarki
+            # Kabupaten/Provinsi/Pusat sudah gak dipakai) — lihat komentar
+            # apply_status di sync_fasih.py.
+            a["fasih_approved_kabupaten"] += cnt
     elif "REJECTED" in su:
         if "PENGAWAS" in su:
             a["fasih_rejected_pengawas"] += cnt
@@ -149,6 +154,8 @@ def apply_status(a, status, cnt):
             a["fasih_rejected_provinsi"] += cnt
         elif "PUSAT" in su:
             a["fasih_rejected_pusat"] += cnt
+        elif "ADMIN" in su:
+            a["fasih_rejected_kabupaten"] += cnt
 
 
 # ── Browser & login (disalin dari sync_fasih.py — file ini independen) ─────

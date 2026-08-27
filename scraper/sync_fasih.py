@@ -424,6 +424,16 @@ def apply_status(a, status, cnt, unknown_statuses=None):
             a["fasih_approved_provinsi"] += cnt
         elif "PUSAT" in su:
             a["fasih_approved_pusat"] += cnt
+        elif "ADMIN" in su:
+            # FASIH SEKARANG cuma pakai "BY Admin" polos, tanpa embel2
+            # Kabupaten/Provinsi/Pusat — hierarki admin 3-tingkat itu sudah
+            # gak dipakai lagi (dikonfirmasi manual). Ditampung di kolom
+            # kabupaten krn toh kabupaten/provinsi/pusat gak pernah
+            # ditampilkan terpisah di UI, semua digabung jadi satu angka
+            # Diperiksa/Terverifikasi (lihat admin.go) — cabang KABUPATEN/
+            # PROVINSI/PUSAT di atas dipertahankan cuma buat data lama yg
+            # masih kepake label lawas itu.
+            a["fasih_approved_kabupaten"] += cnt
         else:
             known_bucket = False
     elif "REJECTED" in su:
@@ -435,6 +445,8 @@ def apply_status(a, status, cnt, unknown_statuses=None):
             a["fasih_rejected_provinsi"] += cnt
         elif "PUSAT" in su:
             a["fasih_rejected_pusat"] += cnt
+        elif "ADMIN" in su:
+            a["fasih_rejected_kabupaten"] += cnt
         else:
             known_bucket = False
     else:

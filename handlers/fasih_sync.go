@@ -399,6 +399,16 @@ func applyStatus(a *slsAgg, status string, cnt int, unknownStatuses map[string]i
 			a.approvedProvinsi += cnt
 		case strings.Contains(su, "PUSAT"):
 			a.approvedPusat += cnt
+		case strings.Contains(su, "ADMIN"):
+			// FASIH SEKARANG cuma pakai "BY Admin" polos, tanpa embel2
+			// Kabupaten/Provinsi/Pusat — hierarki admin 3-tingkat itu
+			// sudah gak dipakai lagi (dikonfirmasi manual). Ditampung di
+			// approvedKabupaten krn toh kabupaten/provinsi/pusat gak
+			// pernah ditampilkan terpisah di UI, semua digabung jadi satu
+			// angka Diperiksa/Terverifikasi (lihat admin.go) — cabang
+			// KABUPATEN/PROVINSI/PUSAT di atas dipertahankan cuma buat
+			// data lama yg masih kepake label lawas itu.
+			a.approvedKabupaten += cnt
 		default:
 			unknownStatuses[status] += cnt
 		}
@@ -412,6 +422,8 @@ func applyStatus(a *slsAgg, status string, cnt int, unknownStatuses map[string]i
 			a.rejectedProvinsi += cnt
 		case strings.Contains(su, "PUSAT"):
 			a.rejectedPusat += cnt
+		case strings.Contains(su, "ADMIN"):
+			a.rejectedKabupaten += cnt
 		default:
 			unknownStatuses[status] += cnt
 		}
