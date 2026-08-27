@@ -63,19 +63,6 @@ DOMPU_REGION2_ID = "546a26bf-e388-41ab-9083-e02cbbc093d4"
 
 HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
 
-# Status yang dihitung sebagai "submit" — sama persis dgn sync_fasih.py,
-# disalin (bukan di-import) supaya file ini tetap berdiri sendiri/independen.
-SUBMIT_STATUSES = frozenset({
-    "SUBMITTED BY Pencacah", "SUBMITTED RESPONDENT",
-    "APPROVED BY Pengawas",  "REJECTED BY Pengawas",  "REVOKED BY Pengawas",
-    "EDITED BY Admin Kabupaten",   "COMPLETED BY Admin Kabupaten",
-    "APPROVED BY Admin Kabupaten", "REJECTED BY Admin Kabupaten",
-    "EDITED BY Admin Provinsi",    "COMPLETED BY Admin Provinsi",
-    "APPROVED BY Admin Provinsi",  "REJECTED BY Admin Provinsi",
-    "EDITED BY Admin Pusat",       "COMPLETED BY Admin Pusat",
-    "APPROVED BY Admin Pusat",     "REJECTED BY Admin Pusat",
-})
-
 VERIFY_INTERVAL_HOURS = 8    # jadwal normal kalau verifikasi tuntas semua kandidat
 RETRY_INTERVAL_HOURS  = 2    # jadwal lebih cepat kalau belum tuntas (budget habis/error)
 
@@ -118,18 +105,23 @@ def _new_sls_agg():
 def apply_status(a, status, cnt):
     """Sama persis dgn apply_status di sync_fasih.py (disalin, bukan
     di-import, supaya file ini independen) — tanpa tracking unknown_statuses
-    krn di sini cuma dipakai utk status per-assignment hasil verifikasi."""
+    krn di sini cuma dipakai utk status per-assignment hasil verifikasi.
+
+    jumlah_submit DIDERIVE dari "bukan OPEN & bukan DRAFT" — BUKAN dari
+    daftar status yang dienumerasi manual (dulu SUBMIT_STATUSES) — supaya
+    status baru apa pun yang ditambahkan FASIH otomatis kehitung tanpa perlu
+    tau nama persisnya duluan. Lihat apply_status di sync_fasih.py utk
+    kronologi kejadian nyata yang melatarbelakangi ini."""
     a["fasih_total"] += cnt
-    if status in SUBMIT_STATUSES:
-        a["jumlah_submit"] += cnt
-    if status == "DRAFT":
-        a["jumlah_draft"] += cnt
-    su = status.upper()
     if status == "OPEN":
         a["fasih_open"] += cnt
-    elif status == "DRAFT":
-        pass
-    elif "SUBMITTED" in su:
+        return
+    if status == "DRAFT":
+        a["jumlah_draft"] += cnt
+        return
+    a["jumlah_submit"] += cnt
+    su = status.upper()
+    if "SUBMITTED" in su:
         a["fasih_submitted"] += cnt
     elif "PENGAWAS" in su:
         if "APPROVED" in su:

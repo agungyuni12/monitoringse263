@@ -58,18 +58,6 @@ PERIOD_ID = "fd68e454-ba45-4b85-8205-f3bf777ded24"
 
 DOMPU_REGION2_ID = "546a26bf-e388-41ab-9083-e02cbbc093d4"
 
-# Status yang dihitung sebagai "submit"
-SUBMIT_STATUSES = frozenset({
-    "SUBMITTED BY Pencacah", "SUBMITTED RESPONDENT",
-    "APPROVED BY Pengawas",  "REJECTED BY Pengawas",  "REVOKED BY Pengawas",
-    "EDITED BY Admin Kabupaten",   "COMPLETED BY Admin Kabupaten",
-    "APPROVED BY Admin Kabupaten", "REJECTED BY Admin Kabupaten",
-    "EDITED BY Admin Provinsi",    "COMPLETED BY Admin Provinsi",
-    "APPROVED BY Admin Provinsi",  "REJECTED BY Admin Provinsi",
-    "EDITED BY Admin Pusat",       "COMPLETED BY Admin Pusat",
-    "APPROVED BY Admin Pusat",     "REJECTED BY Admin Pusat",
-})
-
 # Scrape-nya lewat KLIK UI ASLI (tombol "Rekap Petugas" → tab "Pencacah" →
 # paginasi tombol "Next" di Dasbor survei), bukan panggilan API langsung sama
 # sekali. Sudah dicoba dua pendekatan sebelum ini dan DUA-duanya konsisten
@@ -391,19 +379,25 @@ def apply_status(a, status, cnt, unknown_statuses=None):
     maupun verify_stale_sls() di sync_fasih_verify_stale.py (dari status
     per-assignment hasil verifikasi ground truth) supaya logika
     klasifikasinya konsisten di kedua jalur — makanya fungsi ini disalin,
-    bukan cuma dipakai satu file."""
+    bukan cuma dipakai satu file.
+
+    jumlah_submit DIDERIVE dari "bukan OPEN & bukan DRAFT" — BUKAN dari
+    daftar status yang dienumerasi manual (dulu SUBMIT_STATUSES) — supaya
+    status baru apa pun yang ditambahkan FASIH otomatis kehitung tanpa perlu
+    tau nama persisnya duluan. Kejadian nyata: "EDITED BY Admin Kabupaten" &
+    "COMPLETED BY Admin Kabupaten" sempat gak kehitung submit selama
+    beberapa waktu sebelum status itu ditambahkan manual ke whitelist lama."""
     a["fasih_total"] += cnt
-    if status in SUBMIT_STATUSES:
-        a["jumlah_submit"] += cnt
-    if status == "DRAFT":
-        a["jumlah_draft"] += cnt
-    su = status.upper()
-    known_bucket = True
     if status == "OPEN":
         a["fasih_open"] += cnt
-    elif status == "DRAFT":
-        pass  # sudah dihitung di jumlah_draft di atas
-    elif "SUBMITTED" in su:
+        return
+    if status == "DRAFT":
+        a["jumlah_draft"] += cnt
+        return
+    a["jumlah_submit"] += cnt
+    su = status.upper()
+    known_bucket = True
+    if "SUBMITTED" in su:
         a["fasih_submitted"] += cnt
     elif "PENGAWAS" in su:
         if "APPROVED" in su:
@@ -449,14 +443,12 @@ def apply_status(a, status, cnt, unknown_statuses=None):
             known_bucket = False
     else:
         known_bucket = False
-    # Status yang tidak masuk bucket manapun DAN tidak ada di
-    # SUBMIT_STATUSES berarti benar-benar belum dikenali sistem ini
-    # (bukan sekadar "EDITED"/"COMPLETED" yang sudah masuk
-    # SUBMIT_STATUSES tapi memang tidak perlu bucket approved/
-    # rejected tersendiri) — kejadian nyata: "EDITED BY Admin
-    # Kabupaten" & "COMPLETED BY Admin Kabupaten" sempat tidak
-    # dihitung selama beberapa waktu sebelum status ini diketahui.
-    if not known_bucket and status not in SUBMIT_STATUSES and unknown_statuses is not None:
+    # Level (Pengawas/Kabupaten/Provinsi/Pusat) atau aksinya (Approved/
+    # Rejected/dst) gak dikenali di atas — TETAP kehitung jumlah_submit &
+    # fasih_total (lihat awal fungsi), cuma gak ke-detail di breakdown
+    # per-level. Dicatat di sini murni buat kelihatan di log, biar ketahuan
+    # kalau FASIH nambah level/aksi baru.
+    if not known_bucket and unknown_statuses is not None:
         unknown_statuses[status] += cnt
 
 

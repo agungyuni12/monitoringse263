@@ -281,26 +281,6 @@ type slsAgg struct {
 	total             int
 }
 
-var submitStatuses = map[string]bool{
-	"SUBMITTED BY Pencacah":        true,
-	"SUBMITTED RESPONDENT":         true,
-	"APPROVED BY Pengawas":         true,
-	"REJECTED BY Pengawas":         true,
-	"REVOKED BY Pengawas":          true,
-	"EDITED BY Admin Kabupaten":    true,
-	"COMPLETED BY Admin Kabupaten": true,
-	"APPROVED BY Admin Kabupaten":  true,
-	"REJECTED BY Admin Kabupaten":  true,
-	"EDITED BY Admin Provinsi":     true,
-	"COMPLETED BY Admin Provinsi":  true,
-	"APPROVED BY Admin Provinsi":   true,
-	"REJECTED BY Admin Provinsi":   true,
-	"EDITED BY Admin Pusat":        true,
-	"COMPLETED BY Admin Pusat":     true,
-	"APPROVED BY Admin Pusat":      true,
-	"REJECTED BY Admin Pusat":      true,
-}
-
 func doFasihSync() (int, error) {
 	client, _ := newFasihClient()
 
@@ -358,13 +338,101 @@ func doFasihSync() (int, error) {
 	}
 	log.Printf("[FASIH] %d SLS unik ditemukan", len(agg))
 	if len(unknownStatuses) > 0 {
-		// Status yang belum masuk submitStatuses/switch-case di atas — kalau FASIH
-		// nambah status baru (kejadian: "EDITED BY Admin Kabupaten" & "COMPLETED BY
-		// Admin Kabupaten" sempat tidak dihitung selama beberapa waktu), ini bakal
-		// langsung ketahuan dari log tanpa perlu investigasi manual lagi.
-		log.Printf("[FASIH] PERINGATAN: %d status belum dikenali (tidak masuk hitungan submit/approved): %v", len(unknownStatuses), unknownStatuses)
+		// Status yang levelnya (Pengawas/Kabupaten/Provinsi/Pusat) atau aksinya
+		// (Approved/Rejected/Edited/Completed) gak dikenali applyStatus — TETAP
+		// masuk itung total & submit (lihat applyStatus), cuma gak ke-detail di
+		// breakdown per-level. Kalau FASIH nambah level/aksi baru, ini bakal
+		// langsung ketahuan dari log tanpa perlu investigasi manual lagi
+		// (kejadian nyata dulu: "EDITED BY Admin Kabupaten" & "COMPLETED BY
+		// Admin Kabupaten" sempat gak ke-detail selama beberapa waktu).
+		log.Printf("[FASIH] PERINGATAN: %d status belum dikenali detail breakdown-nya (tetap masuk submit/total): %v", len(unknownStatuses), unknownStatuses)
 	}
 	return upsertProgress(agg)
+}
+
+// applyStatus menambahkan `cnt` assignment berstatus `status` ke bucket
+// agregat SLS `a`. `submit` DIDERIVE dari "bukan OPEN & bukan DRAFT" —
+// BUKAN dari daftar status yang dienumerasi manual — supaya status baru
+// apa pun yang ditambahkan FASIH otomatis kehitung, tanpa perlu tau nama
+// persisnya duluan (dulu pakai whitelist submitStatuses, ketinggalan tiap
+// kali FASIH nambah status baru sebelum ketahuan dari log). Breakdown per-
+// level (approved/rejected/dst) pakai substring match (bukan exact match)
+// atas kata level (Pengawas/Kabupaten/Provinsi/Pusat) & aksi (Approved/
+// Rejected/dst) supaya varian teks status yang gak persis sama tetap
+// kena bucket yang benar.
+func applyStatus(a *slsAgg, status string, cnt int, unknownStatuses map[string]int) {
+	a.total += cnt
+	switch status {
+	case "OPEN":
+		a.open += cnt
+		return
+	case "DRAFT":
+		a.draft += cnt
+		return
+	}
+	a.submit += cnt
+
+	su := strings.ToUpper(status)
+	knownBucket := true
+	switch {
+	case strings.Contains(su, "SUBMITTED"):
+		a.submitted += cnt
+	case strings.Contains(su, "PENGAWAS"):
+		switch {
+		case strings.Contains(su, "APPROVED"):
+			a.approvedPengawas += cnt
+		case strings.Contains(su, "REJECTED"):
+			a.rejectedPengawas += cnt
+		case strings.Contains(su, "REVOKED"):
+			a.revokedPengawas += cnt
+		default:
+			knownBucket = false
+		}
+	case strings.Contains(su, "KABUPATEN"):
+		switch {
+		case strings.Contains(su, "APPROVED"):
+			a.approvedKabupaten += cnt
+		case strings.Contains(su, "REJECTED"):
+			a.rejectedKabupaten += cnt
+		case strings.Contains(su, "EDITED"):
+			a.editedAdmin += cnt
+		case strings.Contains(su, "COMPLETED"):
+			a.completedAdmin += cnt
+		default:
+			knownBucket = false
+		}
+	case strings.Contains(su, "PROVINSI"):
+		switch {
+		case strings.Contains(su, "APPROVED"):
+			a.approvedProvinsi += cnt
+		case strings.Contains(su, "REJECTED"):
+			a.rejectedProvinsi += cnt
+		case strings.Contains(su, "EDITED"):
+			a.editedAdmin += cnt
+		case strings.Contains(su, "COMPLETED"):
+			a.completedAdmin += cnt
+		default:
+			knownBucket = false
+		}
+	case strings.Contains(su, "PUSAT"):
+		switch {
+		case strings.Contains(su, "APPROVED"):
+			a.approvedPusat += cnt
+		case strings.Contains(su, "REJECTED"):
+			a.rejectedPusat += cnt
+		case strings.Contains(su, "EDITED"):
+			a.editedAdmin += cnt
+		case strings.Contains(su, "COMPLETED"):
+			a.completedAdmin += cnt
+		default:
+			knownBucket = false
+		}
+	default:
+		knownBucket = false
+	}
+	if !knownBucket {
+		unknownStatuses[status] += cnt
+	}
 }
 
 func processPencacah(content []fasihPencacah, agg map[string]*slsAgg, unknownStatuses map[string]int, seenUserIDs map[string]bool, dupCount *int) {
@@ -387,54 +455,7 @@ func processPencacah(content []fasihPencacah, agg map[string]*slsAgg, unknownSta
 				agg[kode] = a
 			}
 			for _, sb := range rs.StatusBreakdown {
-				cnt := sb.Count
-				a.total += cnt
-				if submitStatuses[sb.Status] {
-					a.submit += cnt
-				}
-				if sb.Status == "DRAFT" {
-					a.draft += cnt
-				}
-				knownBucket := true
-				switch sb.Status {
-				case "OPEN":
-					a.open += cnt
-				case "DRAFT":
-					// sudah dihitung di a.draft di atas
-				case "SUBMITTED BY Pencacah", "SUBMITTED RESPONDENT":
-					a.submitted += cnt
-				case "APPROVED BY Pengawas":
-					a.approvedPengawas += cnt
-				case "REJECTED BY Pengawas":
-					a.rejectedPengawas += cnt
-				case "REVOKED BY Pengawas":
-					a.revokedPengawas += cnt
-				case "APPROVED BY Admin Kabupaten":
-					a.approvedKabupaten += cnt
-				case "REJECTED BY Admin Kabupaten":
-					a.rejectedKabupaten += cnt
-				case "APPROVED BY Admin Provinsi":
-					a.approvedProvinsi += cnt
-				case "REJECTED BY Admin Provinsi":
-					a.rejectedProvinsi += cnt
-				case "APPROVED BY Admin Pusat":
-					a.approvedPusat += cnt
-				case "REJECTED BY Admin Pusat":
-					a.rejectedPusat += cnt
-				case "EDITED BY Admin Kabupaten", "EDITED BY Admin Provinsi", "EDITED BY Admin Pusat":
-					a.editedAdmin += cnt
-				case "COMPLETED BY Admin Kabupaten", "COMPLETED BY Admin Provinsi", "COMPLETED BY Admin Pusat":
-					a.completedAdmin += cnt
-				default:
-					knownBucket = false
-				}
-				// Status yang tidak masuk switch-case DI ATAS *maupun* tidak ada di
-				// submitStatuses sama sekali berarti benar-benar belum dikenali sistem
-				// ini (bukan cuma "EDITED"/"COMPLETED" yang sudah masuk submitStatuses
-				// tapi memang tidak perlu bucket approved/rejected tersendiri).
-				if !knownBucket && !submitStatuses[sb.Status] {
-					unknownStatuses[sb.Status] += cnt
-				}
+				applyStatus(a, sb.Status, sb.Count, unknownStatuses)
 			}
 		}
 	}
