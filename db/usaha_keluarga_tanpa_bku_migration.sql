@@ -6,7 +6,8 @@
 -- Kebalikan dari usaha_keluarga_bku_duplikat: usaha jenis_prelist='keluarga'
 -- yg hp/email-nya TERISI tapi TIDAK ketemu pasangan usaha BKU manapun (belum
 -- pernah dibuatkan usaha BKU tersendiri). Kandidat utk "diangkat" jadi usaha
--- BKU baru oleh petugas.
+-- BKU baru oleh petugas. KBLI kategori A (Pertanian) dikecualikan — usaha
+-- pertanian nempel keluarga itu wajar (carry-over ST2023), bukan kandidat BKU.
 --
 -- resolved_at NULL = masih terdeteksi (belum ada BKU-nya).
 -- resolved_at diisi = sudah tidak masuk kriteria ini lagi di sync terakhir

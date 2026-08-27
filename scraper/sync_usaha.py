@@ -40,14 +40,17 @@ percakapan, bukan asumsi):
     (jenis_prelist = 'keluarga') — disimpan sbg kolom jenis_prelist di
     tidak_ditemukan_usaha, TIDAK dipisah jadi query/tabel sendiri2, krn
     sumber & bentuk query-nya sama persis.
-  - "KBLI kategori prelist" (kbli_kategori_prelist): SEMUA varian KBLI hasil
-    verifikasi 2026 (kbli_prelist/kbli_label/kbli_akhir/kbli_genai_*/kategori)
-    0% keisi di scope usaha ini (baru keisi kalau usahanya sempat dikunjungi &
-    diklasifikasi — usaha yg Tidak Ditemukan/Tutup/Ganda/Open ya jelas belum
-    sempat). Yang KEISI (84%): se2026_nested.kategori_2025 — kategori 1-huruf
-    dari klasifikasi TAHUN LALU (ST2023/prelist carry-over), gak bergantung
-    progres kunjungan 2026. Ini yg dipakai, TIDAK ada versi detail 5-digit-nya
-    (cuma field ini yg ada, dicek "_2025" di seluruh skema se2026_nested).
+  - "KBLI kategori prelist" (kbli_kategori_prelist): COALESCE(n.kategori,
+    n.kategori_2025) — sama pola dgn sync_usaha_ekonomi.py. n.kategori (hasil
+    klasifikasi TAHUN INI/2026) cuma keisi kalau usahanya SUDAH dikunjungi &
+    diklasifikasi tahun ini — utk baris berstatus Tidak Ditemukan/Tutup/Ganda/
+    Open itu jelas belum sempat (0% keisi), TAPI scope tabel ini "SEMUA
+    status" juga ikut Ditemukan/Baru, yang notabene SUDAH dikunjungi tahun
+    ini — jadi n.kategori-nya BISA keisi utk baris2 itu, diprioritaskan dulu
+    drpd langsung pakai kategori_2025 (klasifikasi TAHUN LALU/ST2023 carry-
+    over) yg keisi 84% tapi bisa basi kalau usahanya sudah diklasifikasi
+    ulang tahun ini. TIDAK ada versi detail 5-digit-nya (cuma field 1-huruf
+    ini yg ada, dicek "_2025"/tanpa suffix di seluruh skema se2026_nested).
   - "Keluarga": root_table, SEMUA status ada_keluarga_value (TIDAK difilter
     lagi) — dicek via GROUP BY ada_keluarga_value: Ditemukan/Tidak Ditemukan/
     Baru/Meninggal/Tidak Eligible/Tidak Dapat Ditemui/Keluarga Khusus. TIDAK
@@ -135,7 +138,8 @@ USAHA_QUERY_TEMPLATE = """
 SELECT n.assignment_id, n.index1, n.nama_usaha, n.skala_usaha,
        n.alamat_usaha, n.alamat_usaha_utama, n.level_6_full_code,
        n.assignment_status_alias, n.assignment_date_modified, r.jenis_prelist,
-       r.alamat_prelist, r.alamat_klrg, n.keberadaan_usaha_label, n.kategori_2025,
+       r.alamat_prelist, r.alamat_klrg, n.keberadaan_usaha_label,
+       COALESCE(n.kategori, n.kategori_2025) AS kategori,
        n.hp, n.email
 FROM se2026_nested n
 INNER JOIN root_table r ON n.assignment_id = r.assignment_id
@@ -617,7 +621,7 @@ def upsert_usaha(conn, rows, sls_map, synced_at):
             """, (
                 sls_id, assignment_id, r.get("nama_usaha"), r.get("skala_usaha"),
                 r.get("jenis_prelist"), _clean_label(r.get("keberadaan_usaha_label")),
-                r.get("kategori_2025"), r.get("hp"), r.get("email"),
+                r.get("kategori"), r.get("hp"), r.get("email"),
                 # se2026_nested.alamat_usaha* nyaris selalu kosong utk usaha yg
                 # TIDAK DITEMUKAN (petugas belum sempat catat alamat detail di
                 # lapangan) — fallback ke alamat prelisting di root_table:
@@ -778,6 +782,11 @@ def sync_duplikat_bku(conn, synced_at):
 # email-nya TERISI, tapi TIDAK ada usaha BKU manapun yg cocok (NOT EXISTS,
 # bukan INNER JOIN). Kandidat utk "diangkat" jadi usaha BKU baru — beda kasus
 # dari duplikat (yg BKU-nya sudah ADA, tinggal dipindahkan/ditutup yg lama).
+#
+# KBLI kategori A (Pertanian, Kehutanan, Perikanan) DIKECUALIKAN — usaha
+# pertanian yg nempel roster keluarga itu memang wajar (carry-over ST2023,
+# lihat docstring modul), BUKAN indikasi usaha yg "seharusnya" berdiri sendiri
+# sbg BKU, jadi jangan didorong utk dibuatkan BKU baru.
 
 _TANPA_BKU_MATCH_SQL = """
     SELECT k.sls_id AS sls_id, k.assignment_id AS aid_keluarga,
@@ -785,6 +794,7 @@ _TANPA_BKU_MATCH_SQL = """
     FROM tidak_ditemukan_usaha k
     WHERE k.jenis_prelist = 'keluarga'
       AND ((k.hp IS NOT NULL AND k.hp != '') OR (k.email IS NOT NULL AND k.email != ''))
+      AND (k.kbli_kategori_prelist IS NULL OR k.kbli_kategori_prelist != 'A')
       AND NOT EXISTS (
           SELECT 1 FROM tidak_ditemukan_usaha b
           WHERE b.assignment_id != k.assignment_id

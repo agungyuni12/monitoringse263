@@ -45,3 +45,4 @@ db/evaluasi_klaim_agung_kusnadin_kbli_20260814.sql
 .gitignore
 db/evaluasi_klaim_agung_kusnadin_kilo_20260814.sql
 db/fix_timezone_evaluasi_klaim_agung.sql
+scraper/run_sync_fasih.sh
