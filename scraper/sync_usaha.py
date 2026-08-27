@@ -462,6 +462,26 @@ def _ensure_column(conn, table, column, add_ddl):
             print(f"[DB] Kolom '{column}' ditambahkan ke {table} (auto-migrate).", flush=True)
 
 
+def _ensure_index(conn, table, index_name, columns_ddl):
+    """Tambah index yg belum ada lewat ALTER TABLE — dicek dulu via
+    information_schema, sama pola dgn _ensure_column. Krusial utk
+    find_duplikat_bku/find_tanpa_bku (self-JOIN/NOT EXISTS di hp & email):
+    tanpa index, MySQL nested-loop scan penuh utk tiap baris — kejadian nyata:
+    di tidak_ditemukan_usaha ~126rb baris query-nya sampai bikin koneksi
+    putus ("Lost connection to MySQL server during query") krn kelamaan."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM information_schema.STATISTICS "
+            "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND INDEX_NAME = %s",
+            (DB_NAME, table, index_name),
+        )
+        exists = cur.fetchone()["n"] > 0
+        if not exists:
+            cur.execute(f"ALTER TABLE {table} ADD INDEX {index_name} ({columns_ddl})")
+            conn.commit()
+            print(f"[DB] Index '{index_name}' ditambahkan ke {table} (auto-migrate).", flush=True)
+
+
 def ensure_tables(conn):
     with conn.cursor() as cur:
         cur.execute("""
@@ -483,6 +503,8 @@ def ensure_tables(conn):
               PRIMARY KEY (id),
               UNIQUE KEY uq_tdu_assignment (assignment_id),
               KEY idx_tdu_sls (sls_id),
+              KEY idx_tdu_hp (hp),
+              KEY idx_tdu_email (email),
               CONSTRAINT fk_tdu_sls FOREIGN KEY (sls_id) REFERENCES sls (id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
@@ -575,6 +597,13 @@ def ensure_tables(conn):
                     "hp VARCHAR(30) DEFAULT NULL AFTER kbli_kategori_prelist")
     _ensure_column(conn, "tidak_ditemukan_usaha", "email",
                     "email VARCHAR(150) DEFAULT NULL AFTER hp")
+    # Krusial buat performa find_duplikat_bku/find_tanpa_bku (self-JOIN &
+    # NOT EXISTS di hp/email) — tanpa index ini, DB yg tabelnya sudah ada
+    # SEBELUM kolom hp/email ditambahkan (jadi juga belum ke-index otomatis
+    # dari CREATE TABLE) bakal nested-loop scan penuh tiap sync & bisa bikin
+    # koneksi MySQL putus di tabel besar (lihat _ensure_index).
+    _ensure_index(conn, "tidak_ditemukan_usaha", "idx_tdu_hp", "hp")
+    _ensure_index(conn, "tidak_ditemukan_usaha", "idx_tdu_email", "email")
     _ensure_column(conn, "tidak_ditemukan_keluarga", "keberadaan_keluarga",
                     "keberadaan_keluarga VARCHAR(50) DEFAULT NULL AFTER nama")
     _ensure_column(conn, "tidak_ditemukan_keluarga", "nomor_kk_prelist",
