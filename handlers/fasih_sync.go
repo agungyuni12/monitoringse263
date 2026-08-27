@@ -266,18 +266,19 @@ type slsAgg struct {
 	draft     int
 	open      int
 	submitted int
-	// Breakdown per level
+	// Breakdown per level (approved/rejected saja yg dipecah per-level, ada
+	// kolom sendiri2 — lihat applyStatus)
 	approvedPengawas  int
 	rejectedPengawas  int
-	revokedPengawas   int
+	revokedPengawas   int // "REVOKED BY ..." — digabung SEMUA level (nama kolom sisa dari awal cuma nemu di Pengawas, sekarang juga nampung Admin Kab/Prov/Pusat)
 	approvedKabupaten int
 	rejectedKabupaten int
 	approvedProvinsi  int
 	rejectedProvinsi  int
 	approvedPusat     int
 	rejectedPusat     int
-	editedAdmin       int // "EDITED BY Admin ..." — digabung semua level (Kab/Prov/Pusat)
-	completedAdmin    int // "COMPLETED BY Admin ..." — digabung semua level
+	editedAdmin       int // "EDITED BY ..." — digabung SEMUA level (Pengawas maupun Admin Kab/Prov/Pusat)
+	completedAdmin    int // "COMPLETED BY ..." — digabung SEMUA level
 	total             int
 }
 
@@ -355,11 +356,17 @@ func doFasihSync() (int, error) {
 // BUKAN dari daftar status yang dienumerasi manual — supaya status baru
 // apa pun yang ditambahkan FASIH otomatis kehitung, tanpa perlu tau nama
 // persisnya duluan (dulu pakai whitelist submitStatuses, ketinggalan tiap
-// kali FASIH nambah status baru sebelum ketahuan dari log). Breakdown per-
-// level (approved/rejected/dst) pakai substring match (bukan exact match)
-// atas kata level (Pengawas/Kabupaten/Provinsi/Pusat) & aksi (Approved/
-// Rejected/dst) supaya varian teks status yang gak persis sama tetap
-// kena bucket yang benar.
+// kali FASIH nambah status baru sebelum ketahuan dari log).
+//
+// Breakdown dicek AKSI dulu baru LEVEL (bukan sebaliknya) — APPROVED &
+// REJECTED masih dipecah per-level (ada kolom sendiri2), tapi REVOKED/
+// EDITED/COMPLETED digabung LINTAS LEVEL ke satu kolom (revokedPengawas/
+// editedAdmin/completedAdmin) apa pun levelnya. Ini FIX nyata: dicek dari
+// log produksi, "EDITED BY Pengawas" & "REVOKED BY Admin Kabupaten" itu
+// BENERAN ada datanya di FASIH tapi dulu (versi level-dulu-baru-aksi) gak
+// kena bucket manapun krn kombinasi level+aksi itu gak pernah dienumerasi
+// — keduanya jatuh ke unknownStatuses & TIDAK ikut Terverifikasi walau
+// assignment-nya sudah jelas diperiksa/diedit petugas.
 func applyStatus(a *slsAgg, status string, cnt int, unknownStatuses map[string]int) {
 	a.total += cnt
 	switch status {
@@ -373,64 +380,42 @@ func applyStatus(a *slsAgg, status string, cnt int, unknownStatuses map[string]i
 	a.submit += cnt
 
 	su := strings.ToUpper(status)
-	knownBucket := true
 	switch {
 	case strings.Contains(su, "SUBMITTED"):
 		a.submitted += cnt
-	case strings.Contains(su, "PENGAWAS"):
+	case strings.Contains(su, "REVOKED"):
+		a.revokedPengawas += cnt
+	case strings.Contains(su, "EDITED"):
+		a.editedAdmin += cnt
+	case strings.Contains(su, "COMPLETED"):
+		a.completedAdmin += cnt
+	case strings.Contains(su, "APPROVED"):
 		switch {
-		case strings.Contains(su, "APPROVED"):
+		case strings.Contains(su, "PENGAWAS"):
 			a.approvedPengawas += cnt
-		case strings.Contains(su, "REJECTED"):
-			a.rejectedPengawas += cnt
-		case strings.Contains(su, "REVOKED"):
-			a.revokedPengawas += cnt
-		default:
-			knownBucket = false
-		}
-	case strings.Contains(su, "KABUPATEN"):
-		switch {
-		case strings.Contains(su, "APPROVED"):
+		case strings.Contains(su, "KABUPATEN"):
 			a.approvedKabupaten += cnt
-		case strings.Contains(su, "REJECTED"):
-			a.rejectedKabupaten += cnt
-		case strings.Contains(su, "EDITED"):
-			a.editedAdmin += cnt
-		case strings.Contains(su, "COMPLETED"):
-			a.completedAdmin += cnt
-		default:
-			knownBucket = false
-		}
-	case strings.Contains(su, "PROVINSI"):
-		switch {
-		case strings.Contains(su, "APPROVED"):
+		case strings.Contains(su, "PROVINSI"):
 			a.approvedProvinsi += cnt
-		case strings.Contains(su, "REJECTED"):
-			a.rejectedProvinsi += cnt
-		case strings.Contains(su, "EDITED"):
-			a.editedAdmin += cnt
-		case strings.Contains(su, "COMPLETED"):
-			a.completedAdmin += cnt
-		default:
-			knownBucket = false
-		}
-	case strings.Contains(su, "PUSAT"):
-		switch {
-		case strings.Contains(su, "APPROVED"):
+		case strings.Contains(su, "PUSAT"):
 			a.approvedPusat += cnt
-		case strings.Contains(su, "REJECTED"):
-			a.rejectedPusat += cnt
-		case strings.Contains(su, "EDITED"):
-			a.editedAdmin += cnt
-		case strings.Contains(su, "COMPLETED"):
-			a.completedAdmin += cnt
 		default:
-			knownBucket = false
+			unknownStatuses[status] += cnt
+		}
+	case strings.Contains(su, "REJECTED"):
+		switch {
+		case strings.Contains(su, "PENGAWAS"):
+			a.rejectedPengawas += cnt
+		case strings.Contains(su, "KABUPATEN"):
+			a.rejectedKabupaten += cnt
+		case strings.Contains(su, "PROVINSI"):
+			a.rejectedProvinsi += cnt
+		case strings.Contains(su, "PUSAT"):
+			a.rejectedPusat += cnt
+		default:
+			unknownStatuses[status] += cnt
 		}
 	default:
-		knownBucket = false
-	}
-	if !knownBucket {
 		unknownStatuses[status] += cnt
 	}
 }

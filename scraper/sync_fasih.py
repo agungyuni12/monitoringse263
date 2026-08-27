@@ -360,15 +360,15 @@ def _new_sls_agg():
         "fasih_submitted":         0,
         "fasih_approved_pengawas": 0,
         "fasih_rejected_pengawas": 0,
-        "fasih_revoked_pengawas":  0,
+        "fasih_revoked_pengawas":  0,  # "REVOKED BY ..." — digabung SEMUA level, bukan cuma Pengawas
         "fasih_approved_kabupaten":0,
         "fasih_rejected_kabupaten":0,
         "fasih_approved_provinsi": 0,
         "fasih_rejected_provinsi": 0,
         "fasih_approved_pusat":    0,
         "fasih_rejected_pusat":    0,
-        "fasih_edited_admin":      0,  # "EDITED BY Admin ..." — digabung semua level (Kab/Prov/Pusat)
-        "fasih_completed_admin":  0,  # "COMPLETED BY Admin ..." — digabung semua level
+        "fasih_edited_admin":      0,  # "EDITED BY ..." — digabung SEMUA level (Pengawas maupun Admin Kab/Prov/Pusat)
+        "fasih_completed_admin":  0,  # "COMPLETED BY ..." — digabung SEMUA level
         "fasih_total":             0,
     }
 
@@ -386,7 +386,17 @@ def apply_status(a, status, cnt, unknown_statuses=None):
     status baru apa pun yang ditambahkan FASIH otomatis kehitung tanpa perlu
     tau nama persisnya duluan. Kejadian nyata: "EDITED BY Admin Kabupaten" &
     "COMPLETED BY Admin Kabupaten" sempat gak kehitung submit selama
-    beberapa waktu sebelum status itu ditambahkan manual ke whitelist lama."""
+    beberapa waktu sebelum status itu ditambahkan manual ke whitelist lama.
+
+    Breakdown dicek AKSI dulu baru LEVEL (bukan sebaliknya) — APPROVED &
+    REJECTED masih dipecah per-level (ada kolom sendiri2), tapi REVOKED/
+    EDITED/COMPLETED digabung LINTAS LEVEL ke satu kolom (fasih_revoked_
+    pengawas/fasih_edited_admin/fasih_completed_admin) apa pun levelnya.
+    FIX nyata: dicek dari log produksi, "EDITED BY Pengawas" & "REVOKED BY
+    Admin Kabupaten" itu BENERAN ada datanya di FASIH tapi versi lama
+    (level-dulu-baru-aksi) gak pernah nge-cek kombinasi itu — keduanya
+    jatuh ke unknown_statuses & gak ikut Terverifikasi walau assignment-nya
+    sudah jelas diperiksa/diedit petugas."""
     a["fasih_total"] += cnt
     if status == "OPEN":
         a["fasih_open"] += cnt
@@ -399,55 +409,41 @@ def apply_status(a, status, cnt, unknown_statuses=None):
     known_bucket = True
     if "SUBMITTED" in su:
         a["fasih_submitted"] += cnt
-    elif "PENGAWAS" in su:
-        if "APPROVED" in su:
+    elif "REVOKED" in su:
+        a["fasih_revoked_pengawas"] += cnt
+    elif "EDITED" in su:
+        a["fasih_edited_admin"] += cnt
+    elif "COMPLETED" in su:
+        a["fasih_completed_admin"] += cnt
+    elif "APPROVED" in su:
+        if "PENGAWAS" in su:
             a["fasih_approved_pengawas"] += cnt
-        elif "REJECTED" in su:
-            a["fasih_rejected_pengawas"] += cnt
-        elif "REVOKED" in su:
-            a["fasih_revoked_pengawas"] += cnt
-        else:
-            known_bucket = False
-    elif "KABUPATEN" in su:
-        if "APPROVED" in su:
+        elif "KABUPATEN" in su:
             a["fasih_approved_kabupaten"] += cnt
-        elif "REJECTED" in su:
-            a["fasih_rejected_kabupaten"] += cnt
-        elif "EDITED" in su:
-            a["fasih_edited_admin"] += cnt
-        elif "COMPLETED" in su:
-            a["fasih_completed_admin"] += cnt
-        else:
-            known_bucket = False
-    elif "PROVINSI" in su:
-        if "APPROVED" in su:
+        elif "PROVINSI" in su:
             a["fasih_approved_provinsi"] += cnt
-        elif "REJECTED" in su:
-            a["fasih_rejected_provinsi"] += cnt
-        elif "EDITED" in su:
-            a["fasih_edited_admin"] += cnt
-        elif "COMPLETED" in su:
-            a["fasih_completed_admin"] += cnt
+        elif "PUSAT" in su:
+            a["fasih_approved_pusat"] += cnt
         else:
             known_bucket = False
-    elif "PUSAT" in su:
-        if "APPROVED" in su:
-            a["fasih_approved_pusat"] += cnt
-        elif "REJECTED" in su:
+    elif "REJECTED" in su:
+        if "PENGAWAS" in su:
+            a["fasih_rejected_pengawas"] += cnt
+        elif "KABUPATEN" in su:
+            a["fasih_rejected_kabupaten"] += cnt
+        elif "PROVINSI" in su:
+            a["fasih_rejected_provinsi"] += cnt
+        elif "PUSAT" in su:
             a["fasih_rejected_pusat"] += cnt
-        elif "EDITED" in su:
-            a["fasih_edited_admin"] += cnt
-        elif "COMPLETED" in su:
-            a["fasih_completed_admin"] += cnt
         else:
             known_bucket = False
     else:
         known_bucket = False
-    # Level (Pengawas/Kabupaten/Provinsi/Pusat) atau aksinya (Approved/
-    # Rejected/dst) gak dikenali di atas — TETAP kehitung jumlah_submit &
-    # fasih_total (lihat awal fungsi), cuma gak ke-detail di breakdown
-    # per-level. Dicatat di sini murni buat kelihatan di log, biar ketahuan
-    # kalau FASIH nambah level/aksi baru.
+    # Aksinya sendiri gak dikenali (bukan Submitted/Revoked/Edited/Completed/
+    # Approved/Rejected), ATAU levelnya gak dikenali utk Approved/Rejected —
+    # TETAP kehitung jumlah_submit & fasih_total (lihat awal fungsi), cuma
+    # gak ke-detail di breakdown. Dicatat di sini murni buat kelihatan di
+    # log, biar ketahuan kalau FASIH nambah level/aksi baru.
     if not known_bucket and unknown_statuses is not None:
         unknown_statuses[status] += cnt
 

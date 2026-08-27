@@ -110,8 +110,10 @@ def apply_status(a, status, cnt):
     jumlah_submit DIDERIVE dari "bukan OPEN & bukan DRAFT" — BUKAN dari
     daftar status yang dienumerasi manual (dulu SUBMIT_STATUSES) — supaya
     status baru apa pun yang ditambahkan FASIH otomatis kehitung tanpa perlu
-    tau nama persisnya duluan. Lihat apply_status di sync_fasih.py utk
-    kronologi kejadian nyata yang melatarbelakangi ini."""
+    tau nama persisnya duluan. Breakdown dicek AKSI dulu baru LEVEL (REVOKED/
+    EDITED/COMPLETED digabung lintas level, APPROVED/REJECTED masih per-level)
+    — lihat apply_status di sync_fasih.py utk kronologi kejadian nyata yang
+    melatarbelakangi ini."""
     a["fasih_total"] += cnt
     if status == "OPEN":
         a["fasih_open"] += cnt
@@ -123,40 +125,30 @@ def apply_status(a, status, cnt):
     su = status.upper()
     if "SUBMITTED" in su:
         a["fasih_submitted"] += cnt
-    elif "PENGAWAS" in su:
-        if "APPROVED" in su:
+    elif "REVOKED" in su:
+        a["fasih_revoked_pengawas"] += cnt
+    elif "EDITED" in su:
+        a["fasih_edited_admin"] += cnt
+    elif "COMPLETED" in su:
+        a["fasih_completed_admin"] += cnt
+    elif "APPROVED" in su:
+        if "PENGAWAS" in su:
             a["fasih_approved_pengawas"] += cnt
-        elif "REJECTED" in su:
-            a["fasih_rejected_pengawas"] += cnt
-        elif "REVOKED" in su:
-            a["fasih_revoked_pengawas"] += cnt
-    elif "KABUPATEN" in su:
-        if "APPROVED" in su:
+        elif "KABUPATEN" in su:
             a["fasih_approved_kabupaten"] += cnt
-        elif "REJECTED" in su:
-            a["fasih_rejected_kabupaten"] += cnt
-        elif "EDITED" in su:
-            a["fasih_edited_admin"] += cnt
-        elif "COMPLETED" in su:
-            a["fasih_completed_admin"] += cnt
-    elif "PROVINSI" in su:
-        if "APPROVED" in su:
+        elif "PROVINSI" in su:
             a["fasih_approved_provinsi"] += cnt
-        elif "REJECTED" in su:
-            a["fasih_rejected_provinsi"] += cnt
-        elif "EDITED" in su:
-            a["fasih_edited_admin"] += cnt
-        elif "COMPLETED" in su:
-            a["fasih_completed_admin"] += cnt
-    elif "PUSAT" in su:
-        if "APPROVED" in su:
+        elif "PUSAT" in su:
             a["fasih_approved_pusat"] += cnt
-        elif "REJECTED" in su:
+    elif "REJECTED" in su:
+        if "PENGAWAS" in su:
+            a["fasih_rejected_pengawas"] += cnt
+        elif "KABUPATEN" in su:
+            a["fasih_rejected_kabupaten"] += cnt
+        elif "PROVINSI" in su:
+            a["fasih_rejected_provinsi"] += cnt
+        elif "PUSAT" in su:
             a["fasih_rejected_pusat"] += cnt
-        elif "EDITED" in su:
-            a["fasih_edited_admin"] += cnt
-        elif "COMPLETED" in su:
-            a["fasih_completed_admin"] += cnt
 
 
 # ── Browser & login (disalin dari sync_fasih.py — file ini independen) ─────
