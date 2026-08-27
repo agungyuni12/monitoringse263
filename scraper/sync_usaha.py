@@ -734,6 +734,16 @@ def delete_stale(conn, table, synced_at):
 # keluarga, sekali lagi berdiri sendiri sbg BKU — yg di keluarga itu duplikat
 # yg perlu dipindahkan/ditutup petugas via FASIH-mobile.
 
+# hp='9999' adalah kode sentinel BPS ("tidak diisi"), BUKAN nomor HP asli —
+# tapi lolos filter IS NOT NULL/!= '' krn bukan string kosong. Dicek manual
+# (GROUP BY hp): 16.083 baris pakai nilai ini, ~200x lipat drpd nomor HP asli
+# manapun (tertinggi cuma 69). Tanpa dikecualikan, self-JOIN di bawah
+# mencocokkan ribuan baris ber-hp "9999" ke ribuan baris lain yg juga
+# "9999" — ledakan kombinatorial puluhan juta baris kombinasi cuma dari 1
+# nilai ini, bikin MySQL (dan host-nya) hang. email TIDAK punya masalah
+# serupa (dicek manual, nilai terbanyak cuma 5x — wajar).
+_HP_JUNK_SQL = "AND k.hp != '9999'"
+
 _DUP_BKU_MATCH_SQL = """
     SELECT k.sls_id AS sls_id,
            k.assignment_id AS aid_keluarga, k.nama AS nama_keluarga,
@@ -746,6 +756,7 @@ _DUP_BKU_MATCH_SQL = """
            AND (b.jenis_prelist IS NULL OR b.jenis_prelist != 'keluarga')
     WHERE k.jenis_prelist = 'keluarga'
       AND k.{col} IS NOT NULL AND k.{col} != ''
+      {junk}
 """
 
 
@@ -759,7 +770,8 @@ def find_duplikat_bku(conn):
     pairs = []
     with conn.cursor() as cur:
         for field in ("hp", "email"):
-            cur.execute(_DUP_BKU_MATCH_SQL.format(col=field), (field,))
+            junk = _HP_JUNK_SQL if field == "hp" else ""
+            cur.execute(_DUP_BKU_MATCH_SQL.format(col=field, junk=junk), (field,))
             pairs.extend(cur.fetchall())
     return pairs
 
@@ -831,14 +843,14 @@ _TANPA_BKU_MATCH_SQL = """
            k.nama AS nama_keluarga, k.hp AS hp, k.email AS email
     FROM tidak_ditemukan_usaha k
     WHERE k.jenis_prelist = 'keluarga'
-      AND ((k.hp IS NOT NULL AND k.hp != '') OR (k.email IS NOT NULL AND k.email != ''))
+      AND ((k.hp IS NOT NULL AND k.hp != '' AND k.hp != '9999') OR (k.email IS NOT NULL AND k.email != ''))
       AND (k.kbli_kategori_prelist IS NULL OR k.kbli_kategori_prelist != 'A')
       AND NOT EXISTS (
           SELECT 1 FROM tidak_ditemukan_usaha b
           WHERE b.assignment_id != k.assignment_id
             AND (b.jenis_prelist IS NULL OR b.jenis_prelist != 'keluarga')
             AND (
-                 (k.hp IS NOT NULL AND k.hp != '' AND b.hp = k.hp)
+                 (k.hp IS NOT NULL AND k.hp != '' AND k.hp != '9999' AND b.hp = k.hp)
               OR (k.email IS NOT NULL AND k.email != '' AND b.email = k.email)
             )
       )
