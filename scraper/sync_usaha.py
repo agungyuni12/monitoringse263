@@ -370,6 +370,29 @@ def _do_login(ctx):
     return page
 
 
+def _set_sql_editor(page, sql, attempts=3):
+    # Ace editor gak selalu bersih pas di-clear+fill — kalau attempt ini abis
+    # reload halaman (retry di _run_query_and_fetch), draft-autosave Superset
+    # bisa balapan nyisipin query lama ke editor SETELAH kita fill, hasilnya
+    # nyambung jadi 1 string invalid (mis. "...OFFSET 30000SELECT ...") yg
+    # ditolak parser SQL — query gak pernah "selesai" (gak pernah muncul
+    # "rows returned"), yg keliatan dari luar kayak hang/timeout 180s.
+    # Verifikasi jumlah "SELECT" di editor match sama query yg diminta —
+    # kalau enggak, ulang clear+fill. (sama persis dgn sync_usaha_ekonomi.py)
+    expected_selects = sql.upper().count("SELECT")
+    for attempt in range(1, attempts + 1):
+        page.locator(".ace_content").click()
+        page.keyboard.press("ControlOrMeta+A")
+        page.keyboard.press("Delete")
+        page.locator("textarea.ace_text-input").fill(sql)
+        _human_pause(0.2, 0.4)
+        current = page.locator(".ace_content").inner_text()
+        if current.upper().count("SELECT") == expected_selects:
+            return
+        print(f"    [WARN] Editor SQL Lab kemungkinan belum bersih (percobaan {attempt}/{attempts}) — ulang clear+fill...", flush=True)
+    raise RuntimeError("Editor SQL Lab gak sinkron sama query yg diminta (race sama draft-autosave Superset)")
+
+
 def _run_query_and_fetch(page, sql, retries=5):
     """Jalankan sql di SQL Lab, tunggu UI-nya sendiri selesai render ("N rows
     returned"), baru baca response POST /execute/ langsung — lihat docstring
@@ -379,9 +402,7 @@ def _run_query_and_fetch(page, sql, retries=5):
         try:
             page.wait_for_selector(".ace_content", timeout=180_000)
             page.wait_for_selector('button:has-text("Run")', timeout=180_000)
-            page.locator(".ace_content").click()
-            page.keyboard.press("ControlOrMeta+A")
-            page.locator("textarea.ace_text-input").fill(sql)
+            _set_sql_editor(page, sql)
 
             with page.expect_response(
                 lambda r: "/api/v1/sqllab/execute/" in r.url, timeout=180_000
