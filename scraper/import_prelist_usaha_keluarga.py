@@ -1,8 +1,16 @@
 """
-Import SEKALI JALAN: Prelist Usaha dalam Keluarga per SLS, dari file rekap
-prelist statis (bukan dari API dashboard — prelist adalah kuota tetap yang
-tidak berubah, jadi cukup di-import sekali ke kolom coverage_usaha_keluarga
-dengan kode_indikator sintetis "90001").
+DEPRECATED (28 Agu 2026): dashboard SE2026 sekarang expose live indikator
+"12341" (Jumlah Usaha dalam Keluarga Prelist Awal (v2), label dashboard:
+"ST2023 + UMKM" — sama persis dengan kombinasi 2 kolom Excel yang dulu
+digabung manual di sini) — sudah ditarik otomatis tiap sync lewat
+sync_kbli.py (COVERAGE_INDIKATOR), menggantikan kode sintetis "90001" di
+bawah ini. JANGAN dijalankan lagi kecuali 12341 ternyata hilang/berubah arti
+di dashboard.
+
+Import SEKALI JALAN (riwayat): Prelist Usaha dalam Keluarga per SLS, dari
+file rekap prelist statis (bukan dari API dashboard — waktu itu prelist
+dianggap kuota tetap, jadi cukup di-import sekali ke kolom
+coverage_usaha_keluarga dengan kode_indikator sintetis "90001").
 
 Sumber: file Excel "Rekap Prelist" BPS (kolom "ASSIGNMENT KELUARGA DAN ROSTER
 USAHA DI DALAM KELUARGA" > sub-kolom "UMKM Keluarga" + "ST2023") — hasil

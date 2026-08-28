@@ -667,17 +667,23 @@ func displayTotal(metode string, fasihTotal, targetPrelist int) int {
 }
 
 // downloadWideAgregat — dipakai bareng oleh DownloadKBLI & sub-download Rekap
-// Keberadaan (Usaha BKU / Usaha Keluarga / Keluarga): tabel lebar per SLS, 1
-// kolom per indikator, dari sebuah tabel agregat generik (skema sama seperti
-// adminWideAgregatTable di kbli.go). kodeFilter & prelistKode opsional, lihat kbli.go.
-func downloadWideAgregat(c echo.Context, table, filenamePrefix string, kodeFilter []string, prelistKode string) error {
+// Keberadaan (Usaha BKU / Usaha Keluarga / Keluarga / Usaha Keseluruhan):
+// tabel lebar per SLS, 1 kolom per indikator, dari sebuah tabel agregat
+// generik (skema sama seperti adminWideAgregatTable di kbli.go). kodeFilter
+// & prelistKode opsional, lihat kbli.go. indikatorListOverride/mergeMap
+// opsional — dipakai khusus "Usaha Keseluruhan" utk menggabungkan kode BKU +
+// Usaha Keluarga jadi satu kolom per status (lihat kodeCovKeseluruhanMerge).
+func downloadWideAgregat(c echo.Context, table, filenamePrefix string, kodeFilter []string, prelistKode string, indikatorListOverride []KBLIIndikator, mergeMap map[string]string) error {
 	q := c.QueryParam("q")
 	kec := c.QueryParam("kec")
 	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
 	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
 	like := "%" + q + "%"
 
-	indikatorList := queryAgregatIndikatorList(table, kodeFilter, prelistKode)
+	indikatorList := indikatorListOverride
+	if indikatorList == nil {
+		indikatorList = queryAgregatIndikatorList(table, kodeFilter, prelistKode)
+	}
 
 	where := ` WHERE (s.nama_sls LIKE ? OR ppl.name LIKE ? OR pml.name LIKE ? OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?)`
 	args := []interface{}{like, like, like, like, like}
@@ -748,7 +754,13 @@ func downloadWideAgregat(c echo.Context, table, filenamePrefix string, kodeFilte
 				var val int
 				valRows.Scan(&slsID, &kode, &val)
 				if r, ok := bySLS[slsID]; ok {
-					r.Values[kode] = val
+					target := kode
+					if mergeMap != nil {
+						if mapped, ok := mergeMap[kode]; ok {
+							target = mapped
+						}
+					}
+					r.Values[target] += val
 					r.Total += val
 				}
 			}
@@ -779,22 +791,27 @@ func downloadWideAgregat(c echo.Context, table, filenamePrefix string, kodeFilte
 
 // DownloadKBLI — GET /admin/download/kbli
 func DownloadKBLI(c echo.Context) error {
-	return downloadWideAgregat(c, "kbli_usaha", "monitoring_kbli", nil, "")
+	return downloadWideAgregat(c, "kbli_usaha", "monitoring_kbli", nil, "", nil, nil)
 }
 
 // DownloadKeberadaanBKU — GET /admin/download/keberadaan-bku
 func DownloadKeberadaanBKU(c echo.Context) error {
-	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_bku", kodeCovBKUAll, kodeCovUsahaPrelist)
+	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_bku", kodeCovBKUAll, kodeCovUsahaPrelist, nil, nil)
 }
 
 // DownloadKeberadaanUsahaKeluarga — GET /admin/download/keberadaan-usaha-keluarga
 func DownloadKeberadaanUsahaKeluarga(c echo.Context) error {
-	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_usaha_keluarga", kodeCovUsahaKeluargaAll, kodeCovUsahaKelPrelist)
+	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_usaha_keluarga", kodeCovUsahaKeluargaAll, kodeCovUsahaKelPrelist, nil, nil)
 }
 
 // DownloadKeberadaanKeluarga — GET /admin/download/keberadaan-keluarga
 func DownloadKeberadaanKeluarga(c echo.Context) error {
-	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_keluarga", kodeCovKeluargaAll, kodeCovKeluargaPrelist)
+	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_keluarga", kodeCovKeluargaAll, kodeCovKeluargaPrelist, nil, nil)
+}
+
+// DownloadKeberadaanUsahaKeseluruhan — GET /admin/download/keberadaan-usaha-keseluruhan
+func DownloadKeberadaanUsahaKeseluruhan(c echo.Context) error {
+	return downloadWideAgregat(c, "coverage_usaha_keluarga", "monitoring_keberadaan_usaha_keseluruhan", kodeCovKeseluruhanAll, "gab_prelist", kodeCovKeseluruhanIndikators, kodeCovKeseluruhanMerge)
 }
 
 // DownloadTidakDitemukan — GET /admin/download/tidak-ditemukan?tipe=usaha|keluarga

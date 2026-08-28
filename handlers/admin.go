@@ -1153,7 +1153,7 @@ const (
 	kodeCovUsahaPrelist      = "90002"
 	kodeCovUsahaDitemukan    = "10264"
 	kodeCovUsahaBaru         = "10268"
-	kodeCovUsahaKelPrelist   = "90001"
+	kodeCovUsahaKelPrelist   = "12341" // dulu "90001" (import Excel statis) — sekarang live dari dashboard, lihat sync_kbli.py
 	kodeCovUsahaKelDitemukan = "10691"
 	kodeCovUsahaKelBaru      = "10696"
 	kodeCovKeluargaPrelist   = "14"

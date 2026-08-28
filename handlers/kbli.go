@@ -65,7 +65,7 @@ var wideAgregatSortCols = map[string]string{
 // coverage_usaha_keluarga jadi sub-tabel Usaha BKU / Usaha Keluarga).
 // prelistKode opsional: kalau diisi, indikator dgn kode itu dipindah ke depan
 // (kolom Prelist Awal harus paling kiri) — perlu krn urutan numerik kode
-// tidak selalu menaruh Prelist di depan (mis. kode sintetis 90001 utk Usaha
+// tidak selalu menaruh Prelist di depan (mis. kode 12341 utk Usaha
 // Keluarga, yg sebenarnya konsep "awal" tapi angkanya paling besar).
 func queryAgregatIndikatorList(table string, kodeFilter []string, prelistKode string) []KBLIIndikator {
 	query := fmt.Sprintf(`SELECT DISTINCT kode_indikator, nama_indikator FROM %s`, table)
@@ -112,13 +112,23 @@ func queryAgregatIndikatorList(table string, kodeFilter []string, prelistKode st
 // Keluarga) — sengaja generik supaya kalau nanti ada dataset agregat baru
 // dari dashboard-se2026 (skema sama persis), tinggal tambah satu wrapper
 // tipis tanpa duplikasi query. kodeFilter opsional (lihat queryAgregatIndikatorList).
-// prelistKode/baruKode opsional: kalau diisi, template bisa tampilkan badge
-// persentase (nilai/Prelist Awal) di tiap kolom kecuali kolom Prelist &
-// Baru itu sendiri (lihat admin_keberadaan_*_table.html). Filter kec/pml_id/
-// ppl_id (query param, opsional) dipakai oleh filter bertingkat Rekap
-// Keberadaan — dibaca langsung dari request, aman dipakai bareng KBLI juga
-// krn UI KBLI tidak pernah mengirim param ini.
-func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath string, kodeFilter []string, prelistKode, baruKode string) error {
+// prelistKode/baruKode/ditemukanKode opsional: kalau diisi, template bisa
+// tampilkan badge persentase (nilai/Prelist Awal) di tiap kolom kecuali
+// kolom Prelist itu sendiri, plus kolom turunan "Total Ditemukan + Baru"
+// (lihat admin_keberadaan_*_table.html). Filter kec/pml_id/ppl_id (query
+// param, opsional) dipakai oleh filter bertingkat Rekap Keberadaan — dibaca
+// langsung dari request, aman dipakai bareng KBLI juga krn UI KBLI tidak
+// pernah mengirim param ini.
+// indikatorListOverride/mergeMap opsional, dipakai khusus tab "Usaha
+// Keseluruhan" (gabungan BKU + Usaha Keluarga): kalau diisi, daftar kolom
+// TIDAK di-derive otomatis dari kode_indikator di DB (queryAgregatIndikatorList),
+// tapi pakai daftar kategori gabungan yang sudah ditentukan (indikatorListOverride),
+// dan tiap kode_indikator mentah di-merge ke kode kategori gabungannya
+// (mergeMap: kode mentah -> kode kategori) sebelum dijumlah ke r.Values —
+// jadi mis. "Ditemukan" BKU (10264) + "Ditemukan" Usaha Keluarga (10691)
+// ketemu di satu kolom "gab_ditemukan". Kalau nil, perilaku persis seperti
+// sebelumnya (1 kode_indikator = 1 kolom).
+func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath string, kodeFilter []string, prelistKode, baruKode, ditemukanKode string, indikatorListOverride []KBLIIndikator, mergeMap map[string]string) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
 		page = 1
@@ -173,7 +183,10 @@ func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath st
 	pageInfo.Dir = sortDir
 	pageInfo.FilterExtra = extra
 
-	indikatorList := queryAgregatIndikatorList(table, kodeFilter, prelistKode)
+	indikatorList := indikatorListOverride
+	if indikatorList == nil {
+		indikatorList = queryAgregatIndikatorList(table, kodeFilter, prelistKode)
+	}
 
 	// Totals per indikator dihitung dari SEMUA baris yang cocok filter (bukan
 	// cuma baris di halaman ini) supaya baris "Total" di bawah tabel ikut
@@ -202,7 +215,13 @@ func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath st
 			var kode string
 			var val int
 			totRows.Scan(&kode, &val)
-			totals[kode] = val
+			target := kode
+			if mergeMap != nil {
+				if mapped, ok := mergeMap[kode]; ok {
+					target = mapped
+				}
+			}
+			totals[target] += val
 		}
 	}
 
@@ -220,7 +239,7 @@ func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath st
 	if err != nil {
 		return c.Render(http.StatusOK, tmplName, map[string]interface{}{
 			"Rows": nil, "Page": pageInfo, "Indikators": indikatorList, "Q": q,
-			"PrelistKode": prelistKode, "BaruKode": baruKode, "Totals": totals,
+			"PrelistKode": prelistKode, "BaruKode": baruKode, "DitemukanKode": ditemukanKode, "Totals": totals,
 		})
 	}
 	defer rows.Close()
@@ -265,7 +284,13 @@ func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath st
 				var val int
 				valRows.Scan(&slsID, &kode, &val)
 				if r, ok := bySLS[slsID]; ok {
-					r.Values[kode] = val
+					target := kode
+					if mergeMap != nil {
+						if mapped, ok := mergeMap[kode]; ok {
+							target = mapped
+						}
+					}
+					r.Values[target] += val
 					r.Total += val
 				}
 			}
@@ -274,7 +299,7 @@ func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath st
 
 	return c.Render(http.StatusOK, tmplName, map[string]interface{}{
 		"Rows": list, "Page": pageInfo, "Indikators": indikatorList, "Q": q,
-		"PrelistKode": prelistKode, "BaruKode": baruKode, "Totals": totals,
+		"PrelistKode": prelistKode, "BaruKode": baruKode, "DitemukanKode": ditemukanKode, "Totals": totals,
 	})
 }
 
@@ -285,7 +310,7 @@ func adminWideAgregatTable(c echo.Context, table, tmplName, wrapID, routePath st
 // query param level=desa|kec dikirim ke route Rekap Keberadaan yang sama.
 // Filter q/kec/pml_id/ppl_id sama persis dengan level SLS, cuma baris hasil
 // & query indikatornya yang di-agregasi per grup.
-func adminWideAgregatGroupTable(c echo.Context, table, routePath, wrapID string, kodeFilter []string, prelistKode, baruKode, tableDesc, level string) error {
+func adminWideAgregatGroupTable(c echo.Context, table, routePath, wrapID string, kodeFilter []string, prelistKode, baruKode, ditemukanKode, tableDesc, level string, indikatorListOverride []KBLIIndikator, mergeMap map[string]string) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
 		page = 1
@@ -325,7 +350,10 @@ func adminWideAgregatGroupTable(c echo.Context, table, routePath, wrapID string,
 		extra += fmt.Sprintf("&ppl_id=%d", pplID)
 	}
 
-	indikatorList := queryAgregatIndikatorList(table, kodeFilter, prelistKode)
+	indikatorList := indikatorListOverride
+	if indikatorList == nil {
+		indikatorList = queryAgregatIndikatorList(table, kodeFilter, prelistKode)
+	}
 
 	// Totals per indikator dari SEMUA baris yang cocok filter (bukan cuma
 	// grup di halaman ini) — sama seperti level SLS, biar footer "Total"
@@ -354,7 +382,13 @@ func adminWideAgregatGroupTable(c echo.Context, table, routePath, wrapID string,
 			var kode string
 			var val int
 			totRows.Scan(&kode, &val)
-			totals[kode] = val
+			target := kode
+			if mergeMap != nil {
+				if mapped, ok := mergeMap[kode]; ok {
+					target = mapped
+				}
+			}
+			totals[target] += val
 		}
 	}
 
@@ -401,7 +435,8 @@ func adminWideAgregatGroupTable(c echo.Context, table, routePath, wrapID string,
 	renderData := func(list []*WideAgregatGroupRow) map[string]interface{} {
 		return map[string]interface{}{
 			"Rows": list, "Page": pageInfo, "Indikators": indikatorList, "Totals": totals,
-			"PrelistKode": prelistKode, "BaruKode": baruKode, "GroupLevel": level, "TableDesc": tableDesc,
+			"PrelistKode": prelistKode, "BaruKode": baruKode, "DitemukanKode": ditemukanKode,
+			"GroupLevel": level, "TableDesc": tableDesc,
 		}
 	}
 
@@ -481,7 +516,13 @@ func adminWideAgregatGroupTable(c echo.Context, table, routePath, wrapID string,
 					valRows.Scan(&desa, &kecName, &kode, &val)
 				}
 				if r, ok := byKey[groupKey{desa, kecName}]; ok {
-					r.Values[kode] = val
+					target := kode
+					if mergeMap != nil {
+						if mapped, ok := mergeMap[kode]; ok {
+							target = mapped
+						}
+					}
+					r.Values[target] += val
 					r.Total += val
 				}
 			}
@@ -494,7 +535,7 @@ func adminWideAgregatGroupTable(c echo.Context, table, routePath, wrapID string,
 // AdminKBLITable — GET /admin/table/kbli
 // Tabel lebar: 1 baris per SLS, 1 kolom per kategori KBLI (jumlah usaha).
 func AdminKBLITable(c echo.Context) error {
-	return adminWideAgregatTable(c, "kbli_usaha", "admin_kbli_table.html", "admin-kbli-wrap", "/admin/table/kbli", nil, "", "")
+	return adminWideAgregatTable(c, "kbli_usaha", "admin_kbli_table.html", "admin-kbli-wrap", "/admin/table/kbli", nil, "", "", "", nil, nil)
 }
 
 // Kode indikator coverage_usaha_keluarga per kategori (lihat juga kode
@@ -508,7 +549,7 @@ func AdminKBLITable(c echo.Context) error {
 // keluarga, bukan usaha BKU saja. Kolom Prelist yang benar di sini pakai kode
 // sintetis "90002" (SUM 108+109+110 = UB+UM+UMK), lihat kodeCovUsahaPrelist.
 var kodeCovBKUAll = []string{"90002", "10247", "10264", "10265", "10266", "10268"}
-var kodeCovUsahaKeluargaAll = []string{"90001", "10691", "10693", "10694", "10695", "10696"}
+var kodeCovUsahaKeluargaAll = []string{"12341", "10691", "10693", "10694", "10695", "10696"}
 
 // Keluarga: prelist, ditemukan, meninggal, tidak eligible, tidak dapat
 // ditemui s/d akhir pendataan, tidak ditemukan, baru, menolak didata,
@@ -516,30 +557,79 @@ var kodeCovUsahaKeluargaAll = []string{"90001", "10691", "10693", "10694", "1069
 // (Anggota Keluarga — satuannya per orang, bukan per keluarga).
 var kodeCovKeluargaAll = []string{"14", "15", "16", "17", "18", "19", "20", "21", "22", "59"}
 
+// Tab "Usaha Keseluruhan" = Usaha BKU (mandiri) + Usaha dalam Keluarga
+// digabung per status keberadaan yang sama — dua dataset itu pakai
+// kode_indikator BEDA utk konsep yang sama (mis. "Ditemukan" BKU=10264 vs
+// Usaha Keluarga=10691), jadi digabung lewat mergeMap ke satu kode kategori
+// sintetis ("gab_..." — sengaja non-numerik, tidak mungkin tabrakan dgn
+// kode_indikator asli yang selalu angka). Cuma 6 status yang ada padanan di
+// kedua dataset (Prelist/Ditemukan/Tutup/Ganda/TidakDitemukan/Baru) — status
+// khusus Keluarga (Meninggal, Tidak Eligible, dst) tidak relevan di sini.
+var kodeCovKeseluruhanMerge = map[string]string{
+	kodeCovUsahaPrelist:      "gab_prelist",
+	kodeCovUsahaKelPrelist:   "gab_prelist",
+	kodeCovUsahaDitemukan:    "gab_ditemukan",
+	kodeCovUsahaKelDitemukan: "gab_ditemukan",
+	"10265":                  "gab_tutup", // Usaha BKU Ditutup
+	"10693":                  "gab_tutup", // Usaha Keluarga Tutup
+	"10266":                  "gab_ganda", // Usaha BKU Ganda
+	"10694":                  "gab_ganda", // Usaha Keluarga Ganda
+	"10247":                  "gab_tidak_ditemukan", // Usaha BKU Tidak Ditemukan
+	"10695":                  "gab_tidak_ditemukan", // Usaha Keluarga Tidak Ditemukan
+	kodeCovUsahaBaru:         "gab_baru",
+	kodeCovUsahaKelBaru:      "gab_baru",
+}
+var kodeCovKeseluruhanAll = []string{
+	kodeCovUsahaPrelist, kodeCovUsahaKelPrelist,
+	kodeCovUsahaDitemukan, kodeCovUsahaKelDitemukan,
+	"10265", "10693",
+	"10266", "10694",
+	"10247", "10695",
+	kodeCovUsahaBaru, kodeCovUsahaKelBaru,
+}
+var kodeCovKeseluruhanIndikators = []KBLIIndikator{
+	{Kode: "gab_prelist", Nama: "Prelist Awal"},
+	{Kode: "gab_ditemukan", Nama: "Ditemukan"},
+	{Kode: "gab_tutup", Nama: "Tutup"},
+	{Kode: "gab_ganda", Nama: "Ganda"},
+	{Kode: "gab_tidak_ditemukan", Nama: "Tidak Ditemukan"},
+	{Kode: "gab_baru", Nama: "Baru"},
+}
+
 // AdminKeberadaanBKUTable — GET /admin/table/keberadaan-bku
 // level=desa|kec (opsional) merekap per Desa/Kecamatan, mirip pilihan
 // "Per SLS/Desa/Kecamatan" di tab Progres Semua SLS.
 func AdminKeberadaanBKUTable(c echo.Context) error {
 	if lvl := c.QueryParam("level"); lvl == "desa" || lvl == "kec" {
-		return adminWideAgregatGroupTable(c, "coverage_usaha_keluarga", "/admin/table/keberadaan-bku", "admin-keberadaan-rekap-wrap", kodeCovBKUAll, kodeCovUsahaPrelist, kodeCovUsahaBaru, "Status keberadaan Usaha BKU (mandiri)", lvl)
+		return adminWideAgregatGroupTable(c, "coverage_usaha_keluarga", "/admin/table/keberadaan-bku", "admin-keberadaan-rekap-wrap", kodeCovBKUAll, kodeCovUsahaPrelist, kodeCovUsahaBaru, kodeCovUsahaDitemukan, "Status keberadaan Usaha BKU (mandiri)", lvl, nil, nil)
 	}
-	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_bku_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-bku", kodeCovBKUAll, kodeCovUsahaPrelist, kodeCovUsahaBaru)
+	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_bku_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-bku", kodeCovBKUAll, kodeCovUsahaPrelist, kodeCovUsahaBaru, kodeCovUsahaDitemukan, nil, nil)
 }
 
 // AdminKeberadaanUsahaKeluargaTable — GET /admin/table/keberadaan-usaha-keluarga
 func AdminKeberadaanUsahaKeluargaTable(c echo.Context) error {
 	if lvl := c.QueryParam("level"); lvl == "desa" || lvl == "kec" {
-		return adminWideAgregatGroupTable(c, "coverage_usaha_keluarga", "/admin/table/keberadaan-usaha-keluarga", "admin-keberadaan-rekap-wrap", kodeCovUsahaKeluargaAll, kodeCovUsahaKelPrelist, kodeCovUsahaKelBaru, "Status keberadaan Usaha dalam Keluarga", lvl)
+		return adminWideAgregatGroupTable(c, "coverage_usaha_keluarga", "/admin/table/keberadaan-usaha-keluarga", "admin-keberadaan-rekap-wrap", kodeCovUsahaKeluargaAll, kodeCovUsahaKelPrelist, kodeCovUsahaKelBaru, kodeCovUsahaKelDitemukan, "Status keberadaan Usaha dalam Keluarga", lvl, nil, nil)
 	}
-	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_usahakeluarga_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-usaha-keluarga", kodeCovUsahaKeluargaAll, kodeCovUsahaKelPrelist, kodeCovUsahaKelBaru)
+	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_usahakeluarga_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-usaha-keluarga", kodeCovUsahaKeluargaAll, kodeCovUsahaKelPrelist, kodeCovUsahaKelBaru, kodeCovUsahaKelDitemukan, nil, nil)
 }
 
 // AdminKeberadaanKeluargaTable — GET /admin/table/keberadaan-keluarga
 func AdminKeberadaanKeluargaTable(c echo.Context) error {
 	if lvl := c.QueryParam("level"); lvl == "desa" || lvl == "kec" {
-		return adminWideAgregatGroupTable(c, "coverage_usaha_keluarga", "/admin/table/keberadaan-keluarga", "admin-keberadaan-rekap-wrap", kodeCovKeluargaAll, kodeCovKeluargaPrelist, kodeCovKeluargaBaru, "Status keberadaan Keluarga", lvl)
+		return adminWideAgregatGroupTable(c, "coverage_usaha_keluarga", "/admin/table/keberadaan-keluarga", "admin-keberadaan-rekap-wrap", kodeCovKeluargaAll, kodeCovKeluargaPrelist, kodeCovKeluargaBaru, kodeCovKeluargaDitemukan, "Status keberadaan Keluarga", lvl, nil, nil)
 	}
-	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_keluarga_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-keluarga", kodeCovKeluargaAll, kodeCovKeluargaPrelist, kodeCovKeluargaBaru)
+	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_keluarga_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-keluarga", kodeCovKeluargaAll, kodeCovKeluargaPrelist, kodeCovKeluargaBaru, kodeCovKeluargaDitemukan, nil, nil)
+}
+
+// AdminKeberadaanUsahaKeseluruhanTable — GET /admin/table/keberadaan-usaha-keseluruhan
+// Rekap gabungan Usaha BKU + Usaha dalam Keluarga per status keberadaan
+// (lihat kodeCovKeseluruhanMerge).
+func AdminKeberadaanUsahaKeseluruhanTable(c echo.Context) error {
+	if lvl := c.QueryParam("level"); lvl == "desa" || lvl == "kec" {
+		return adminWideAgregatGroupTable(c, "coverage_usaha_keluarga", "/admin/table/keberadaan-usaha-keseluruhan", "admin-keberadaan-rekap-wrap", kodeCovKeseluruhanAll, "gab_prelist", "gab_baru", "gab_ditemukan", "Status keberadaan Usaha Keseluruhan (BKU + Usaha Keluarga)", lvl, kodeCovKeseluruhanIndikators, kodeCovKeseluruhanMerge)
+	}
+	return adminWideAgregatTable(c, "coverage_usaha_keluarga", "admin_keberadaan_usahakeseluruhan_table.html", "admin-keberadaan-rekap-wrap", "/admin/table/keberadaan-usaha-keseluruhan", kodeCovKeseluruhanAll, "gab_prelist", "gab_baru", "gab_ditemukan", kodeCovKeseluruhanIndikators, kodeCovKeseluruhanMerge)
 }
 
 // OptionsPMLByKec — GET /admin/options/pml-by-kec?kec=X

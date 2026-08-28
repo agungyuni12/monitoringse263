@@ -88,6 +88,8 @@ COVERAGE_INDIKATOR = os.getenv(
     "COVERAGE_INDIKATOR",
     "2,10247,10264,10265,10266,10268,"     # Prelist gabungan (2, JANGAN dipakai sbg usaha BKU), status BKU: tidak ditemukan, ditemukan, ditutup, ganda, baru
     "108,109,110,"                         # Usaha BKU Prelist Awal per skala: UB, UM, UMK — sumber usaha BKU prelist yang BENAR
+    "12341,"                               # Usaha dalam Keluarga Prelist Awal (v2) — LIVE, gantiin import Excel statis "90001"
+                                            # (lihat import_prelist_usaha_keluarga.py, sudah tidak dipakai lagi)
     "10691,10693,10694,10695,10696,"       # Usaha dalam Keluarga: ditemukan, tutup, ganda, tidak ditemukan, baru
     "14,15,16,17,18,19,20,21,22,59",       # Keluarga: prelist, ditemukan, meninggal, tidak eligible,
                                             # tidak dapat ditemui s/d akhir pendataan, tidak ditemukan,
