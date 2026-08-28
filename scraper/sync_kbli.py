@@ -38,7 +38,7 @@ Env vars:
 
 import os, time
 import pymysql
-from datetime import datetime
+from datetime import datetime, timedelta
 from playwright.sync_api import sync_playwright
 from playwright_stealth import Stealth
 
@@ -101,6 +101,11 @@ DB_PORT = int(os.getenv("DB_PORT", "3306"))
 DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "kelayu1998")
 DB_NAME = os.getenv("DB_NAME", "se2026")
+
+# Jadwal sync: 4x sehari jam tetap, SAMA PERSIS dgn sync_usaha.py (lihat
+# SYNC_TIMES di sana) — sebelumnya interval tetap 12 jam dari selesai run,
+# sekarang ikut jam dinding biar jadwalnya konsisten & gampang diprediksi.
+SYNC_TIMES = [(1, 30), (7, 30), (13, 30), (19, 30)]  # (jam, menit) WITA, 4x sehari
 
 
 # ── Browser ──────────────────────────────────────────────────────────────────
@@ -413,9 +418,14 @@ def run_once():
 
 
 def _next_run():
-    """Jadwal sync: setiap 12 jam (2x sehari), sama seperti sync_anomali.py."""
-    from datetime import timedelta
-    return _now_wita() + timedelta(hours=12)
+    # 4x sehari jam 01:30, 07:30, 13:30, 19:30 WITA (lihat SYNC_TIMES) — sama
+    # persis seperti sync_usaha.py.
+    now = _now_wita()
+    candidates = [now.replace(hour=h, minute=m, second=0, microsecond=0) for h, m in SYNC_TIMES]
+    upcoming = [c for c in candidates if c > now]
+    if upcoming:
+        return min(upcoming)
+    return min(c + timedelta(days=1) for c in candidates)
 
 
 if __name__ == "__main__":
