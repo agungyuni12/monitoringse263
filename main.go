@@ -50,6 +50,18 @@ func main() {
 			v := math.Min(float64(a)*100/float64(b), 100)
 			return strings.ReplaceAll(fmt.Sprintf("%.2f", v), ".", ",")
 		},
+		// pctu: sama seperti pct tapi TIDAK dibatasi 100% — dipakai di badge
+		// persentase Rekap Keberadaan (mis. Ditemukan+Baru bisa >100% dari
+		// Prelist Awal kalau usaha/keluarga baru yang ditemukan lebih banyak
+		// dari target prelist awalnya; itu info valid, bukan bug, jadi jangan
+		// dipotong ke 100%).
+		"pctu": func(a, b int) string {
+			if b == 0 {
+				return "0,00"
+			}
+			v := float64(a) * 100 / float64(b)
+			return strings.ReplaceAll(fmt.Sprintf("%.2f", v), ".", ",")
+		},
 		// pctraw: untuk CSS width — return float64 (titik, valid CSS)
 		"pctraw": func(a, b int) float64 {
 			if b == 0 {
