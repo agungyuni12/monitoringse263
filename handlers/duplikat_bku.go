@@ -83,16 +83,11 @@ func duplikatBKUSource(view string) string {
 	}
 }
 
-// AdminDuplikatBKUTable — GET /admin/table/duplikat-bku?view=duplikat|tanpa_bku|riwayat
-// Menu "Usaha Keluarga → BKU":
-//   - view=duplikat (default) : usaha keluarga yg sudah ada usaha BKU
-//     kembarannya (hp/email sama) — duplikat aktif, perlu dipindahkan.
-//   - view=tanpa_bku          : usaha keluarga yg hp/email-nya terisi tapi
-//     belum ketemu usaha BKU manapun — kandidat diangkat jd BKU baru.
-//   - view=riwayat            : gabungan riwayat (resolved) dari kedua kasus
-//     di atas — sudah tidak terdeteksi lagi di sync terakhir.
-func AdminDuplikatBKUTable(c echo.Context) error {
-	view := c.QueryParam("view")
+// duplikatBKUFilters membangun view + WHERE clause dari query param yang
+// dipakai bareng oleh AdminDuplikatBKUTable dan DownloadDuplikatBKU supaya
+// hasil download selalu konsisten dengan tabel yang lagi ditampilkan.
+func duplikatBKUFilters(c echo.Context) (view, where string, args []interface{}, kecs []string, pmlID, pplID int) {
+	view = c.QueryParam("view")
 	if view != "duplikat" && view != "riwayat" {
 		// Default ke "tanpa_bku" — ini yg jadi tujuan utama menu ini: dorong
 		// petugas MEMBUAT usaha BKU baru utk usaha yg belum ada. "duplikat"
@@ -100,20 +95,14 @@ func AdminDuplikatBKUTable(c echo.Context) error {
 		// penting tapi bukan prioritas utama saat menu ini dibuka.
 		view = "tanpa_bku"
 	}
-	page, _ := strconv.Atoi(c.QueryParam("page"))
-	if page < 1 {
-		page = 1
-	}
-	sort := c.QueryParam("sort")
-	dir := c.QueryParam("dir")
 	q := c.QueryParam("q")
-	kecs := nonEmptyStrings(c.QueryParams()["kec"])
-	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
-	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
+	kecs = nonEmptyStrings(c.QueryParams()["kec"])
+	pmlID, _ = strconv.Atoi(c.QueryParam("pml_id"))
+	pplID, _ = strconv.Atoi(c.QueryParam("ppl_id"))
 	like := "%" + q + "%"
 
-	where := ` WHERE (d.nama_usaha_keluarga LIKE ? OR d.nama_usaha_bku LIKE ? OR s.nama_sls LIKE ?)`
-	args := []interface{}{like, like, like}
+	where = ` WHERE (d.nama_usaha_keluarga LIKE ? OR d.nama_usaha_bku LIKE ? OR s.nama_sls LIKE ?)`
+	args = []interface{}{like, like, like}
 	if len(kecs) > 0 {
 		where += ` AND s.nama_kec IN (` + placeholders(len(kecs)) + `)`
 		for _, k := range kecs {
@@ -128,6 +117,26 @@ func AdminDuplikatBKUTable(c echo.Context) error {
 		where += ` AND s.ppl_id = ?`
 		args = append(args, pplID)
 	}
+	return
+}
+
+// AdminDuplikatBKUTable — GET /admin/table/duplikat-bku?view=duplikat|tanpa_bku|riwayat
+// Menu "Usaha Keluarga → BKU":
+//   - view=duplikat (default) : usaha keluarga yg sudah ada usaha BKU
+//     kembarannya (hp/email sama) — duplikat aktif, perlu dipindahkan.
+//   - view=tanpa_bku          : usaha keluarga yg hp/email-nya terisi tapi
+//     belum ketemu usaha BKU manapun — kandidat diangkat jd BKU baru.
+//   - view=riwayat            : gabungan riwayat (resolved) dari kedua kasus
+//     di atas — sudah tidak terdeteksi lagi di sync terakhir.
+func AdminDuplikatBKUTable(c echo.Context) error {
+	view, where, args, kecs, pmlID, pplID := duplikatBKUFilters(c)
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page < 1 {
+		page = 1
+	}
+	sort := c.QueryParam("sort")
+	dir := c.QueryParam("dir")
+	q := c.QueryParam("q")
 
 	source := duplikatBKUSource(view)
 

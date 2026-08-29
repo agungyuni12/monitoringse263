@@ -1174,3 +1174,71 @@ func DownloadUsahaEkonomi(c echo.Context) error {
 		}
 	})
 }
+
+// DownloadDuplikatBKU — GET /admin/download/duplikat-bku?view=duplikat|tanpa_bku|riwayat
+// Filter sama persis dengan AdminDuplikatBKUTable (lihat handlers/duplikat_bku.go).
+func DownloadDuplikatBKU(c echo.Context) error {
+	view, where, args, _, _, _ := duplikatBKUFilters(c)
+	source := duplikatBKUSource(view)
+
+	rows, err := db.DB.Query(`
+		SELECT s.nama_sls, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
+		       ppl.name, pml.name,
+		       COALESCE(d.nama_usaha_keluarga,''), d.assignment_id_keluarga,
+		       COALESCE(d.nama_usaha_bku,''), COALESCE(d.assignment_id_bku,''),
+		       d.match_field, d.match_value,
+		       CASE WHEN d.nama_cocok IS NULL THEN '' WHEN d.nama_cocok = 1 THEN 'ya' ELSE 'tidak' END,
+		       COALESCE(DATE_FORMAT(d.first_detected_at,'%d/%m/%Y %H:%i'),''),
+		       COALESCE(DATE_FORMAT(d.synced_at,'%d/%m/%Y %H:%i'),''),
+		       COALESCE(DATE_FORMAT(d.resolved_at,'%d/%m/%Y %H:%i'),'')
+		FROM `+source+`
+		JOIN sls s ON s.id = d.sls_id
+		JOIN users ppl ON ppl.id = s.ppl_id
+		JOIN users pml ON pml.id = s.pml_id`+where+`
+		ORDER BY s.nama_kec, s.nama_desa, s.nama_sls, d.first_detected_at`, args...)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+	defer rows.Close()
+
+	type row struct {
+		sls, kec, desa, ppl, pml           string
+		namaKeluarga, assignmentIDKeluarga string
+		namaBKU, assignmentIDBKU           string
+		matchField, matchValue, namaCocok  string
+		firstDetected, synced, resolved    string
+	}
+	var data []row
+	for rows.Next() {
+		var r row
+		rows.Scan(&r.sls, &r.kec, &r.desa, &r.ppl, &r.pml,
+			&r.namaKeluarga, &r.assignmentIDKeluarga,
+			&r.namaBKU, &r.assignmentIDBKU,
+			&r.matchField, &r.matchValue, &r.namaCocok,
+			&r.firstDetected, &r.synced, &r.resolved)
+		data = append(data, r)
+	}
+
+	fname := fmt.Sprintf("usaha_keluarga_bku_%s_%s.xlsx", view, time.Now().In(wita).Format("20060102"))
+	headers := []string{"Nama SLS", "Kecamatan", "Desa", "PPL", "PML", "Nama Usaha Keluarga", "Link FASIH Keluarga", "Nama Usaha BKU", "Link FASIH BKU", "Field Cocok", "Nilai Cocok", "Nama Cocok", "Pertama Terdeteksi", "Terakhir Sync", "Selesai"}
+	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
+		for i, r := range data {
+			n := i + 2
+			f.SetCellValue(sheet, cell(1, n), r.sls)
+			f.SetCellValue(sheet, cell(2, n), r.kec)
+			f.SetCellValue(sheet, cell(3, n), r.desa)
+			f.SetCellValue(sheet, cell(4, n), r.ppl)
+			f.SetCellValue(sheet, cell(5, n), r.pml)
+			f.SetCellValue(sheet, cell(6, n), r.namaKeluarga)
+			f.SetCellValue(sheet, cell(7, n), fasihSMLink(r.assignmentIDKeluarga))
+			f.SetCellValue(sheet, cell(8, n), r.namaBKU)
+			f.SetCellValue(sheet, cell(9, n), fasihSMLink(r.assignmentIDBKU))
+			f.SetCellValue(sheet, cell(10, n), r.matchField)
+			f.SetCellValue(sheet, cell(11, n), r.matchValue)
+			f.SetCellValue(sheet, cell(12, n), r.namaCocok)
+			f.SetCellValue(sheet, cell(13, n), r.firstDetected)
+			f.SetCellValue(sheet, cell(14, n), r.synced)
+			f.SetCellValue(sheet, cell(15, n), r.resolved)
+		}
+	})
+}

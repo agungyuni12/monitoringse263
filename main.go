@@ -188,6 +188,7 @@ func main() {
 	adminGrp.GET("/download/tidak-ditemukan", handlers.DownloadTidakDitemukan)
 	adminGrp.GET("/download/tidak-ditemukan-rekap", handlers.DownloadTidakDitemukanRekap)
 	adminGrp.GET("/download/usaha-ekonomi", handlers.DownloadUsahaEkonomi)
+	adminGrp.GET("/download/duplikat-bku", handlers.DownloadDuplikatBKU)
 	adminGrp.POST("/sync/fasih", handlers.AdminSyncFasih)
 	adminGrp.GET("/table/evaluasi-organik", handlers.AdminEvaluasiOrganikTable)
 
