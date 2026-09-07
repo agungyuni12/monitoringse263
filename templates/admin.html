@@ -103,10 +103,16 @@
             <span class="sidebar-label flex-1 text-left">Anomali &amp; Keberadaan</span>
           </summary>
           <div class="space-y-0.5 mt-0.5">
-            <button onclick="switchTab('anomali')" id="tab-anomali" title="Anomali"
-              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+            <div class="sidebar-label pl-7 pr-3 pt-1 pb-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">Anomali</div>
+            <button onclick="switchTab('anomali')" id="tab-anomali" title="Anomali Pusat"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-10 pr-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
               <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-              <span class="sidebar-label">Anomali</span>
+              <span class="sidebar-label">Anomali Pusat</span>
+            </button>
+            <button onclick="switchTab('anomaliCustom')" id="tab-anomaliCustom" title="Anomali Custom"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-10 pr-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3" stroke-width="1.5"/></svg>
+              <span class="sidebar-label">Anomali Custom</span>
             </button>
             <button onclick="switchTab('keberadaan')" id="tab-keberadaan" title="Keberadaan"
               class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
@@ -450,7 +456,7 @@
           </div>
         </div>
 
-        <!-- TAB: Anomali -->
+        <!-- TAB: Anomali Pusat — anomali resmi FASIH (API dashboard-se2026) -->
         <div id="panel-anomali" class="tab-panel">
           <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="anomali-filter-bar">
             <input type="text" name="q"
@@ -506,6 +512,60 @@
           <div id="anomali-result"
             hx-get="/admin/table/anomali" hx-trigger="tab:anomali from:body" hx-swap="innerHTML">
             <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data anomali...</div>
+          </div>
+        </div>
+
+        <!-- TAB: Anomali Custom — rule ad-hoc per tim dari "Daftar Anomali
+             Masing-masing Tim.xlsx", dijalankan via Superset SQL Lab FASIH
+             Dashboard (lihat scraper/sync_anomali_custom.py), BUKAN dari API
+             anomali resmi dashboard-se2026 seperti tab Anomali Pusat. -->
+        <div id="panel-anomaliCustom" class="tab-panel">
+          <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="anomali-custom-filter-bar">
+            <input type="text" name="q"
+              hx-get="/admin/table/anomali-custom" hx-target="#anomali-custom-result" hx-swap="innerHTML"
+              hx-trigger="input changed delay:400ms" hx-include="#anomali-custom-filter-bar"
+              placeholder="Cari nama, deskripsi, SLS..."
+              class="w-full md:w-64 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="kec"
+              hx-get="/admin/table/anomali-custom" hx-target="#anomali-custom-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#anomali-custom-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Kecamatan</option>
+              {{range .KecList}}<option value="{{.}}">{{.}}</option>{{end}}
+            </select>
+            <select name="pml_id" id="anomali-custom-pml-select"
+              hx-get="/admin/table/anomali-custom" hx-target="#anomali-custom-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#anomali-custom-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PML</option>
+              {{range .PMLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <select name="ppl_id" id="anomali-custom-ppl-select"
+              hx-get="/admin/table/anomali-custom" hx-target="#anomali-custom-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#anomali-custom-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua PPL</option>
+              {{range .PPLUserList}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+            </select>
+            <select name="jenis"
+              hx-get="/admin/table/anomali-custom" hx-target="#anomali-custom-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#anomali-custom-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">Semua Jenis</option>
+              <option value="Usaha">Usaha</option>
+              <option value="Keluarga">Keluarga</option>
+            </select>
+            <a id="anomali-custom-dl-btn" href="/admin/download/anomali-custom"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="anomali-custom-result"
+            hx-get="/admin/table/anomali-custom" hx-trigger="tab:anomaliCustom from:body" hx-swap="innerHTML">
+            <div class="px-4 py-8 text-center text-gray-400 text-sm">Memuat data anomali custom...</div>
           </div>
         </div>
 
@@ -1174,6 +1234,7 @@
       // switchKeberadaanRekapSub & onKeberadaanRekapSearch.
       [
         {bar: 'anomali-filter-bar', btn: 'anomali-dl-btn', path: '/admin/download/anomali'},
+        {bar: 'anomali-custom-filter-bar', btn: 'anomali-custom-dl-btn', path: '/admin/download/anomali-custom'},
         {bar: 'progres-rekap-filter-bar', btn: 'progresrekap-dl-btn', path: '/admin/download/progres-rekap', extra: '#global-metode-select'},
         {bar: 'kbli-filter-bar', btn: 'kbli-dl-btn', path: '/admin/download/kbli'},
       ].forEach(function(cfg) {

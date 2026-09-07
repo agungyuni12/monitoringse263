@@ -594,6 +594,90 @@ func DownloadAnomali(c echo.Context) error {
 	})
 }
 
+// DownloadAnomaliCustom — GET /admin/download/anomali-custom (filter sama seperti tab Anomali Custom)
+func DownloadAnomaliCustom(c echo.Context) error {
+	q := c.QueryParam("q")
+	kec := c.QueryParam("kec")
+	jenis := c.QueryParam("jenis")
+	ruleNo, _ := strconv.Atoi(c.QueryParam("rule_no"))
+	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
+	pplID, _ := strconv.Atoi(c.QueryParam("ppl_id"))
+	like := "%" + q + "%"
+
+	where := " WHERE (ac.nama LIKE ? OR r.deskripsi LIKE ? OR COALESCE(s.nama_sls,'') LIKE ?)"
+	args := []interface{}{like, like, like}
+	if kec != "" {
+		where += " AND s.nama_kec = ?"
+		args = append(args, kec)
+	}
+	if pmlID > 0 {
+		where += " AND s.pml_id = ?"
+		args = append(args, pmlID)
+	}
+	if pplID > 0 {
+		where += " AND s.ppl_id = ?"
+		args = append(args, pplID)
+	}
+	if jenis != "" {
+		where += " AND r.jenis = ?"
+		args = append(args, jenis)
+	}
+	if ruleNo > 0 {
+		where += " AND ac.rule_no = ?"
+		args = append(args, ruleNo)
+	}
+
+	rows, err := db.DB.Query(`
+		SELECT ac.rule_no, r.jenis, r.deskripsi, COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''), COALESCE(s.nama_sls,''),
+		       COALESCE(ppl.name,''), COALESCE(pml.name,''), ac.nama, ac.kode_wilayah,
+		       COALESCE(DATE_FORMAT(ac.first_detected_at,'%d/%m/%Y %H:%i'),''),
+		       COALESCE(DATE_FORMAT(ac.synced_at,'%d/%m/%Y %H:%i'),''), ac.assignment_id
+		FROM anomali_custom ac
+		JOIN anomali_custom_rule r ON r.rule_no = ac.rule_no
+		LEFT JOIN sls s ON s.id = ac.sls_id
+		LEFT JOIN users ppl ON ppl.id = s.ppl_id
+		LEFT JOIN users pml ON pml.id = s.pml_id`+where+`
+		ORDER BY ac.rule_no, s.nama_kec, s.nama_desa, s.nama_sls`, args...)
+	if err != nil {
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+	defer rows.Close()
+
+	type row struct {
+		ruleNo                                                        int
+		jenis, deskripsi, kec, desa, sls, ppl, pml, nama, kodeWilayah string
+		firstDetectedAt, syncedAt, assignmentID                       string
+	}
+	var data []row
+	for rows.Next() {
+		var r row
+		rows.Scan(&r.ruleNo, &r.jenis, &r.deskripsi, &r.kec, &r.desa, &r.sls, &r.ppl, &r.pml, &r.nama, &r.kodeWilayah,
+			&r.firstDetectedAt, &r.syncedAt, &r.assignmentID)
+		data = append(data, r)
+	}
+
+	fname := fmt.Sprintf("monitoring_anomali_custom_%s.xlsx", time.Now().In(wita).Format("20060102"))
+	headers := []string{"No Rule", "Jenis", "Deskripsi Anomali", "Kecamatan", "Desa", "Nama SLS", "PPL", "PML", "Nama", "Kode Wilayah", "Pertama Muncul", "Terakhir Aktif", "Link FASIH"}
+	return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
+		for i, r := range data {
+			n := i + 2
+			f.SetCellValue(sheet, cell(1, n), r.ruleNo)
+			f.SetCellValue(sheet, cell(2, n), r.jenis)
+			f.SetCellValue(sheet, cell(3, n), r.deskripsi)
+			f.SetCellValue(sheet, cell(4, n), r.kec)
+			f.SetCellValue(sheet, cell(5, n), r.desa)
+			f.SetCellValue(sheet, cell(6, n), r.sls)
+			f.SetCellValue(sheet, cell(7, n), r.ppl)
+			f.SetCellValue(sheet, cell(8, n), r.pml)
+			f.SetCellValue(sheet, cell(9, n), r.nama)
+			f.SetCellValue(sheet, cell(10, n), r.kodeWilayah)
+			f.SetCellValue(sheet, cell(11, n), r.firstDetectedAt)
+			f.SetCellValue(sheet, cell(12, n), r.syncedAt)
+			f.SetCellValue(sheet, cell(13, n), fasihSMLink(r.assignmentID))
+		}
+	})
+}
+
 func boolLabel(b bool, yes, no string) string {
 	if b {
 		return yes
