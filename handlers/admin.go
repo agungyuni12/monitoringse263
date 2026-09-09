@@ -438,6 +438,10 @@ func AdminDashboard(c echo.Context) error {
 	if pplPage < 1 {
 		pplPage = 1
 	}
+	pembayaranPage, _ := strconv.Atoi(c.QueryParam("pembayaran_page"))
+	if pembayaranPage < 1 {
+		pembayaranPage = 1
+	}
 	slsPage, _ := strconv.Atoi(c.QueryParam("sls_page"))
 	if slsPage < 1 {
 		slsPage = 1
@@ -454,31 +458,34 @@ func AdminDashboard(c echo.Context) error {
 
 	pmls, pmlPage2 := queryAdminPML(pmlPage, "", "", "", MetodeTotalVsTotal)
 	ppls, pplPage2 := queryAdminPPL(pplPage, "", 0, "", "", MetodeTotalVsTotal)
+	pembayaranList, pembayaranPage2 := queryAdminPembayaran(pembayaranPage, "", 0, "", "")
 	slsList, slsPage2 := queryAdminSLS(slsPage, q, "", "", MetodeTotalVsTotal)
 	orgList, orgPage2 := queryAdminOrganik(orgPage, "", "", "")
 	orgKendalaList, orgKendalaPage2 := paginateKendala(queryKendalaRows(""), orgKendalaPage, "", "/admin/table/organik-kendala", "admin-organik-kendala-wrap")
 
 	return c.Render(http.StatusOK, "admin.html", map[string]interface{}{
-		"Name":        mw.SessionName(c),
-		"Summary":     s,
-		"PMLs":        pmls,
-		"PPLs":        ppls,
-		"SLSList":     slsList,
-		"Metode":      MetodeTotalVsTotal,
-		"OrganikRows": orgList,
-		"KendalaRows": orgKendalaList,
-		"PMLPage":     pmlPage2,
-		"PPLPage":     pplPage2,
-		"SLSPage":     slsPage2,
-		"OrganikPage": orgPage2,
-		"KendalaPage": orgKendalaPage2,
-		"Q":           q,
-		"StatusOpts":  models.StatusOptions,
-		"PMLUserList": queryPMLUsers(),
-		"PPLUserList": queryPPLUsers(),
-		"KecList":     queryKecList(),
-		"LastSync":    LastSyncFromDB(),
-		"KebSLSList":  querySLSOptions(),
+		"Name":           mw.SessionName(c),
+		"Summary":        s,
+		"PMLs":           pmls,
+		"PPLs":           ppls,
+		"Pembayarans":    pembayaranList,
+		"SLSList":        slsList,
+		"Metode":         MetodeTotalVsTotal,
+		"OrganikRows":    orgList,
+		"KendalaRows":    orgKendalaList,
+		"PMLPage":        pmlPage2,
+		"PPLPage":        pplPage2,
+		"PembayaranPage": pembayaranPage2,
+		"SLSPage":        slsPage2,
+		"OrganikPage":    orgPage2,
+		"KendalaPage":    orgKendalaPage2,
+		"Q":              q,
+		"StatusOpts":     models.StatusOptions,
+		"PMLUserList":    queryPMLUsers(),
+		"PPLUserList":    queryPPLUsers(),
+		"KecList":        queryKecList(),
+		"LastSync":       LastSyncFromDB(),
+		"KebSLSList":     querySLSOptions(),
 	})
 }
 
@@ -552,7 +559,7 @@ var adminPMLSortCols = map[string]string{
 	"draft":    "COALESCE(SUM(p.jumlah_draft),0)",
 	"approved": approvedColSQLAgg,
 	"rejected": "COALESCE(SUM(p.fasih_rejected_pengawas),0)",
-	"progres": "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
+	"progres":  "(CASE WHEN COALESCE(SUM(p.fasih_total),0)=0 THEN 0 ELSE COALESCE(SUM(p.jumlah_submit),0)/SUM(p.fasih_total) END)",
 	// "terverifikasi" di-override per query (lihat queryAdminPML) supaya
 	// metode-aware & scoped ke SLS prioritas, sama seperti nilai yang ditampilkan.
 }

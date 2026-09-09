@@ -79,6 +79,11 @@
               <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 12a4 4 0 100-8 4 4 0 000 8zM4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>
               <span class="sidebar-label">Per PPL</span>
             </button>
+            <button onclick="switchTab('pembayaran')" id="tab-pembayaran" title="Pembayaran"
+              class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
+              <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 6h18M3 6v12a2 2 0 002 2h14a2 2 0 002-2V6M3 6l2-3h14l2 3M9 12h6"/></svg>
+              <span class="sidebar-label">Pembayaran</span>
+            </button>
             <button onclick="switchTab('organik')" id="tab-organik" title="Pengawasan Organik"
               class="tab-btn sidebar-nav-btn w-full flex items-center gap-3 pl-7 pr-3 py-2.5 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 border-l-2 border-transparent transition-colors">
               <svg class="w-4.5 h-4.5 shrink-0" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.5 12S6 5 12 5s9.5 7 9.5 7-3.5 7-9.5 7S2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3" stroke-width="1.5"/></svg>
@@ -329,6 +334,42 @@
             hx-trigger="change from:#global-metode-select"
             hx-include="#ppl-filter-bar, #global-metode-select">
             {{template "admin_ppl_table.html" .}}
+          </div>
+        </div>
+
+        <!-- TAB: Pembayaran -->
+        <div id="panel-pembayaran" class="tab-panel">
+          <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex flex-wrap gap-2 items-center" id="pembayaran-filter-bar">
+            <input type="text" name="q"
+              hx-get="/admin/table/pembayaran"
+              hx-target="#admin-pembayaran-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="input changed delay:300ms"
+              hx-include="#pembayaran-filter-bar"
+              placeholder="Cari nama PPL..."
+              class="w-full md:w-72 px-3 py-2 border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se"/>
+            <select name="pml_id" onchange="updatePembayaranDownload()"
+              hx-get="/admin/table/pembayaran"
+              hx-target="#admin-pembayaran-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="change"
+              hx-include="#pembayaran-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">-- Semua PML --</option>
+              {{range .PMLUserList}}
+              <option value="{{.ID}}">{{.Name}}</option>
+              {{end}}
+            </select>
+            <a id="pembayaran-dl-btn" href="/admin/download/pembayaran"
+              class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+              </svg>
+              Download Excel
+            </a>
+          </div>
+          <div id="admin-pembayaran-wrap">
+            {{template "admin_pembayaran_table.html" .}}
           </div>
         </div>
 
@@ -1186,6 +1227,17 @@
       document.getElementById('ppl-dl-btn').href = '/admin/download/ppl' + (params.length ? '?' + params.join('&') : '');
     }
 
+    // Update href download Pembayaran sesuai q & pml_id
+    function updatePembayaranDownload() {
+      var bar = document.getElementById('pembayaran-filter-bar');
+      var q = bar.querySelector('[name="q"]').value;
+      var pmlID = bar.querySelector('[name="pml_id"]').value;
+      var params = [];
+      if (q) params.push('q=' + encodeURIComponent(q));
+      if (pmlID) params.push('pml_id=' + pmlID);
+      document.getElementById('pembayaran-dl-btn').href = '/admin/download/pembayaran' + (params.length ? '?' + params.join('&') : '');
+    }
+
     // Update href download PML sesuai q
     function updatePMLDownload() {
       var bar = document.getElementById('pml-filter-bar');
@@ -1211,6 +1263,11 @@
       var pmlBar = document.getElementById('pml-filter-bar');
       if (pmlBar) {
         pmlBar.querySelector('[name="q"]').addEventListener('input', updatePMLDownload);
+      }
+      var pembayaranBar = document.getElementById('pembayaran-filter-bar');
+      if (pembayaranBar) {
+        pembayaranBar.querySelector('[name="q"]').addEventListener('input', updatePembayaranDownload);
+        pembayaranBar.querySelector('[name="pml_id"]').addEventListener('change', updatePembayaranDownload);
       }
       // Dropdown metode global juga ikut mempengaruhi % Progres di Excel — href
       // download PML/PPL/SLS harus ikut ter-update begitu metode-nya diganti,

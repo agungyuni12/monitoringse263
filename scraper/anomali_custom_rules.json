@@ -237,7 +237,7 @@
     "jenis": "Usaha",
     "deskripsi": "UTP tapi jaringan usaha selain tunggal",
     "keterangan": "",
-    "query": "SELECT\n    b.level_1_code,\n    b.level_2_code,\n    b.level_3_code,\n    b.level_4_code,\n    b.level_5_code,\n    b.level_6_code,\n    b.assignment_id,\n    CONCAT('https://fasih-sm.bps.go.id/app/assignment-detail/',b.assignment_id) link_fasih_sm,\n    b.data1 prelist,\n    se.index1,\n    COALESCE(se.nama_usaha,se.nama_usaha_edit) nama_usaha,\n    se.kbli_akhir,\n    se.kategori,\n    se.jenis_usaha_value,\n    se.jaringan_value,\nFROM\n    tgr_fd68e454.base_table_assignment b\n    INNER JOIN tgr_fd68e454.root_table a ON b.assignment_id=a.assignment_id\n    INNER JOIN tgr_fd68e454.se2026_nested se ON b.assignment_id=se.assignment_id\nWHERE\n    se.jenis_usaha_value = 6\n    AND se.jaringan_value <> 1\n    AND b.is_active = '1'"
+    "query": "SELECT\n    b.level_1_code,\n    b.level_2_code,\n    b.level_3_code,\n    b.level_4_code,\n    b.level_5_code,\n    b.level_6_code,\n    b.assignment_id,\n    CONCAT('https://fasih-sm.bps.go.id/app/assignment-detail/',b.assignment_id) link_fasih_sm,\n    b.data1 prelist,\n    se.index1,\n    COALESCE(se.nama_usaha,se.nama_usaha_edit) nama_usaha,\n    se.kbli_akhir,\n    se.kategori,\n    se.jenis_usaha_value,\n    se.jaringan_value\nFROM\n    tgr_fd68e454.base_table_assignment b\n    INNER JOIN tgr_fd68e454.root_table a ON b.assignment_id=a.assignment_id\n    INNER JOIN tgr_fd68e454.se2026_nested se ON b.assignment_id=se.assignment_id\nWHERE\n    se.jenis_usaha_value = 6\n    AND se.jaringan_value <> 1\n    AND b.is_active = '1'"
   },
   {
     "rule_no": 35,
@@ -261,7 +261,7 @@
     "jenis": "Usaha",
     "deskripsi": "UTP tetapi memiliki NIB",
     "keterangan": "",
-    "query": "SELECT\n    b.level_1_code,\n    b.level_2_code,\n    b.level_3_code,\n    b.level_4_code,\n    b.level_5_code,\n    b.level_6_code,\n    b.assignment_id,\n    CONCAT('https://fasih-sm.bps.go.id/app/assignment-detail/',b.assignment_id) link_fasih_sm,\n    b.data1 prelist,\n    se.index1,\n    COALESCE(se.nama_usaha,se.nama_usaha_edit) nama_usaha,\n    se.kbli_akhir,\n    se.kategori,\n    se.jenis_usaha_value,\n    se.punya_nib_value,\n    se.nib,\nFROM\n    tgr_fd68e454.base_table_assignment b\n    INNER JOIN tgr_fd68e454.root_table a ON b.assignment_id=a.assignment_id\n    INNER JOIN tgr_fd68e454.se2026_nested se ON b.assignment_id=se.assignment_id\nWHERE\n    se.jenis_usaha_value = 6\n    AND se.punya_nib_value = 1\n    AND b.is_active = '1'"
+    "query": "SELECT\n    b.level_1_code,\n    b.level_2_code,\n    b.level_3_code,\n    b.level_4_code,\n    b.level_5_code,\n    b.level_6_code,\n    b.assignment_id,\n    CONCAT('https://fasih-sm.bps.go.id/app/assignment-detail/',b.assignment_id) link_fasih_sm,\n    b.data1 prelist,\n    se.index1,\n    COALESCE(se.nama_usaha,se.nama_usaha_edit) nama_usaha,\n    se.kbli_akhir,\n    se.kategori,\n    se.jenis_usaha_value,\n    se.punya_nib_value,\n    se.nib\nFROM\n    tgr_fd68e454.base_table_assignment b\n    INNER JOIN tgr_fd68e454.root_table a ON b.assignment_id=a.assignment_id\n    INNER JOIN tgr_fd68e454.se2026_nested se ON b.assignment_id=se.assignment_id\nWHERE\n    se.jenis_usaha_value = 6\n    AND se.punya_nib_value = 1\n    AND b.is_active = '1'"
   },
   {
     "rule_no": 40,
@@ -269,6 +269,6 @@
     "jenis": "Usaha",
     "deskripsi": "UTP tetapi berbadan usaha",
     "keterangan": "",
-    "query": "SELECT\n    b.level_1_code,\n    b.level_2_code,\n    b.level_3_code,\n    b.level_4_code,\n    b.level_5_code,\n    b.level_6_code,\n    b.assignment_id,\n    CONCAT('https://fasih-sm.bps.go.id/app/assignment-detail/',b.assignment_id) link_fasih_sm,\n    b.data1 prelist,\n    se.index1,\n    COALESCE(se.nama_usaha,se.nama_usaha_edit) nama_usaha,\n    se.kbli_akhir,\n    se.kategori,\n    se.jenis_usaha_value,\n    se.badan_usaha_value,\nFROM\n    tgr_fd68e454.base_table_assignment b\n    INNER JOIN tgr_fd68e454.root_table a ON b.assignment_id=a.assignment_id\n    INNER JOIN tgr_fd68e454.se2026_nested se ON b.assignment_id=se.assignment_id\nWHERE\n    se.jenis_usaha_value = 6\n    AND se.badan_usaha_value <> 13\n    AND b.is_active = '1'"
+    "query": "SELECT\n    b.level_1_code,\n    b.level_2_code,\n    b.level_3_code,\n    b.level_4_code,\n    b.level_5_code,\n    b.level_6_code,\n    b.assignment_id,\n    CONCAT('https://fasih-sm.bps.go.id/app/assignment-detail/',b.assignment_id) link_fasih_sm,\n    b.data1 prelist,\n    se.index1,\n    COALESCE(se.nama_usaha,se.nama_usaha_edit) nama_usaha,\n    se.kbli_akhir,\n    se.kategori,\n    se.jenis_usaha_value,\n    se.badan_usaha_value\nFROM\n    tgr_fd68e454.base_table_assignment b\n    INNER JOIN tgr_fd68e454.root_table a ON b.assignment_id=a.assignment_id\n    INNER JOIN tgr_fd68e454.se2026_nested se ON b.assignment_id=se.assignment_id\nWHERE\n    se.jenis_usaha_value = 6\n    AND se.badan_usaha_value <> 13\n    AND b.is_active = '1'"
   }
 ]

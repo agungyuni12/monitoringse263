@@ -57,6 +57,13 @@ Env vars:
                             (default 9000 — sama dgn PAGE_SIZE tervalidasi di
                             sync_usaha.py; hasil anomali per rule per kabupaten
                             realistisnya jauh di bawah ini)
+
+Dijalankan sbg service jangka panjang (systemd, lihat anomali-custom-sync.service
+dan run_sync_anomali_custom.sh) — loop sendiri, sync 1x sehari jam 02:30 WITA
+(lihat SYNC_TIMES/_next_run()). Sengaja selang 1 jam dari slot fasih-sync/
+sync-usaha (01:30) supaya gak rebutan sesi Superset SQL Lab akun agung.yuniarta
+yang sama — dua script yg jalan bersamaan pakai akun itu terbukti bikin
+keduanya gagal (race autosave/tab Superset, lihat komentar _set_sql_editor).
 """
 
 import hashlib
@@ -86,6 +93,7 @@ DASH_URL = "https://fasih-dashboard.bps.go.id"
 HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
 WITA = timezone(timedelta(hours=8))
 ROW_LIMIT = int(os.getenv("ROW_LIMIT", "9000"))
+SYNC_TIMES = [(2, 30)]  # (jam, menit) WITA, 1x sehari — lihat _next_run()
 
 RULES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "anomali_custom_rules.json")
 
@@ -183,6 +191,28 @@ def _do_login(ctx):
     return page
 
 
+def _ace_full_value(page):
+    """Ambil ISI PENUH editor Ace lewat API JS-nya (element.env.editor.getValue()),
+    BUKAN .inner_text() — Ace me-render VIRTUAL (cuma baris yg keliatan di
+    viewport yg ada di DOM), jadi utk query panjang (>1 layar, banyak rule
+    anomali_custom_rules.json yg 50-80+ baris/2-3 SELECT bersarang) inner_text()
+    cuma balikin potongan yg lagi ke-scroll, bikin validasi SELECT-count di
+    bawah SELALU gagal walau isinya sebenarnya sudah benar (terbukti manual:
+    query jalan sukses & "N rows returned" tampil, tapi validasi ini bilang
+    'belum bersih' terus sampai 5x retry). None kalau API-nya gak ketemu
+    (fallback ke inner_text di pemanggil)."""
+    try:
+        return page.evaluate("""
+            () => {
+                const el = document.querySelector('.ace_editor');
+                if (el && el.env && el.env.editor) return el.env.editor.getValue();
+                return null;
+            }
+        """)
+    except Exception:
+        return None
+
+
 def _set_sql_editor(page, sql, attempts=3):
     expected_selects = sql.upper().count("SELECT")
     for attempt in range(1, attempts + 1):
@@ -191,7 +221,9 @@ def _set_sql_editor(page, sql, attempts=3):
         page.keyboard.press("Delete")
         page.locator("textarea.ace_text-input").fill(sql)
         _human_pause(0.2, 0.4)
-        current = page.locator(".ace_content").inner_text()
+        current = _ace_full_value(page)
+        if current is None:
+            current = page.locator(".ace_content").inner_text()
         if current.upper().count("SELECT") == expected_selects:
             return
         print(f"    [WARN] Editor SQL Lab kemungkinan belum bersih (percobaan {attempt}/{attempts}) — ulang clear+fill...", flush=True)
@@ -209,9 +241,21 @@ def _run_query_and_fetch(page, sql, retries=5):
                 lambda r: "/api/v1/sqllab/execute/" in r.url, timeout=180_000
             ) as exec_resp_info:
                 page.locator('button:has-text("Run")').click()
-                page.wait_for_selector("text=rows returned", timeout=180_000)
 
+            # SEBELUMNYA nunggu teks UI ("N rows returned" / "returned no
+            # data") sebelum baca response — ternyata GAK RELIABLE: terbukti
+            # manual (screenshot) hasilnya sudah tampil sempurna di layar
+            # ("471 rows returned") tapi wait_for_selector tetap timeout,
+            # entah krn teksnya kepecah di beberapa text node atau race
+            # rendering React. Sumber kebenaran yang PASTI itu response
+            # /api/v1/sqllab/execute/ sendiri (exec_resp_info.value di bawah,
+            # nunggu network response beneran, bukan tebak-tebak DOM). Tetap
+            # kasih jeda dikit dulu sebelum baca body — itu bagian yang
+            # penting dari langkah "tunggu UI selesai" aslinya: biar gak
+            # kebaca "buru-buru" sama WAF FASIH (lihat docstring sync_usaha.py
+            # soal insiden "Bot Detected").
             resp = exec_resp_info.value
+            time.sleep(2)
             body_text = resp.text()
             _check_bot_wall(body_text, "ambil hasil query")
             body = json.loads(body_text)
@@ -311,12 +355,43 @@ def _connect_db():
     return pymysql.connect(
         host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASS,
         database=DB_NAME, charset="utf8mb4", cursorclass=pymysql.cursors.DictCursor,
+        connect_timeout=15, read_timeout=60, write_timeout=60,
     )
+
+
+def _ensure_table(cur, ddl, label):
+    """CREATE TABLE IF NOT EXISTS harusnya no-op cepat kalau tabelnya sudah ada
+    (migration db/anomali_custom_migration.sql sudah dijalankan manual duluan
+    — lihat docstring modul), TAPI DDL yang punya FOREIGN KEY tetap butuh
+    metadata lock ke tabel yang direferensikan (sls, atau anomali_custom_rule)
+    — kalau ada koneksi lain yang nahan transaksi lama-lama di tabel itu
+    (pernah kejadian nyata di produksi: proses scraper lain yang jalan
+    lama/nge-hang), DDL ini bisa nge-hang nunggu lock TANPA batas waktu kalau
+    dibiarkan. Set innodb_lock_wait_timeout pendek supaya gagal cepat & jelas
+    alih2 nge-hang, lalu kalau memang gagal krn lock (bukan krn error skema
+    beneran) anggap tabelnya sudah ada & lanjut jalan — bukan alasan buat
+    stop total, cuma bikin auto-migrate kolom baru (kalau ada) telat kejalan
+    sampai run berikutnya."""
+    try:
+        # lock_wait_timeout (BUKAN innodb_lock_wait_timeout, yang cuma bound
+        # row-lock InnoDB) yang bound metadata-lock (MDL) buat statement DDL
+        # kayak CREATE TABLE — default-nya 1 TAHUN kalau gak di-set.
+        cur.execute("SET SESSION lock_wait_timeout = 8")
+        cur.execute(ddl)
+    except pymysql.err.OperationalError as e:
+        # Cek pesan error, bukan cuma kode 1205 — dipakai baik utk row-lock
+        # (innodb_lock_wait_timeout) maupun metadata-lock (lock_wait_timeout)
+        # timeout, pesannya sama2 mengandung "Lock wait timeout".
+        msg = str(e).lower()
+        if "lock wait timeout" in msg:
+            print(f"    [WARN] {label}: lock wait timeout — asumsi tabel sudah ada (lihat migration), lanjut.", flush=True)
+        else:
+            raise
 
 
 def ensure_tables(conn):
     with conn.cursor() as cur:
-        cur.execute("""
+        _ensure_table(cur, """
             CREATE TABLE IF NOT EXISTS anomali_custom_rule (
               rule_no          INT PRIMARY KEY,
               jenis            VARCHAR(20) NOT NULL DEFAULT '',
@@ -327,8 +402,8 @@ def ensure_tables(conn):
               last_row_count   INT NOT NULL DEFAULT 0,
               last_error       TEXT
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        """)
-        cur.execute("""
+        """, "anomali_custom_rule")
+        _ensure_table(cur, """
             CREATE TABLE IF NOT EXISTS anomali_custom (
               id                INT AUTO_INCREMENT PRIMARY KEY,
               rule_no           INT NOT NULL,
@@ -344,10 +419,14 @@ def ensure_tables(conn):
               KEY idx_rule_no (rule_no),
               KEY idx_sls_id (sls_id),
               KEY idx_assignment (assignment_id),
-              CONSTRAINT fk_anomali_custom_rule FOREIGN KEY (rule_no) REFERENCES anomali_custom_rule(rule_no),
-              CONSTRAINT fk_anomali_custom_sls FOREIGN KEY (sls_id) REFERENCES sls(id)
+              CONSTRAINT fk_anomali_custom_rule FOREIGN KEY (rule_no) REFERENCES anomali_custom_rule(rule_no)
+              -- SENGAJA tidak FK ke sls(id) — lihat komentar di
+              -- db/anomali_custom_migration.sql: sls dibaca terus-menerus
+              -- oleh script sync lain, CREATE TABLE dgn FK ke situ gampang
+              -- nyangkut lama nunggu metadata lock kosong (terbukti di
+              -- produksi). sls_id tetap diisi dari lookup yang valid.
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        """)
+        """, "anomali_custom")
     conn.commit()
 
 
@@ -442,9 +521,13 @@ def run_once():
     rules = load_rules()
     print(f"[RULES] {len(rules)} rule dimuat dari {RULES_PATH}", flush=True)
 
+    print(f"[DB] Konek ke {DB_HOST}:{DB_PORT}/{DB_NAME}...", flush=True)
     conn = _connect_db()
+    print("[DB] Konek OK. ensure_tables()...", flush=True)
     ensure_tables(conn)
+    print("[DB] ensure_tables() OK. load_sls_map()...", flush=True)
     sls_map = load_sls_map(conn)
+    print(f"[DB] {len(sls_map)} SLS dimuat.", flush=True)
 
     with sync_playwright() as pw:
         browser, ctx = _make_browser(pw)
@@ -461,8 +544,11 @@ def run_once():
                     rows = _run_query_and_fetch(page, sql)
                     if len(rows) >= ROW_LIMIT:
                         print(f"    [WARN] rule {rule_no}: hasil = ROW_LIMIT ({ROW_LIMIT}) — kemungkinan terpotong.", flush=True)
-                    upsert_rows(conn, rule_no, rows, sls_map, synced_at)
+                    # upsert_rule_meta DULU — anomali_custom.rule_no FK ke
+                    # anomali_custom_rule(rule_no), jadi baris induknya harus
+                    # ada dulu sebelum upsert_rows insert baris anak.
                     upsert_rule_meta(conn, rule, synced_at, len(rows), None)
+                    upsert_rows(conn, rule_no, rows, sls_map, synced_at)
                     print(f"    → {len(rows)} baris", flush=True)
                 except Exception as e:
                     print(f"    [ERROR] rule {rule_no} gagal: {e}", flush=True)
@@ -478,5 +564,29 @@ def run_once():
     print("[DONE]", flush=True)
 
 
+def _next_run():
+    # 1x sehari jam 02:30 WITA (lihat SYNC_TIMES) — sengaja selang 1 jam dari
+    # slot fasih-sync/sync-usaha (01:30) biar gak rebutan sesi Superset SQL
+    # Lab akun agung.yuniarta yang sama (terbukti di produksi: dua script
+    # yang jalan bersamaan bikin keduanya gagal — lihat komentar modul).
+    # 34 rule di sini juga jauh lebih ringan drpd sync_usaha_ekonomi.py yg
+    # scrape puluhan ribu baris, jadi gak perlu 4x/hari.
+    now = _now_wita()
+    candidates = [now.replace(hour=h, minute=m, second=0, microsecond=0) for h, m in SYNC_TIMES]
+    upcoming = [c for c in candidates if c > now]
+    if upcoming:
+        return min(upcoming)
+    return min(c + timedelta(days=1) for c in candidates)
+
+
 if __name__ == "__main__":
-    run_once()
+    while True:
+        try:
+            run_once()
+        except Exception as e:
+            print(f"[ERROR] Sync gagal: {e}", flush=True)
+
+        nxt = _next_run()
+        secs = max(0, (nxt - _now_wita()).total_seconds())
+        print(f"[SCHEDULER] Sync berikutnya: {nxt.strftime('%d/%m/%Y %H:%M WITA')} ({int(secs // 60)} menit)", flush=True)
+        time.sleep(secs)

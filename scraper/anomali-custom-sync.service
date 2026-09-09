@@ -1,0 +1,14 @@
+[Unit]
+Description=Sync Anomali Custom (SQL Lab) ke se2026
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ipds
+ExecStart=/home/ipds/monitoringse/scraper/run_sync_anomali_custom.sh
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

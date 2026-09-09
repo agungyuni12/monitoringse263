@@ -33,6 +33,11 @@ CREATE TABLE IF NOT EXISTS anomali_custom (
   KEY idx_rule_no (rule_no),
   KEY idx_sls_id (sls_id),
   KEY idx_assignment (assignment_id),
-  CONSTRAINT fk_anomali_custom_rule FOREIGN KEY (rule_no) REFERENCES anomali_custom_rule(rule_no),
-  CONSTRAINT fk_anomali_custom_sls FOREIGN KEY (sls_id) REFERENCES sls(id)
+  CONSTRAINT fk_anomali_custom_rule FOREIGN KEY (rule_no) REFERENCES anomali_custom_rule(rule_no)
+  -- SENGAJA tidak FK ke sls(id): sls adalah tabel yang paling sering dibaca
+  -- oleh script sync lain (sync_usaha.py dkk) — CREATE TABLE dengan FK ke
+  -- tabel itu butuh metadata lock yang gampang nyangkut lama nunggu kosong
+  -- (terbukti di produksi: nunggu >85 detik gak pernah dapat giliran).
+  -- sls_id tetap diisi dari lookup yang valid di kode Go/Python, jadi
+  -- integritas referensialnya dijaga di level aplikasi.
 );
