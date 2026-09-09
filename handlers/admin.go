@@ -458,7 +458,7 @@ func AdminDashboard(c echo.Context) error {
 
 	pmls, pmlPage2 := queryAdminPML(pmlPage, "", "", "", MetodeTotalVsTotal)
 	ppls, pplPage2 := queryAdminPPL(pplPage, "", 0, "", "", MetodeTotalVsTotal)
-	pembayaranList, pembayaranPage2 := queryAdminPembayaran(pembayaranPage, "", 0, "", "")
+	pembayaranList, pembayaranPage2 := queryAdminPembayaran(pembayaranPage, "", 0, "", "", "")
 	slsList, slsPage2 := queryAdminSLS(slsPage, q, "", "", MetodeTotalVsTotal)
 	orgList, orgPage2 := queryAdminOrganik(orgPage, "", "", "")
 	orgKendalaList, orgKendalaPage2 := paginateKendala(queryKendalaRows(""), orgKendalaPage, "", "/admin/table/organik-kendala", "admin-organik-kendala-wrap")

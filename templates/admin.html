@@ -360,6 +360,17 @@
               <option value="{{.ID}}">{{.Name}}</option>
               {{end}}
             </select>
+            <select name="bisa_bayar" onchange="updatePembayaranDownload()"
+              hx-get="/admin/table/pembayaran"
+              hx-target="#admin-pembayaran-wrap"
+              hx-swap="innerHTML"
+              hx-trigger="change"
+              hx-include="#pembayaran-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
+              <option value="">-- Semua Status --</option>
+              <option value="ya">Bisa Dibayar</option>
+              <option value="tidak">Belum Bisa Dibayar</option>
+            </select>
             <a id="pembayaran-dl-btn" href="/admin/download/pembayaran"
               class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -593,8 +604,15 @@
               hx-trigger="change" hx-include="#anomali-custom-filter-bar"
               class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100">
               <option value="">Semua Jenis</option>
-              <option value="Usaha">Usaha</option>
-              <option value="Keluarga">Keluarga</option>
+              <option value="Usaha" {{if eq .Jenis "Usaha"}}selected{{end}}>Usaha</option>
+              <option value="Keluarga" {{if eq .Jenis "Keluarga"}}selected{{end}}>Keluarga</option>
+            </select>
+            <select name="rule_no"
+              hx-get="/admin/table/anomali-custom" hx-target="#anomali-custom-result" hx-swap="innerHTML"
+              hx-trigger="change" hx-include="#anomali-custom-filter-bar"
+              class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-se bg-white dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 max-w-[16rem]">
+              <option value="">Semua Anomali</option>
+              {{range .Rules}}<option value="{{.RuleNo}}" {{if eq $.RuleNo .RuleNo}}selected{{end}}>#{{.RuleNo}} — {{.Deskripsi}}</option>{{end}}
             </select>
             <a id="anomali-custom-dl-btn" href="/admin/download/anomali-custom"
               class="ml-auto flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all active:scale-95">
@@ -1232,9 +1250,11 @@
       var bar = document.getElementById('pembayaran-filter-bar');
       var q = bar.querySelector('[name="q"]').value;
       var pmlID = bar.querySelector('[name="pml_id"]').value;
+      var bisaBayar = bar.querySelector('[name="bisa_bayar"]').value;
       var params = [];
       if (q) params.push('q=' + encodeURIComponent(q));
       if (pmlID) params.push('pml_id=' + pmlID);
+      if (bisaBayar) params.push('bisa_bayar=' + bisaBayar);
       document.getElementById('pembayaran-dl-btn').href = '/admin/download/pembayaran' + (params.length ? '?' + params.join('&') : '');
     }
 
@@ -1268,6 +1288,7 @@
       if (pembayaranBar) {
         pembayaranBar.querySelector('[name="q"]').addEventListener('input', updatePembayaranDownload);
         pembayaranBar.querySelector('[name="pml_id"]').addEventListener('change', updatePembayaranDownload);
+        pembayaranBar.querySelector('[name="bisa_bayar"]').addEventListener('change', updatePembayaranDownload);
       }
       // Dropdown metode global juga ikut mempengaruhi % Progres di Excel — href
       // download PML/PPL/SLS harus ikut ter-update begitu metode-nya diganti,

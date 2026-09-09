@@ -41,7 +41,11 @@ var adminPembayaranSortCols = map[string]string{
 	"approved": approvedColSQLAgg,
 }
 
-func queryAdminPembayaran(page int, q string, pmlID int, sort, dir string) ([]PembayaranRow, models.PageInfo) {
+// BisaBayar dihitung di Go (butuh query per-SLS terpisah, lihat
+// fillPctSLSSelesaiPenuh), jadi tidak bisa difilter langsung lewat WHERE SQL.
+// Makanya di sini kita ambil SEMUA baris yang cocok q/pml_id dulu (tanpa
+// LIMIT/OFFSET), baru filter bisaBayar dan paginasi manual di Go.
+func queryAdminPembayaran(page int, q string, pmlID int, bisaBayar, sort, dir string) ([]PembayaranRow, models.PageInfo) {
 	like := "%" + q + "%"
 	extra := ""
 	if q != "" {
@@ -50,21 +54,18 @@ func queryAdminPembayaran(page int, q string, pmlID int, sort, dir string) ([]Pe
 	if pmlID > 0 {
 		extra += fmt.Sprintf("&pml_id=%d", pmlID)
 	}
-
-	pmlFilter := ""
-	var countArgs, queryArgs []interface{}
-	offset := (page - 1) * models.PerPage
-	if pmlID > 0 {
-		pmlFilter = " AND s.pml_id = ?"
-		countArgs = []interface{}{pmlID, like, like}
-		queryArgs = []interface{}{pmlID, like, like, models.PerPage, offset}
-	} else {
-		countArgs = []interface{}{like, like}
-		queryArgs = []interface{}{like, like, models.PerPage, offset}
+	if bisaBayar != "" {
+		extra += "&bisa_bayar=" + bisaBayar
 	}
 
-	var total int
-	db.DB.QueryRow(`SELECT COUNT(DISTINCT u.id) FROM users u JOIN sls s ON s.ppl_id=u.id JOIN users pml ON pml.id=s.pml_id WHERE u.role='ppl'`+pmlFilter+` AND (u.name LIKE ? OR pml.name LIKE ?)`, countArgs...).Scan(&total)
+	pmlFilter := ""
+	var args []interface{}
+	if pmlID > 0 {
+		pmlFilter = " AND s.pml_id = ?"
+		args = []interface{}{pmlID, like, like}
+	} else {
+		args = []interface{}{like, like}
+	}
 
 	sortCols := make(map[string]string, len(adminPembayaranSortCols))
 	for k, v := range adminPembayaranSortCols {
@@ -83,15 +84,17 @@ func queryAdminPembayaran(page int, q string, pmlID int, sort, dir string) ([]Pe
 		LEFT JOIN progress p ON p.sls_id = s.id
 		WHERE u.role = 'ppl'`+pmlFilter+` AND (u.name LIKE ? OR pml.name LIKE ?)
 		GROUP BY u.id, u.name, pml.name
-		`+orderBy+`
-		LIMIT ? OFFSET ?`, queryArgs...)
+		`+orderBy, args...)
 
-	pageInfo := models.NewPageInfo(page, total, "/admin/table/pembayaran", "admin-pembayaran-wrap", extra+models.SortQueryString(sortCol, sortDir))
-	pageInfo.Sort = sortCol
-	pageInfo.Dir = sortDir
-	pageInfo.FilterExtra = extra
+	buildPageInfo := func(total int) models.PageInfo {
+		pi := models.NewPageInfo(page, total, "/admin/table/pembayaran", "admin-pembayaran-wrap", extra+models.SortQueryString(sortCol, sortDir))
+		pi.Sort = sortCol
+		pi.Dir = sortDir
+		pi.FilterExtra = extra
+		return pi
+	}
 	if err != nil {
-		return nil, pageInfo
+		return nil, buildPageInfo(0)
 	}
 	defer rows.Close()
 
@@ -110,7 +113,28 @@ func queryAdminPembayaran(page int, q string, pmlID int, sort, dir string) ([]Pe
 	for i := range list {
 		list[i].BisaBayar = list[i].FasihTotal > 0 && list[i].NonApproved == 0 && list[i].PctSLSSelesai == 100
 	}
-	return list, pageInfo
+
+	if bisaBayar == "ya" || bisaBayar == "tidak" {
+		want := bisaBayar == "ya"
+		filtered := list[:0]
+		for _, r := range list {
+			if r.BisaBayar == want {
+				filtered = append(filtered, r)
+			}
+		}
+		list = filtered
+	}
+
+	pageInfo := buildPageInfo(len(list))
+	offset := (page - 1) * models.PerPage
+	if offset > len(list) {
+		offset = len(list)
+	}
+	end := offset + models.PerPage
+	if end > len(list) {
+		end = len(list)
+	}
+	return list[offset:end], pageInfo
 }
 
 func maxInt(a, b int) int {
@@ -175,7 +199,8 @@ func AdminTablePembayaran(c echo.Context) error {
 	sort := c.QueryParam("sort")
 	dir := c.QueryParam("dir")
 	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
-	list, pageInfo := queryAdminPembayaran(page, q, pmlID, sort, dir)
+	bisaBayar := c.QueryParam("bisa_bayar")
+	list, pageInfo := queryAdminPembayaran(page, q, pmlID, bisaBayar, sort, dir)
 	return c.Render(http.StatusOK, "admin_pembayaran_table.html", map[string]interface{}{
 		"Pembayarans": list, "PembayaranPage": pageInfo,
 	})
@@ -184,6 +209,7 @@ func AdminTablePembayaran(c echo.Context) error {
 func DownloadPembayaran(c echo.Context) error {
 	q := c.QueryParam("q")
 	pmlID, _ := strconv.Atoi(c.QueryParam("pml_id"))
+	bisaBayar := c.QueryParam("bisa_bayar")
 	like := "%" + q + "%"
 
 	pmlFilter := ""
@@ -225,6 +251,16 @@ func DownloadPembayaran(c echo.Context) error {
 	fillPctSLSSelesaiPenuh(list)
 	for i := range list {
 		list[i].BisaBayar = list[i].FasihTotal > 0 && list[i].NonApproved == 0 && list[i].PctSLSSelesai == 100
+	}
+	if bisaBayar == "ya" || bisaBayar == "tidak" {
+		want := bisaBayar == "ya"
+		filtered := list[:0]
+		for _, r := range list {
+			if r.BisaBayar == want {
+				filtered = append(filtered, r)
+			}
+		}
+		list = filtered
 	}
 
 	fname := fmt.Sprintf("monitoring_pembayaran_%s.xlsx", time.Now().In(wita).Format("20060102"))
