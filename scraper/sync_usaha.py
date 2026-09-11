@@ -63,6 +63,19 @@ percakapan, bukan asumsi):
     lagi) — dicek via GROUP BY ada_keluarga_value: Ditemukan/Tidak Ditemukan/
     Baru/Meninggal/Tidak Eligible/Tidak Dapat Ditemui/Keluarga Khusus. TIDAK
     ada status Tutup/Ganda utk keluarga (itu cuma ada di usaha).
+    BUG ditemukan & diperbaiki: root_table BUKAN cuma isi assignment keluarga
+    — dicek manual (GROUP BY jenis_prelist, 161.387 baris total) ternyata cuma
+    96.920 baris (~60%) assignment keluarga beneran, sisanya 64.460+ baris
+    assignment USAHA MANDIRI/OSS/dummy yg jg numpang punya baris di root_table
+    (jenis_prelist NULL/'UMKM'/'OSS Perorangan'/'OSS Badan Usaha'/'UB'/'dummy').
+    KELUARGA_QUERY_TEMPLATE versi lama SELECT tanpa filter jenis_prelist sama
+    sekali → semua baris usaha itu ikut ke-sync sbg "keluarga" (assignment yg
+    dibuka user ternyata OSS, bukan keluarga). Difilter pakai no_kk (BUKAN
+    jenis_prelist='keluarga' — dicek manual, 16.630 baris keluarga ASLI
+    jenis_prelist-nya NULL bukan 'keluarga', jadi filter itu sendiri bakal
+    kebuang salah), konsisten sama koreksi jenis_prelist di query usaha di
+    atas: no_kk cuma ditanyakan ke assignment keluarga, jadi no_kk terisi
+    SUDAH PASTI keluarga apapun kata jenis_prelist mentahnya.
   - "Open" (usaha & keluarga yg assignment-nya belum pernah disentuh SAMA
     SEKALI): sumbernya beda lagi, base_table_assignment (bukan se2026_nested/
     root_table, yg TIDAK punya baris utk assignment yg belum ada progres apa
@@ -173,14 +186,21 @@ LIMIT {limit} OFFSET {offset}
 # SEKARANG/hasil pemutakhiran). Keduanya identik kalau dua2nya ada (0 baris
 # beda), konsisten sama teori ini: pemutakhiran cuma "mengkonfirmasi ulang"
 # nomor yg sama, bukan ganti nomor baru.
+#
+# WHERE no_kk IS NOT NULL AND no_kk != '': filter WAJIB (bukan opsional) —
+# lihat docstring modul soal bug-nya. Tanpa ini root_table jg ngikutin baris
+# usaha mandiri/OSS/dummy yg gak ada hubungannya sama keluarga sama sekali.
 
-KELUARGA_COUNT_QUERY = "SELECT COUNT(*) AS n FROM root_table"
+KELUARGA_COUNT_QUERY = (
+    "SELECT COUNT(*) AS n FROM root_table WHERE no_kk IS NOT NULL AND no_kk != ''"
+)
 
 KELUARGA_QUERY_TEMPLATE = """
 SELECT assignment_id, nama_kk, dtsen_nama_kk, alamat_klrg, alamat_prelist,
        level_6_full_code, assignment_status_alias, assignment_date_modified,
        ada_keluarga_label, no_kk, dtsen_no_kk
 FROM root_table
+WHERE no_kk IS NOT NULL AND no_kk != ''
 ORDER BY assignment_id
 LIMIT {limit} OFFSET {offset}
 """.strip()
