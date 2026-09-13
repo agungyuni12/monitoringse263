@@ -238,7 +238,7 @@ func AdminTableListing(c echo.Context) error {
 	default:
 		list, pageInfo := queryAdminListing(page, q, sort, dir)
 		return c.Render(http.StatusOK, "admin_listing_sls_table.html", map[string]interface{}{
-			"SLSList": list, "SLSPage": pageInfo, "Q": q,
+			"ListingSLSList": list, "ListingSLSPage": pageInfo, "Q": q,
 		})
 	}
 }

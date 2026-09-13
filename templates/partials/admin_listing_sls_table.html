@@ -3,18 +3,18 @@
   <table class="w-full text-sm">
     <thead>
       <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left text-xs uppercase tracking-wide">
-        {{template "sortable_th" dict "Label" "Kode SLS" "Col" "kode_sls" "PageInfo" .SLSPage "Class" "px-4 py-3 font-medium"}}
-        {{template "sortable_th" dict "Label" "Nama SLS" "Col" "nama_sls" "PageInfo" .SLSPage "Class" "px-4 py-3 font-medium"}}
-        {{template "sortable_th" dict "Label" "Lokasi" "Col" "lokasi" "PageInfo" .SLSPage "Class" "px-4 py-3 font-medium"}}
-        {{template "sortable_th" dict "Label" "PPL" "Col" "ppl" "PageInfo" .SLSPage "Class" "px-4 py-3 font-medium"}}
-        {{template "sortable_th" dict "Label" "PML" "Col" "pml" "PageInfo" .SLSPage "Class" "px-4 py-3 font-medium"}}
-        {{template "sortable_th" dict "Label" "Selesai Listing" "Col" "status" "PageInfo" .SLSPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Kode SLS" "Col" "kode_sls" "PageInfo" .ListingSLSPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Nama SLS" "Col" "nama_sls" "PageInfo" .ListingSLSPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Lokasi" "Col" "lokasi" "PageInfo" .ListingSLSPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "PPL" "Col" "ppl" "PageInfo" .ListingSLSPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "PML" "Col" "pml" "PageInfo" .ListingSLSPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Selesai Listing" "Col" "status" "PageInfo" .ListingSLSPage "Class" "px-4 py-3 font-medium" "Center" true}}
         <th class="px-4 py-3 font-medium text-center">Tarik Sample</th>
         <th class="px-4 py-3 font-medium">Sync Terakhir</th>
       </tr>
     </thead>
     <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
-      {{range .SLSList}}
+      {{range .ListingSLSList}}
       <tr class="hover:bg-orange-50/30 dark:hover:bg-gray-800/60 transition-colors">
         <td class="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-400">{{.KodeSLS}}</td>
         <td class="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">{{.NamaSLS}}</td>
@@ -43,5 +43,5 @@
     </tbody>
   </table>
 </div>
-{{template "pagination" .SLSPage}}
+{{template "pagination" .ListingSLSPage}}
 {{end}}

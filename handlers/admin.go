@@ -454,12 +454,17 @@ func AdminDashboard(c echo.Context) error {
 	if orgKendalaPage < 1 {
 		orgKendalaPage = 1
 	}
+	listingPage, _ := strconv.Atoi(c.QueryParam("listing_page"))
+	if listingPage < 1 {
+		listingPage = 1
+	}
 	q := c.QueryParam("q")
 
 	pmls, pmlPage2 := queryAdminPML(pmlPage, "", "", "", MetodeTotalVsTotal)
 	ppls, pplPage2 := queryAdminPPL(pplPage, "", 0, "", "", MetodeTotalVsTotal)
 	pembayaranList, pembayaranPage2 := queryAdminPembayaran(pembayaranPage, "", 0, "", "", "")
 	slsList, slsPage2 := queryAdminSLS(slsPage, q, "", "", MetodeTotalVsTotal)
+	listingList, listingPage2 := queryAdminListing(listingPage, q, "", "")
 	orgList, orgPage2 := queryAdminOrganik(orgPage, "", "", "")
 	orgKendalaList, orgKendalaPage2 := paginateKendala(queryKendalaRows(""), orgKendalaPage, "", "/admin/table/organik-kendala", "admin-organik-kendala-wrap")
 
@@ -470,6 +475,8 @@ func AdminDashboard(c echo.Context) error {
 		"PPLs":           ppls,
 		"Pembayarans":    pembayaranList,
 		"SLSList":        slsList,
+		"ListingSLSList": listingList,
+		"ListingSLSPage": listingPage2,
 		"Metode":         MetodeTotalVsTotal,
 		"OrganikRows":    orgList,
 		"KendalaRows":    orgKendalaList,
