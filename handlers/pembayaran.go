@@ -144,16 +144,13 @@ func maxInt(a, b int) int {
 	return b
 }
 
-// slsSelesaiPenuhThreshold: ambang MURNI 100% (bukan >=95% seperti
-// "Persentase SLS" di tab Per PPL, lihat slsSelesaiThreshold) — dipakai
-// KHUSUS untuk menentukan syarat "Bisa Bayar", karena pembayaran mensyaratkan
-// SLS-nya benar-benar tuntas, bukan "hampir tuntas".
-const slsSelesaiPenuhThreshold = 1.0
-
 // fillPctSLSSelesaiPenuh mengisi PctSLSSelesai tiap PembayaranRow: dari semua
-// SLS milik PPL itu, berapa persen yang progres per-SLS-nya (jumlah_submit /
-// fasih_total) sudah PERSIS >=100%. Tidak metode-aware seperti fillPctSLSSelesai
-// karena tab Pembayaran tidak punya dropdown metode — selalu Total/Total.
+// SLS milik PPL itu, berapa persen yang SEMUA datanya (fasih_total) sudah
+// Approved — pakai formula "Approved" yang sama dengan kolom Approved di
+// tabel ini (lihat approvedColSQLRow) — BUKAN cuma "sudah disubmit" seperti
+// "Persentase SLS" di tab Per PPL (fillPctSLSSelesai, ambang >=95% submit).
+// SLS yang fasih_total-nya 0 dianggap belum selesai (belum ada data sama
+// sekali).
 func fillPctSLSSelesaiPenuh(list []PembayaranRow) {
 	if len(list) == 0 {
 		return
@@ -167,10 +164,9 @@ func fillPctSLSSelesaiPenuh(list []PembayaranRow) {
 		args[i] = list[i].ID
 	}
 
-	pctExpr := progresSortExprGeneric(MetodeTotalVsTotal, "COALESCE(p.jumlah_submit,0)", "COALESCE(p.fasih_total,0)", "s.target_prelist_resmi")
 	rows, err := db.DB.Query(`
 		SELECT s.ppl_id, COUNT(*),
-		       SUM(CASE WHEN `+pctExpr+` >= `+strconv.FormatFloat(slsSelesaiPenuhThreshold, 'f', -1, 64)+` THEN 1 ELSE 0 END)
+		       SUM(CASE WHEN COALESCE(p.fasih_total,0) > 0 AND `+approvedColSQLRow+` >= COALESCE(p.fasih_total,0) THEN 1 ELSE 0 END)
 		FROM sls s
 		LEFT JOIN progress p ON p.sls_id = s.id
 		WHERE s.ppl_id IN (`+strings.Join(placeholders, ",")+`)
