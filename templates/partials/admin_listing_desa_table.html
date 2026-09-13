@@ -1,0 +1,38 @@
+{{define "admin_listing_desa_table.html"}}
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left text-xs uppercase tracking-wide">
+        {{template "sortable_th" dict "Label" "Nama Desa" "Col" "nama_desa" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Kecamatan" "Col" "nama_kec" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Jml SLS" "Col" "jml_sls" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "Selesai Listing" "Col" "jml_done" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        {{template "sortable_th" dict "Label" "% Selesai" "Col" "pct_done" "PageInfo" .DesaPage "Class" "px-4 py-3 font-medium" "Center" true}}
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+      {{range .DesaList}}
+      <tr class="hover:bg-orange-50/30 dark:hover:bg-gray-800/60 transition-colors">
+        <td class="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">{{.NamaDesa}}</td>
+        <td class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">Kec. {{.NamaKec}}</td>
+        <td class="px-4 py-3 text-center text-gray-700 dark:text-gray-300">{{.JmlSLS}}</td>
+        <td class="px-4 py-3 text-center">
+          <span class="{{if gt .JmlDone 0}}text-green-600 font-semibold{{else}}text-gray-400 dark:text-gray-500{{end}}">{{.JmlDone}}</span>
+        </td>
+        <td class="px-4 py-3">
+          <div class="flex items-center gap-2">
+            <div class="flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden min-w-12">
+              <div class="h-full bg-green-500 rounded-full" style="width:{{.PctDone}}%"></div>
+            </div>
+            <span class="text-xs text-gray-500 dark:text-gray-400 w-8 text-right">{{pctf .PctDone}}%</span>
+          </div>
+        </td>
+      </tr>
+      {{else}}
+      <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">Tidak ada data yang cocok.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "pagination" .DesaPage}}
+{{end}}

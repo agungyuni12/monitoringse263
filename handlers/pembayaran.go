@@ -145,12 +145,12 @@ func maxInt(a, b int) int {
 }
 
 // fillPctSLSSelesaiPenuh mengisi PctSLSSelesai tiap PembayaranRow: dari semua
-// SLS milik PPL itu, berapa persen yang SEMUA datanya (fasih_total) sudah
-// Approved — pakai formula "Approved" yang sama dengan kolom Approved di
-// tabel ini (lihat approvedColSQLRow) — BUKAN cuma "sudah disubmit" seperti
-// "Persentase SLS" di tab Per PPL (fillPctSLSSelesai, ambang >=95% submit).
-// SLS yang fasih_total-nya 0 dianggap belum selesai (belum ada data sama
-// sekali).
+// SLS milik PPL itu, berapa persen yang statusnya sudah "done listing" di
+// FASIH (listing_status.done_listing, hasil scraper/sync_listing.py) — SLS
+// selesai artinya sudah kelar tahap listing, BUKAN soal approval assignment
+// usaha/keluarga (itu ukuran terpisah, dipakai buat kolom Approved/Non
+// Approved di tabel ini) — beda juga dari "Persentase SLS" di tab Per PPL
+// (fillPctSLSSelesai, ambang >=95% submit).
 func fillPctSLSSelesaiPenuh(list []PembayaranRow) {
 	if len(list) == 0 {
 		return
@@ -166,9 +166,9 @@ func fillPctSLSSelesaiPenuh(list []PembayaranRow) {
 
 	rows, err := db.DB.Query(`
 		SELECT s.ppl_id, COUNT(*),
-		       SUM(CASE WHEN COALESCE(p.fasih_total,0) > 0 AND `+approvedColSQLRow+` >= COALESCE(p.fasih_total,0) THEN 1 ELSE 0 END)
+		       SUM(CASE WHEN COALESCE(ls.done_listing,0) = 1 THEN 1 ELSE 0 END)
 		FROM sls s
-		LEFT JOIN progress p ON p.sls_id = s.id
+		LEFT JOIN listing_status ls ON ls.sls_id = s.id
 		WHERE s.ppl_id IN (`+strings.Join(placeholders, ",")+`)
 		GROUP BY s.ppl_id`, args...)
 	if err != nil {

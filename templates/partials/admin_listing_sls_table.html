@@ -1,0 +1,47 @@
+{{define "admin_listing_sls_table.html"}}
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-orange-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-left text-xs uppercase tracking-wide">
+        {{template "sortable_th" dict "Label" "Kode SLS" "Col" "kode_sls" "PageInfo" .SLSPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Nama SLS" "Col" "nama_sls" "PageInfo" .SLSPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Lokasi" "Col" "lokasi" "PageInfo" .SLSPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "PPL" "Col" "ppl" "PageInfo" .SLSPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "PML" "Col" "pml" "PageInfo" .SLSPage "Class" "px-4 py-3 font-medium"}}
+        {{template "sortable_th" dict "Label" "Selesai Listing" "Col" "status" "PageInfo" .SLSPage "Class" "px-4 py-3 font-medium" "Center" true}}
+        <th class="px-4 py-3 font-medium text-center">Tarik Sample</th>
+        <th class="px-4 py-3 font-medium">Sync Terakhir</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+      {{range .SLSList}}
+      <tr class="hover:bg-orange-50/30 dark:hover:bg-gray-800/60 transition-colors">
+        <td class="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-400">{{.KodeSLS}}</td>
+        <td class="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">{{.NamaSLS}}</td>
+        <td class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{{.NamaDesa}}, Kec. {{.NamaKec}}</td>
+        <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{.NamaPPL}}</td>
+        <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{.NamaPML}}</td>
+        <td class="px-4 py-3 text-center">
+          {{if .DoneListing}}
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">Selesai</span>
+          {{else}}
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">Belum</span>
+          {{end}}
+        </td>
+        <td class="px-4 py-3 text-center">
+          {{if .DoneTarikSample}}
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">Selesai</span>
+          {{else}}
+          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">Belum</span>
+          {{end}}
+        </td>
+        <td class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{{.SyncedAt}}</td>
+      </tr>
+      {{else}}
+      <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">Tidak ada data yang cocok.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "pagination" .SLSPage}}
+{{end}}
