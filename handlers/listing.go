@@ -47,6 +47,24 @@ type ListingKecRow struct {
 	PctDone float64
 }
 
+// ListingMismatchRow: SLS yang semua assignment-nya sudah Approved penuh
+// (ukuran lama "SLS Selesai" sebelum diganti ke done_listing — lihat
+// fillPctSLSSelesaiPenuh di pembayaran.go) TAPI di FASIH belum ditandai
+// done_listing. Dipakai buat QC: nunjukin SLS yang datanya sebenarnya sudah
+// kelar tapi listing-nya ketinggalan/belum di-flag FASIH.
+type ListingMismatchRow struct {
+	ID          int
+	KodeSLS     string
+	NamaSLS     string
+	NamaPPL     string
+	NamaPML     string
+	NamaKec     string
+	NamaDesa    string
+	FasihTotal  int
+	Approved    int
+	PctApproved float64
+}
+
 var adminListingSLSSortCols = map[string]string{
 	"kode_sls": "s.kode_sls",
 	"nama_sls": "s.nama_sls",
@@ -214,6 +232,79 @@ func queryAdminListingByKec(page int, q, sort, dir string) ([]ListingKecRow, mod
 	return list, pageInfo
 }
 
+var adminListingMismatchSortCols = map[string]string{
+	"kode_sls": "s.kode_sls",
+	"nama_sls": "s.nama_sls",
+	"ppl":      "ppl.name",
+	"pml":      "pml.name",
+	"lokasi":   "s.nama_kec, s.nama_desa",
+	"total":    "COALESCE(p.fasih_total,0)",
+}
+
+// mismatchWhereSQL: kondisi "sudah Approved 100%" (approvedColSQLRow >=
+// fasih_total, fasih_total > 0) DAN "belum done_listing" — dipakai bareng di
+// query list & count.
+const mismatchWhereSQL = `COALESCE(p.fasih_total,0) > 0
+	  AND ` + approvedColSQLRow + ` >= COALESCE(p.fasih_total,0)
+	  AND COALESCE(ls.done_listing,0) = 0`
+
+func queryAdminListingMismatch(page int, q, sort, dir string) ([]ListingMismatchRow, models.PageInfo) {
+	like := "%" + q + "%"
+	var total int
+	db.DB.QueryRow(`
+		SELECT COUNT(*) FROM sls s
+		JOIN users ppl ON ppl.id = s.ppl_id
+		JOIN users pml ON pml.id = s.pml_id
+		LEFT JOIN progress p ON p.sls_id = s.id
+		LEFT JOIN listing_status ls ON ls.sls_id = s.id
+		WHERE `+mismatchWhereSQL+`
+		  AND (s.nama_sls LIKE ? OR ppl.name LIKE ? OR pml.name LIKE ? OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?)`,
+		like, like, like, like, like).Scan(&total)
+
+	extra := "&level=mismatch"
+	if q != "" {
+		extra = "&q=" + q + "&level=mismatch"
+	}
+	orderBy, sortCol, sortDir := models.BuildOrderBy(sort, dir, adminListingMismatchSortCols, "s.kode_kec, s.kode_desa, s.kode_sls")
+
+	offset := (page - 1) * models.PerPage
+	rows, err := db.DB.Query(`
+		SELECT s.id, s.kode_sls, s.nama_sls, ppl.name, pml.name,
+		       COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
+		       COALESCE(p.fasih_total,0), `+approvedColSQLRow+`
+		FROM sls s
+		JOIN users ppl ON ppl.id = s.ppl_id
+		JOIN users pml ON pml.id = s.pml_id
+		LEFT JOIN progress p ON p.sls_id = s.id
+		LEFT JOIN listing_status ls ON ls.sls_id = s.id
+		WHERE `+mismatchWhereSQL+`
+		  AND (s.nama_sls LIKE ? OR ppl.name LIKE ? OR pml.name LIKE ? OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?)
+		`+orderBy+`
+		LIMIT ? OFFSET ?`,
+		like, like, like, like, like, models.PerPage, offset)
+
+	pageInfo := models.NewPageInfo(page, total, "/admin/table/listing", "admin-listing-wrap", extra+models.SortQueryString(sortCol, sortDir))
+	pageInfo.Sort = sortCol
+	pageInfo.Dir = sortDir
+	pageInfo.FilterExtra = extra
+	if err != nil {
+		return nil, pageInfo
+	}
+	defer rows.Close()
+
+	var list []ListingMismatchRow
+	for rows.Next() {
+		var r ListingMismatchRow
+		rows.Scan(&r.ID, &r.KodeSLS, &r.NamaSLS, &r.NamaPPL, &r.NamaPML,
+			&r.NamaKec, &r.NamaDesa, &r.FasihTotal, &r.Approved)
+		if r.FasihTotal > 0 {
+			r.PctApproved = math.Min(float64(r.Approved)*100/float64(r.FasihTotal), 100)
+		}
+		list = append(list, r)
+	}
+	return list, pageInfo
+}
+
 func AdminTableListing(c echo.Context) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
@@ -225,6 +316,11 @@ func AdminTableListing(c echo.Context) error {
 	dir := c.QueryParam("dir")
 
 	switch level {
+	case "mismatch":
+		list, pageInfo := queryAdminListingMismatch(page, q, sort, dir)
+		return c.Render(http.StatusOK, "admin_listing_mismatch_table.html", map[string]interface{}{
+			"MismatchList": list, "MismatchPage": pageInfo,
+		})
 	case "desa":
 		list, pageInfo := queryAdminListingByDesa(page, q, sort, dir)
 		return c.Render(http.StatusOK, "admin_listing_desa_table.html", map[string]interface{}{
@@ -255,6 +351,45 @@ func DownloadListing(c echo.Context) error {
 	fname := fmt.Sprintf("monitoring_listing_%s_%s.xlsx", suffix, time.Now().In(wita).Format("20060102"))
 
 	switch level {
+	case "mismatch":
+		rows, err := db.DB.Query(`
+			SELECT s.kode_sls, s.nama_sls, ppl.name, pml.name,
+			       COALESCE(s.nama_kec,''), COALESCE(s.nama_desa,''),
+			       COALESCE(p.fasih_total,0), `+approvedColSQLRow+`
+			FROM sls s
+			JOIN users ppl ON ppl.id = s.ppl_id
+			JOIN users pml ON pml.id = s.pml_id
+			LEFT JOIN progress p ON p.sls_id = s.id
+			LEFT JOIN listing_status ls ON ls.sls_id = s.id
+			WHERE `+mismatchWhereSQL+`
+			  AND (s.nama_sls LIKE ? OR ppl.name LIKE ? OR pml.name LIKE ? OR s.nama_kec LIKE ? OR s.nama_desa LIKE ?)
+			ORDER BY s.kode_kec, s.kode_desa, s.kode_sls`, like, like, like, like, like)
+		if err != nil {
+			return c.String(http.StatusInternalServerError, err.Error())
+		}
+		defer rows.Close()
+		var list []ListingMismatchRow
+		for rows.Next() {
+			var r ListingMismatchRow
+			rows.Scan(&r.KodeSLS, &r.NamaSLS, &r.NamaPPL, &r.NamaPML,
+				&r.NamaKec, &r.NamaDesa, &r.FasihTotal, &r.Approved)
+			list = append(list, r)
+		}
+		headers := []string{"Kode SLS", "Nama SLS", "PPL", "PML", "Kecamatan", "Desa", "Total", "Approved"}
+		return writeXlsx(c, fname, headers, func(f *excelize.File, sheet string) {
+			for i, r := range list {
+				n := i + 2
+				f.SetCellValue(sheet, cell(1, n), r.KodeSLS)
+				f.SetCellValue(sheet, cell(2, n), r.NamaSLS)
+				f.SetCellValue(sheet, cell(3, n), r.NamaPPL)
+				f.SetCellValue(sheet, cell(4, n), r.NamaPML)
+				f.SetCellValue(sheet, cell(5, n), r.NamaKec)
+				f.SetCellValue(sheet, cell(6, n), r.NamaDesa)
+				f.SetCellValue(sheet, cell(7, n), r.FasihTotal)
+				f.SetCellValue(sheet, cell(8, n), r.Approved)
+			}
+		})
+
 	case "kec":
 		rows, err := db.DB.Query(`
 			SELECT s.nama_kec, COUNT(DISTINCT s.id), SUM(COALESCE(ls.done_listing,0))
