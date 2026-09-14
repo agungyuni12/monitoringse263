@@ -77,11 +77,17 @@ percakapan, bukan asumsi):
     atas: no_kk cuma ditanyakan ke assignment keluarga, jadi no_kk terisi
     SUDAH PASTI keluarga apapun kata jenis_prelist mentahnya.
   - "Open" (usaha & keluarga yg assignment-nya belum pernah disentuh SAMA
-    SEKALI): sumbernya beda lagi, base_table_assignment (bukan se2026_nested/
-    root_table, yg TIDAK punya baris utk assignment yg belum ada progres apa
-    pun) — lihat komentar di deket OPEN_USAHA_QUERY_TEMPLATE. Statusnya
-    disimpan di kolom yg sama (keberadaan_usaha utk usaha, keberadaan_keluarga
-    utk keluarga) sbg nilai "Open", digabung ke tabel yg sama jg.
+    SEKALI) — DIHAPUS dari scope (dulu ada sbg FASE 1b/2b, query ke
+    base_table_assignment pakai WHERE assignment_status_alias='OPEN' AND
+    SUBSTRING_INDEX(SUBSTRING_INDEX(code_identity,' - ',2),' - ',-1) IN
+    (...)). Query ini TERBUKTI selalu macet (dicek manual: bahkan versi
+    paling simpel — tanpa ORDER BY, tanpa OFFSET, LIMIT 10 — tetap gak
+    selesai >80 detik, padahal base_table_assignment cuma 162.612 baris;
+    SUBSTRING_INDEX bersarang di WHERE gak sargable jadi berat dihitung
+    per baris) dan yg mau diambil emang udah 0 baris (assignment_status_
+    alias='OPEN' sekarang gak ada lagi — semua assignment minimal udah
+    disentuh sekali), jadi dibuang total drpd bikin FASE 1/2 selalu gagal
+    nunggu query yg gak akan pernah ngembaliin apa2.
 
 Data diambil PAGINATED langsung se-kabupaten (bukan per desa lagi — lihat
 riwayat sebelumnya di git log kalau butuh alasan kenapa awalnya per desa):
@@ -205,52 +211,13 @@ ORDER BY assignment_id
 LIMIT {limit} OFFSET {offset}
 """.strip()
 
-# ── "Open" (assignment belum pernah disentuh sama sekali) ───────────────────
-# BEDA SUMBER dari dua di atas: se2026_nested/root_table cuma berisi baris yg
-# SUDAH ada progres (minimal submit sekali) — assignment yg beneran belum
-# disentuh (status OPEN) TIDAK muncul di situ sama sekali (dicek manual: 0
-# baris WHERE assignment_status_alias IS NULL di kedua tabel itu). Sumber yg
-# benar: base_table_assignment (roster mentah SEMUA assignment, termasuk yg
-# belum jalan). Tabel ini gak punya nama_usaha/kbli/jenis_prelist — cuma
-# data1 (nama, apa adanya dari prelist) & data2 (alamat prelist), krn belum
-# ada kunjungan lapangan. code_identity formatnya
-# "{kode_sls} - {TIPE} - {no}" — dicek manual (GROUP BY tipe di baris OPEN):
-# DTSEN = keluarga, UMK/UM/UB = usaha (3 skala usaha, gabung sbg satu scope
-# "usaha open" spt sync_kbli.py gabungin usaha BKU per skala). "DUMMY" (64
-# baris) sengaja DIBUANG — bukan assignment usaha/keluarga asli.
-# jenis_prelist dibiarkan NULL (dianggap bangunan mandiri): usaha yg nempel
-# roster KELUARGA baru "ada" sbg assignment terpisah SETELAH keluarganya
-# dikunjungi, jadi gak mungkin usaha-dalam-keluarga berstatus OPEN sendirian.
-
-OPEN_USAHA_TIPE = "'UMK','UM','UB'"
-
-OPEN_USAHA_COUNT_QUERY = (
-    "SELECT COUNT(*) AS n FROM base_table_assignment "
-    f"WHERE assignment_status_alias='OPEN' AND SUBSTRING_INDEX(SUBSTRING_INDEX(code_identity,' - ',2),' - ',-1) IN ({OPEN_USAHA_TIPE})"
-)
-
-OPEN_USAHA_QUERY_TEMPLATE = ("""
-SELECT assignment_id, data1 AS nama_usaha, data2 AS alamat_usaha,
-       level_6_full_code, assignment_status_alias, assignment_date_modified
-FROM base_table_assignment
-WHERE assignment_status_alias='OPEN' AND SUBSTRING_INDEX(SUBSTRING_INDEX(code_identity,' - ',2),' - ',-1) IN (""" + OPEN_USAHA_TIPE + """)
-ORDER BY assignment_id
-LIMIT {limit} OFFSET {offset}
-""").strip()
-
-OPEN_KELUARGA_COUNT_QUERY = (
-    "SELECT COUNT(*) AS n FROM base_table_assignment "
-    "WHERE assignment_status_alias='OPEN' AND SUBSTRING_INDEX(SUBSTRING_INDEX(code_identity,' - ',2),' - ',-1) = 'DTSEN'"
-)
-
-OPEN_KELUARGA_QUERY_TEMPLATE = """
-SELECT assignment_id, data1 AS nama_kk, data2 AS alamat_klrg,
-       level_6_full_code, assignment_status_alias, assignment_date_modified
-FROM base_table_assignment
-WHERE assignment_status_alias='OPEN' AND SUBSTRING_INDEX(SUBSTRING_INDEX(code_identity,' - ',2),' - ',-1) = 'DTSEN'
-ORDER BY assignment_id
-LIMIT {limit} OFFSET {offset}
-""".strip()
+# "Open" (assignment belum pernah disentuh sama sekali, dulu FASE 1b/2b via
+# base_table_assignment + SUBSTRING_INDEX bersarang di code_identity) DIHAPUS
+# total — query-nya selalu macet (lihat docstring modul) dan hasilnya udah
+# pasti 0 baris (gak ada lagi assignment berstatus OPEN). Kalau nanti status
+# OPEN muncul lagi, tulis ulang query-nya TANPA SUBSTRING_INDEX bersarang di
+# WHERE (mis. filter di sisi Python stlh SELECT code_identity mentah, bukan di
+# SQL) drpd pakai pola lama yg terbukti gak sargable & berat di StarRocks.
 
 HEADLESS = os.getenv("HEADLESS", "false").lower() == "true"
 WITA = timezone(timedelta(hours=8))
@@ -722,27 +689,20 @@ def run_once():
                 _check_bot_wall(page.content(), "buka SQL Lab")
 
                 # Fase 1: usaha semua status (bangunan mandiri + roster keluarga
-                # digabung) + usaha Open (belum disentuh)
+                # digabung) — dulu ada "usaha Open" (FASE 1b) di sini, DIHAPUS
+                # (lihat docstring modul knp).
                 if usaha_rows is None:
                     print("\n[FASE 1] Usaha (semua status)...", flush=True)
                     usaha_total = get_count(page, USAHA_COUNT_QUERY)
                     print(f"[FASE 1] Total baris (perkiraan): {usaha_total}", flush=True)
                     usaha_rows = scrape_paginated(page, USAHA_QUERY_TEMPLATE, "usaha", usaha_total)
 
-                    print("\n[FASE 1b] Usaha Open (belum disentuh)...", flush=True)
-                    open_usaha_total = get_count(page, OPEN_USAHA_COUNT_QUERY)
-                    print(f"[FASE 1b] Total baris (perkiraan): {open_usaha_total}", flush=True)
-                    open_usaha_rows = scrape_paginated(page, OPEN_USAHA_QUERY_TEMPLATE, "usaha-open", open_usaha_total)
-                    for r in open_usaha_rows:
-                        r["index1"] = "open"
-                        r["keberadaan_usaha_label"] = "Open"
-                    usaha_rows = usaha_rows + open_usaha_rows
-
                     _save_checkpoint("usaha", usaha_rows)
                 else:
                     print(f"\n[FASE 1] Pakai checkpoint tersimpan ({len(usaha_rows)} baris) — skip scraping ulang.", flush=True)
 
-                # Fase 2: keluarga semua status + keluarga Open (belum disentuh)
+                # Fase 2: keluarga semua status — dulu ada "keluarga Open"
+                # (FASE 2b) di sini, DIHAPUS (lihat docstring modul knp).
                 if keluarga_rows is None:
                     print("\n[FASE 2] Keluarga (semua status)...", flush=True)
                     keluarga_total = get_count(page, KELUARGA_COUNT_QUERY)
@@ -750,14 +710,6 @@ def run_once():
                     keluarga_rows = scrape_paginated(page, KELUARGA_QUERY_TEMPLATE, "keluarga", keluarga_total)
                     for r in keluarga_rows:
                         r["keberadaan_keluarga"] = _clean_label(r.get("ada_keluarga_label")) or "Tidak Ditemukan"
-
-                    print("\n[FASE 2b] Keluarga Open (belum disentuh)...", flush=True)
-                    open_keluarga_total = get_count(page, OPEN_KELUARGA_COUNT_QUERY)
-                    print(f"[FASE 2b] Total baris (perkiraan): {open_keluarga_total}", flush=True)
-                    open_keluarga_rows = scrape_paginated(page, OPEN_KELUARGA_QUERY_TEMPLATE, "keluarga-open", open_keluarga_total)
-                    for r in open_keluarga_rows:
-                        r["keberadaan_keluarga"] = "Open"
-                    keluarga_rows = keluarga_rows + open_keluarga_rows
 
                     _save_checkpoint("keluarga", keluarga_rows)
                 else:
