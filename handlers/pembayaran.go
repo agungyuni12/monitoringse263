@@ -15,11 +15,11 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-// PembayaranRow menampilkan status "Bisa Bayar" per PPL: layak dibayar hanya
-// kalau SEMUA datanya sudah Approved (tidak ada sisa Non Approved) DAN SEMUA
-// SLS-nya progresnya benar-benar 100% (bukan ambang >=95% seperti "Persentase
-// SLS" di tab Per PPL — pembayaran butuh kepastian penuh, bukan "hampir
-// selesai").
+// PembayaranRow menampilkan status "Bisa Bayar" per PPL: layak dibayar kalau
+// SEMUA SLS-nya sudah ditandai selesai listing di FASIH (PctSLSSelesai
+// 100%, lihat fillPctSLSSelesaiPenuh) — TIDAK mempertimbangkan % Approved.
+// Approved/Non Approved tetap ditampilkan sebagai info, tapi bukan syarat
+// "Bisa Bayar".
 type PembayaranRow struct {
 	ID            int
 	Name          string
@@ -111,7 +111,7 @@ func queryAdminPembayaran(page int, q string, pmlID int, bisaBayar, sort, dir st
 
 	fillPctSLSSelesaiPenuh(list)
 	for i := range list {
-		list[i].BisaBayar = list[i].FasihTotal > 0 && list[i].NonApproved == 0 && list[i].PctSLSSelesai == 100
+		list[i].BisaBayar = list[i].JmlSLS > 0 && list[i].PctSLSSelesai == 100
 	}
 
 	if bisaBayar == "ya" || bisaBayar == "tidak" {
@@ -246,7 +246,7 @@ func DownloadPembayaran(c echo.Context) error {
 	}
 	fillPctSLSSelesaiPenuh(list)
 	for i := range list {
-		list[i].BisaBayar = list[i].FasihTotal > 0 && list[i].NonApproved == 0 && list[i].PctSLSSelesai == 100
+		list[i].BisaBayar = list[i].JmlSLS > 0 && list[i].PctSLSSelesai == 100
 	}
 	if bisaBayar == "ya" || bisaBayar == "tidak" {
 		want := bisaBayar == "ya"
