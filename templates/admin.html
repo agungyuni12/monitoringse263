@@ -1687,13 +1687,36 @@
       loadLevel(document.getElementById('peta-level').value);
     }
 
+    // ===== BASEMAP =====
+    // Switcher basemap: OSM (jalan) + citra satelit. "Satelit (Esri)" adalah
+    // World Imagery Esri — citra resolusi tinggi, GRATIS & legal (cukup
+    // atribusi). "Satelit (Google)" pakai endpoint mt1.google.com tanpa API key
+    // (terlihat gratis) tapi MELANGGAR ToS Google: dipakai atas risiko sendiri,
+    // default sengaja bukan ini.
+    function addBaseLayers(map, defaultKey) {
+      var bases = {
+        'Jalan (OSM)': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors',
+          maxZoom: 19
+        }),
+        'Satelit (Esri)': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics',
+          maxZoom: 19
+        }),
+        'Satelit (Google)': L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+          attribution: '&copy; Google (tidak resmi)',
+          maxZoom: 20
+        })
+      };
+      bases[defaultKey].addTo(map);
+      L.control.layers(bases, null, {position: 'topright', collapsed: false}).addTo(map);
+      return bases;
+    }
+
     function initPetaMap() {
       if (petaMap) return;
       petaMap = L.map('peta-map');
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 18
-      }).addTo(petaMap);
+      addBaseLayers(petaMap, 'Jalan (OSM)');
       loadLevel('kec');
     }
 
@@ -1785,10 +1808,7 @@
     function initPetaTitikMap() {
       if (titikMap) return;
       titikMap = L.map('titik-map');
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 19
-      }).addTo(titikMap);
+      addBaseLayers(titikMap, 'Satelit (Esri)');
       // Pane khusus batas SLS dengan z-index di bawah overlayPane (tempat
       // kanvas titik) supaya garis batas selalu DI BELAKANG titik.
       titikMap.createPane('titikOutlinePane');
