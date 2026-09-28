@@ -8,11 +8,6 @@
   {{template "theme_assets" .}}
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Marker clustering: dipakai menu "Peta Titik SLS" (ratusan ribu titik
-       assignment) — tanpa clustering browser berat render sekaligus. -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
-  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   {{template "theme_style" .}}
   <style>
     /* Sidebar collapse (desktop only — mobile tetap pakai drawer overlay) */
@@ -1039,8 +1034,9 @@
             <div id="titik-map" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-inner"
               style="height:600px;"></div>
 
+            <div id="titik-legend" class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400"></div>
             <div class="text-xs text-gray-500 dark:text-gray-400">
-              Tiap titik = 1 assignment (koordinat GPS petugas). Warna berbeda per SLS; klik titik/klaster untuk detail. Zoom in untuk memisahkan titik yang berdekatan.
+              Tiap titik = 1 assignment (koordinat GPS petugas), diwarnai per kecamatan. Klik titik untuk detail SLS-nya.
             </div>
           </div>
         </div>
@@ -1702,18 +1698,87 @@
     }
 
     // ===== PETA TITIK SLS =====
-    // Sebaran titik GPS tiap assignment (assignment_koordinat). Dimuat sekali
-    // per pilihan kecamatan (server-side filter), lalu filter SLS dilakukan
-    // client-side dari data yang sudah ada. Marker dikelompokkan (cluster)
-    // supaya ratusan ribu titik tetap ringan.
+    // Sebaran titik GPS tiap assignment (tabel assignment_koordinat). Jumlahnya
+    // ratusan ribu, jadi digambar sebagai SATU CANVAS (bukan satu Leaflet layer
+    // per titik — 136rb marker terlalu berat/lambat). Canvas digambar ulang saat
+    // peta digeser/zoom; klik peta menampilkan SLS dari titik terdekat. Dimuat
+    // per pilihan kecamatan (server-side filter), filter SLS client-side.
     var titikMap = null;
-    var titikLayer = null;
     var titikData = {sls: [], points: []};
     var titikKecFilled = false;
+    var titikLayer = null;
+    var titikSLSMap = {};
+    var titikKecOf = {};
+    var titikKecColor = {};
+    var TITIK_KEC_PALETTE = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4',
+                             '#008080', '#f032e6', '#9a6324', '#800000', '#808000',
+                             '#000075', '#a9a9a9'];
 
-    function titikColor(slsId) {
-      var h = Math.round((slsId * 137.508) % 360);
-      return 'hsl(' + h + ',70%,42%)';
+    // Satu canvas untuk semua titik — digambar pakai proyeksi peta saat ini.
+    function TitikCanvasLayer(points, colorOf) {
+      this._points = points;
+      this._colorOf = colorOf;
+    }
+    TitikCanvasLayer.prototype = Object.create(L.Layer.prototype);
+    TitikCanvasLayer.prototype.onAdd = function(map) {
+      this._map = map;
+      var canvas = this._canvas = L.DomUtil.create('canvas', 'leaflet-titik-canvas');
+      canvas.style.position = 'absolute';
+      map.getPane('overlayPane').appendChild(canvas);
+      map.on('moveend zoomend resize', this._redraw, this);
+      map.on('click', this._onClick, this);
+      this._redraw();
+    };
+    TitikCanvasLayer.prototype.onRemove = function(map) {
+      map.off('moveend zoomend resize', this._redraw, this);
+      map.off('click', this._onClick, this);
+      L.DomUtil.remove(this._canvas);
+    };
+    TitikCanvasLayer.prototype._redraw = function() {
+      var map = this._map, canvas = this._canvas;
+      var size = map.getSize();
+      // Canvas ada di dalam overlayPane (ikut bergeser saat pan), jadi
+      // posisinya relatif ke origin pane, bukan container.
+      L.DomUtil.setPosition(canvas, map.containerPointToLayerPoint([0, 0]));
+      canvas.width = size.x;
+      canvas.height = size.y;
+      var ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, size.x, size.y);
+      var pts = this._points, colorOf = this._colorOf;
+      for (var i = 0; i < pts.length; i++) {
+        var p = pts[i];
+        var pt = map.latLngToContainerPoint([p[0], p[1]]);
+        if (pt.x < -4 || pt.y < -4 || pt.x > size.x + 4 || pt.y > size.y + 4) continue;
+        ctx.fillStyle = colorOf(p[2]);
+        ctx.fillRect(pt.x - 1, pt.y - 1, 3, 3);
+      }
+    };
+    TitikCanvasLayer.prototype._onClick = function(e) {
+      var map = this._map;
+      var target = map.latLngToContainerPoint(e.latlng);
+      var pts = this._points, best = -1, bestD = 144; // toleransi ~12px
+      for (var i = 0; i < pts.length; i++) {
+        var p = pts[i];
+        var pt = map.latLngToContainerPoint([p[0], p[1]]);
+        var dx = pt.x - target.x, dy = pt.y - target.y, d = dx * dx + dy * dy;
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      if (best >= 0) titikShowPopup(pts[best], e.latlng);
+    };
+
+    function titikColorOf(slsId) {
+      return titikKecColor[titikKecOf[slsId]] || '#666';
+    }
+
+    function titikShowPopup(p, latlng) {
+      var s = titikSLSMap[p[2]];
+      if (!s) return;
+      var content = '<div style="font-size:13px;min-width:160px">' +
+        '<div style="font-weight:700;margin-bottom:4px">' + (s.nama_sls || '') + '</div>' +
+        '<div style="color:#666">Desa ' + (s.nama_desa || '') + ' &bull; Kec. ' + (s.nama_kec || '') + '</div>' +
+        '<div style="color:#999;font-size:11px;margin-top:2px">' + (s.kode_sls || '') + '</div>' +
+        '</div>';
+      L.popup({maxWidth: 260}).setLatLng(latlng).setContent(content).openOn(titikMap);
     }
 
     function initPetaTitikMap() {
@@ -1733,6 +1798,21 @@
       var url = '/admin/geo/assignment-points' + (kec ? '?kec=' + encodeURIComponent(kec) : '');
       fetch(url).then(function(r) { return r.json(); }).then(function(data) {
         titikData = data || {sls: [], points: []};
+
+        // Lookup SLS/kecamatan + warna per kecamatan.
+        titikSLSMap = {};
+        titikKecOf = {};
+        titikKecColor = {};
+        var kecIdx = 0;
+        titikData.sls.forEach(function(s) {
+          titikSLSMap[s.id] = s;
+          titikKecOf[s.id] = s.nama_kec;
+          if (!(s.nama_kec in titikKecColor)) {
+            titikKecColor[s.nama_kec] = TITIK_KEC_PALETTE[kecIdx % TITIK_KEC_PALETTE.length];
+            kecIdx++;
+          }
+        });
+        buildTitikLegend();
 
         // Isi dropdown kecamatan sekali saja (dari load tanpa filter).
         if (!titikKecFilled) {
@@ -1765,53 +1845,51 @@
       });
     }
 
+    // Bounds pakai persentil 1%–99% (bukan MIN/MAX) supaya beberapa titik
+    // outlier (GPS drift) tidak bikin peta zoom ke seluruh dunia.
+    function titikBounds(pts) {
+      var las = [], los = [];
+      for (var i = 0; i < pts.length; i++) { las.push(pts[i][0]); los.push(pts[i][1]); }
+      las.sort(function(a, b) { return a - b; });
+      los.sort(function(a, b) { return a - b; });
+      var n = pts.length;
+      var lo = Math.floor(n * 0.01), hi = Math.min(n - 1, Math.ceil(n * 0.99));
+      return L.latLngBounds([las[lo], los[lo]], [las[hi], los[hi]]);
+    }
+
     function renderTitik() {
       if (!titikMap) return;
       var info = document.getElementById('titik-info');
       var slsFilter = document.getElementById('titik-sls').value;
 
-      var slsMap = {};
-      titikData.sls.forEach(function(s) { slsMap[s.id] = s; });
-
-      var markers = [];
       var pts = titikData.points;
-      for (var i = 0; i < pts.length; i++) {
-        var p = pts[i];
-        if (slsFilter && String(p[2]) !== slsFilter) continue;
-        var s = slsMap[p[2]];
-        var color = titikColor(p[2]);
-        var m = L.circleMarker([p[0], p[1]], {
-          radius: 4, color: color, weight: 1, fillColor: color, fillOpacity: 0.7
-        });
-        if (s) {
-          m.bindPopup(
-            '<div style="font-size:13px;min-width:160px">' +
-            '<div style="font-weight:700;margin-bottom:4px">' + (s.nama_sls || '') + '</div>' +
-            '<div style="color:#666">Desa ' + (s.nama_desa || '') + ' &bull; Kec. ' + (s.nama_kec || '') + '</div>' +
-            '<div style="color:#999;font-size:11px;margin-top:2px">' + (s.kode_sls || '') + '</div>' +
-            '</div>'
-          );
-        }
-        markers.push(m);
+      if (slsFilter) {
+        var f = Number(slsFilter);
+        pts = pts.filter(function(p) { return p[2] === f; });
       }
 
       if (titikLayer) { titikMap.removeLayer(titikLayer); titikLayer = null; }
-      titikLayer = L.markerClusterGroup({
-        chunkedLoading: true,
-        maxClusterRadius: 50,
-        disableClusteringAtZoom: 17,
-        removeOutsideVisibleBounds: true
-      });
-      titikLayer.addLayers(markers);
+      titikLayer = new TitikCanvasLayer(pts, titikColorOf);
       titikMap.addLayer(titikLayer);
 
-      if (markers.length) {
-        try { titikMap.fitBounds(titikLayer.getBounds(), {padding: [10, 10]}); } catch (e) {}
+      if (pts.length) {
+        var b = titikBounds(pts);
+        if (b) titikMap.fitBounds(b, {padding: [10, 10]});
       }
-      info.innerHTML = '<b>' + markers.length.toLocaleString('id-ID') + '</b> titik' +
+      info.innerHTML = '<b>' + pts.length.toLocaleString('id-ID') + '</b> titik' +
         (slsFilter ? ' (1 SLS)' : '') +
         ' &nbsp;|&nbsp; ' + titikData.sls.length + ' SLS' +
-        ' &nbsp;|&nbsp; <span style="color:#999">klik titik/klaster untuk detail</span>';
+        ' &nbsp;|&nbsp; <span style="color:#999">klik titik untuk detail SLS</span>';
+    }
+
+    function buildTitikLegend() {
+      var el = document.getElementById('titik-legend');
+      if (!el) return;
+      el.innerHTML = '<span class="font-semibold text-gray-700 dark:text-gray-300">Kecamatan:</span> ' +
+        Object.keys(titikKecColor).map(function(k) {
+          return '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full inline-block" style="background:' +
+            titikKecColor[k] + '"></span>' + k + '</span>';
+        }).join('');
     }
   </script>
 </body>

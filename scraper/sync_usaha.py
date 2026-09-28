@@ -222,19 +222,24 @@ LIMIT {limit} OFFSET {offset}
 # level_6_full_code (16 digit, sama format dgn sls.kode_sls) cuma dipakai buat
 # nandai titik itu milik SLS mana (popup + filter kecamatan di peta).
 # latitude/longitude = 0 artinya assignment belum punya GPS valid → dibuang.
-# Sumber & login sama persis dgn sync usaha/keluarga di atas, jadi digabung
-# sbg FASE 3 (satu sesi browser), bukan script/browser terpisah.
-KOORD_COUNT_QUERY = (
-    "SELECT COUNT(*) AS n FROM base_table_assignment "
-    "WHERE latitude <> 0 AND longitude <> 0"
+# Ditambah bbox sanity Indonesia: GPS drift/salah input bisa bikin koordinat
+# nyasar (kejadian nyata: ada titik terbaca di Washington DC, 38.9/-77.0) —
+# tanpa filter ini, fitBounds peta jadi zoom ke seluruh dunia.
+KOORD_FILTER = (
+    "latitude <> 0 AND longitude <> 0 "
+    "AND latitude BETWEEN -11.5 AND 7.0 AND longitude BETWEEN 95.0 AND 141.0"
 )
 
-KOORD_QUERY_TEMPLATE = """
+KOORD_COUNT_QUERY = (
+    f"SELECT COUNT(*) AS n FROM base_table_assignment WHERE {KOORD_FILTER}"
+)
+
+KOORD_QUERY_TEMPLATE = f"""
 SELECT assignment_id, level_6_full_code, latitude, longitude
 FROM base_table_assignment
-WHERE latitude <> 0 AND longitude <> 0
+WHERE {KOORD_FILTER}
 ORDER BY assignment_id
-LIMIT {limit} OFFSET {offset}
+LIMIT {{limit}} OFFSET {{offset}}
 """.strip()
 
 # "Open" (assignment belum pernah disentuh sama sekali, dulu FASE 1b/2b via
