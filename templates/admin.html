@@ -1036,7 +1036,7 @@
 
             <div id="titik-legend" class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400"></div>
             <div class="text-xs text-gray-500 dark:text-gray-400">
-              Tiap titik = 1 assignment (koordinat GPS petugas), diwarnai per kecamatan. Klik titik untuk detail SLS-nya.
+              Tiap titik = 1 assignment (koordinat GPS petugas), diwarnai per kecamatan. Garis abu-abu = batas SLS. Klik titik untuk detail SLS-nya.
             </div>
           </div>
         </div>
@@ -1707,6 +1707,7 @@
     var titikData = {sls: [], points: []};
     var titikKecFilled = false;
     var titikLayer = null;
+    var titikOutlineLayer = null;
     var titikSLSMap = {};
     var titikKecOf = {};
     var titikKecColor = {};
@@ -1788,7 +1789,26 @@
         attribution: '&copy; OpenStreetMap contributors',
         maxZoom: 19
       }).addTo(titikMap);
+      // Pane khusus batas SLS dengan z-index di bawah overlayPane (tempat
+      // kanvas titik) supaya garis batas selalu DI BELAKANG titik.
+      titikMap.createPane('titikOutlinePane');
+      titikMap.getPane('titikOutlinePane').style.zIndex = 350;
+      loadTitikOutline();
       loadTitik();
+    }
+
+    // Garis batas SLS (outline saja, tanpa isi/warna) dari geojson SLS yang
+    // sama dipakai tab "Peta Sebaran".
+    function loadTitikOutline() {
+      if (titikOutlineLayer) return;
+      fetch('/admin/geo/geojson').then(function(r) { return r.json(); }).then(function(geo) {
+        var outlineRenderer = L.canvas({padding: 0.5, pane: 'titikOutlinePane'});
+        titikOutlineLayer = L.geoJSON(geo, {
+          renderer: outlineRenderer,
+          style: {color: '#6b7280', weight: 1, opacity: 0.55, fill: false},
+          interactive: false
+        }).addTo(titikMap);
+      }).catch(function() {});
     }
 
     function loadTitik() {
