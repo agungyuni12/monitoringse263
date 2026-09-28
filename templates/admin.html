@@ -1036,7 +1036,7 @@
 
             <div id="titik-legend" class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400"></div>
             <div class="text-xs text-gray-500 dark:text-gray-400">
-              Tiap titik = 1 assignment (koordinat GPS petugas), diwarnai per kecamatan. Garis abu-abu = batas SLS. Klik titik untuk detail SLS-nya.
+              Tiap titik = 1 assignment (koordinat GPS petugas), diwarnai per kecamatan. Garis kuning = batas SLS. Klik titik untuk detail SLS-nya.
             </div>
           </div>
         </div>
@@ -1818,14 +1818,20 @@
     }
 
     // Garis batas SLS (outline saja, tanpa isi/warna) dari geojson SLS yang
-    // sama dipakai tab "Peta Sebaran".
+    // sama dipakai tab "Peta Sebaran". Digambar DUA lapis (casing gelap tebal
+    // + garis kuning terang) supaya jelas di basemap terang (OSM) maupun gelap
+    // (citra satelit).
     function loadTitikOutline() {
       if (titikOutlineLayer) return;
       fetch('/admin/geo/geojson').then(function(r) { return r.json(); }).then(function(geo) {
-        var outlineRenderer = L.canvas({padding: 0.5, pane: 'titikOutlinePane'});
+        L.geoJSON(geo, {
+          renderer: L.canvas({padding: 0.5, pane: 'titikOutlinePane'}),
+          style: {color: '#111827', weight: 3, opacity: 0.5, fill: false},
+          interactive: false
+        }).addTo(titikMap);
         titikOutlineLayer = L.geoJSON(geo, {
-          renderer: outlineRenderer,
-          style: {color: '#6b7280', weight: 1, opacity: 0.55, fill: false},
+          renderer: L.canvas({padding: 0.5, pane: 'titikOutlinePane'}),
+          style: {color: '#facc15', weight: 1.4, opacity: 0.95, fill: false},
           interactive: false
         }).addTo(titikMap);
       }).catch(function() {});
