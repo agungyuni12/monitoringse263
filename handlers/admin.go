@@ -76,6 +76,72 @@ func AdminGeoJSON(c echo.Context) error {
 	}
 }
 
+type AssignmentPointSLS struct {
+	ID       int    `json:"id"`
+	KodeSLS  string `json:"kode_sls"`
+	NamaSLS  string `json:"nama_sls"`
+	NamaKec  string `json:"nama_kec"`
+	NamaDesa string `json:"nama_desa"`
+}
+
+// AdminAssignmentPoints mengembalikan titik koordinat GPS tiap assignment
+// (tabel assignment_koordinat, di-sync scraper/sync_usaha.py FASE 3 dari
+// base_table_assignment FASIH Dashboard) untuk menu "Peta Titik SLS".
+// Output sengaja ringkas: daftar SLS (buat popup & filter kecamatan) + titik
+// sbg array [lat,lng,sls_id] supaya payload ~136rb titik tetap kecil. Filter
+// opsional ?kec=<nama kecamatan>.
+func AdminAssignmentPoints(c echo.Context) error {
+	kec := strings.TrimSpace(c.QueryParam("kec"))
+
+	slsQuery := "SELECT id, kode_sls, nama_sls, COALESCE(nama_kec,''), COALESCE(nama_desa,'') FROM sls"
+	var args []interface{}
+	if kec != "" {
+		slsQuery += " WHERE nama_kec = ?"
+		args = append(args, kec)
+	}
+	slsQuery += " ORDER BY kode_sls"
+
+	rows, err := db.DB.Query(slsQuery, args...)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	slsList := []AssignmentPointSLS{}
+	for rows.Next() {
+		var s AssignmentPointSLS
+		if err := rows.Scan(&s.ID, &s.KodeSLS, &s.NamaSLS, &s.NamaKec, &s.NamaDesa); err != nil {
+			rows.Close()
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		}
+		slsList = append(slsList, s)
+	}
+	rows.Close()
+
+	ptQuery := "SELECT a.latitude, a.longitude, a.sls_id " +
+		"FROM assignment_koordinat a JOIN sls s ON s.id = a.sls_id"
+	if kec != "" {
+		ptQuery += " WHERE s.nama_kec = ?"
+	}
+	ptRows, err := db.DB.Query(ptQuery, args...)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	defer ptRows.Close()
+
+	points := make([][3]float64, 0, 150000)
+	for ptRows.Next() {
+		var lat, lng float64
+		var sid int
+		if err := ptRows.Scan(&lat, &lng, &sid); err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		}
+		points = append(points, [3]float64{lat, lng, float64(sid)})
+	}
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"sls":    slsList,
+		"points": points,
+	})
+}
+
 type AdminSummary struct {
 	TotalSLS         int
 	TotalTarget      int

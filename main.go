@@ -177,6 +177,7 @@ func main() {
 	adminGrp.GET("/table/trend/pml", handlers.AdminTableTrendPML)
 	adminGrp.GET("/geo/stats", handlers.AdminGeoStats)
 	adminGrp.GET("/geo/geojson", handlers.AdminGeoJSON)
+	adminGrp.GET("/geo/assignment-points", handlers.AdminAssignmentPoints)
 	adminGrp.GET("/download/pml", handlers.DownloadPML)
 	adminGrp.GET("/download/ppl", handlers.DownloadPPL)
 	adminGrp.GET("/download/pembayaran", handlers.DownloadPembayaran)

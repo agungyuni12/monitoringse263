@@ -4,7 +4,11 @@ docstring "Sumber data" di bawah) dari Superset SQL Lab FASIH Dashboard →
 database se2026 (tabel tidak_ditemukan_usaha / tidak_ditemukan_keluarga —
 nama tabel peninggalan scope lama sebelum diperluas ke semua status, dipakai
 LANGSUNG oleh web UI monitoringse, lihat handlers/tidak_ditemukan.go, bukan
-tabel arsip terpisah).
+tabel arsip terpisah). Sejak FASE 3 ditambahkan, script ini sekaligus menarik
+titik koordinat GPS tiap assignment dari base_table_assignment →
+tabel assignment_koordinat (peta sebaran titik SLS, lihat handlers/admin.go:
+AdminAssignmentPoints) — sesi login FASIH Dashboard-nya sama, jadi tidak
+perlu browser/login kedua.
 
 Sumbernya beda dari script sync_* lain di sini: ini bukan FASIH API biasa
 (fasih-sm.bps.go.id) tapi Apache Superset SQL Lab di fasih-dashboard.bps.go.id
@@ -207,6 +211,28 @@ SELECT assignment_id, nama_kk, dtsen_nama_kk, alamat_klrg, alamat_prelist,
        ada_keluarga_label, no_kk, dtsen_no_kk
 FROM root_table
 WHERE no_kk IS NOT NULL AND no_kk != ''
+ORDER BY assignment_id
+LIMIT {limit} OFFSET {offset}
+""".strip()
+
+# ── Koordinat titik per-assignment (peta sebaran titik SLS) ─────────────────
+# base_table_assignment punya GPS (latitude/longitude) tempat tiap assignment
+# dibuka/dikunjungi petugas. Diambil MENTAH satu baris per assignment (BUKAN
+# agregat per SLS) supaya tiap titik muncul di koordinat aslinya di peta —
+# level_6_full_code (16 digit, sama format dgn sls.kode_sls) cuma dipakai buat
+# nandai titik itu milik SLS mana (popup + filter kecamatan di peta).
+# latitude/longitude = 0 artinya assignment belum punya GPS valid → dibuang.
+# Sumber & login sama persis dgn sync usaha/keluarga di atas, jadi digabung
+# sbg FASE 3 (satu sesi browser), bukan script/browser terpisah.
+KOORD_COUNT_QUERY = (
+    "SELECT COUNT(*) AS n FROM base_table_assignment "
+    "WHERE latitude <> 0 AND longitude <> 0"
+)
+
+KOORD_QUERY_TEMPLATE = """
+SELECT assignment_id, level_6_full_code, latitude, longitude
+FROM base_table_assignment
+WHERE latitude <> 0 AND longitude <> 0
 ORDER BY assignment_id
 LIMIT {limit} OFFSET {offset}
 """.strip()
@@ -530,6 +556,22 @@ def ensure_tables(conn):
               CONSTRAINT fk_tdk_sls FOREIGN KEY (sls_id) REFERENCES sls (id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
         """)
+        # Titik koordinat per-assignment (peta sebaran titik) — sumber
+        # base_table_assignment, lihat docstring modul / db/assignment_koordinat_migration.sql.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS assignment_koordinat (
+              id            INT NOT NULL AUTO_INCREMENT,
+              assignment_id VARCHAR(64) NOT NULL,
+              sls_id        INT DEFAULT NULL,
+              latitude      DECIMAL(11,7) NOT NULL,
+              longitude     DECIMAL(11,7) NOT NULL,
+              updated_at    DATETIME DEFAULT NULL,
+              PRIMARY KEY (id),
+              UNIQUE KEY uq_ak_assignment (assignment_id),
+              KEY idx_ak_sls (sls_id),
+              CONSTRAINT fk_ak_sls FOREIGN KEY (sls_id) REFERENCES sls (id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
         # usaha_keluarga_bku_duplikat & usaha_keluarga_tanpa_bku (deteksi
         # kecocokan usaha keluarga ↔ BKU) DIPINDAH ke sync_usaha_matching.py —
         # script itu yg bikin & tulis ke tabelnya, lihat docstring di sana.
@@ -644,7 +686,42 @@ def upsert_keluarga(conn, rows, sls_map, synced_at):
         print(f"[DB] keluarga: {skipped} baris tanpa sls_id (kode_sls tidak ketemu di tabel sls)", flush=True)
 
 
-def delete_stale(conn, table, synced_at):
+def upsert_koordinat(conn, rows, sls_map, synced_at):
+    """Upsert titik koordinat per-assignment. Dipakai executemany per batch
+    (5000 baris) krn volume-nya besar (~136rb baris) — insert satu-satu bakal
+    lambat banget. level_6_full_code yg gak ketemu di tabel sls dilewati (titik
+    tetap disimpan? TIDAK — konsisten sama upsaha/keluarga, baris tanpa sls_id
+    dibuang; kalau nanti ternyata ada SLS baru, sync ulang setelah sls
+    di-import)."""
+    skipped = 0
+    batch = []
+    for r in rows:
+        sls_id = sls_map.get(r.get("level_6_full_code"))
+        if sls_id is None:
+            skipped += 1
+            continue
+        batch.append((
+            r.get("assignment_id"), sls_id,
+            r.get("latitude"), r.get("longitude"), synced_at,
+        ))
+    with conn.cursor() as cur:
+        for i in range(0, len(batch), 5000):
+            cur.executemany("""
+                INSERT INTO assignment_koordinat
+                  (assignment_id, sls_id, latitude, longitude, updated_at)
+                VALUES (%s,%s,%s,%s,%s)
+                ON DUPLICATE KEY UPDATE
+                  sls_id     = VALUES(sls_id),
+                  latitude   = VALUES(latitude),
+                  longitude  = VALUES(longitude),
+                  updated_at = VALUES(updated_at)
+            """, batch[i:i + 5000])
+    conn.commit()
+    if skipped:
+        print(f"[DB] koordinat: {skipped} baris tanpa sls_id (kode_sls tidak ketemu di tabel sls)", flush=True)
+
+
+def delete_stale(conn, table, synced_at, col="imported_at"):
     """Hapus baris yg gak ke-refresh di run ini (imported_at < synced_at) —
     artinya usaha/keluarga itu SUDAH TIDAK masuk kriteria manapun lagi di FASIH
     sekarang (mis. tadinya Tidak Ditemukan, sekarang sudah Ditemukan/Baru).
@@ -653,7 +730,7 @@ def delete_stale(conn, table, synced_at):
     terakhir 2026-07-22, gara2 gak pernah dibersihkan."""
     with conn.cursor() as cur:
         cur.execute(
-            f"DELETE FROM {table} WHERE imported_at < %s", (synced_at,)
+            f"DELETE FROM {table} WHERE {col} < %s", (synced_at,)
         )
         deleted = cur.rowcount
     conn.commit()
@@ -679,8 +756,9 @@ def run_once():
 
     usaha_rows = _load_checkpoint("usaha")
     keluarga_rows = _load_checkpoint("keluarga")
+    koord_rows = _load_checkpoint("koordinat")
 
-    if usaha_rows is None or keluarga_rows is None:
+    if usaha_rows is None or keluarga_rows is None or koord_rows is None:
         with sync_playwright() as pw:
             browser, ctx = _make_browser(pw)
             try:
@@ -714,10 +792,21 @@ def run_once():
                     _save_checkpoint("keluarga", keluarga_rows)
                 else:
                     print(f"\n[FASE 2] Pakai checkpoint tersimpan ({len(keluarga_rows)} baris) — skip scraping ulang.", flush=True)
+
+                # Fase 3: koordinat titik per-assignment (peta sebaran titik) —
+                # sumber base_table_assignment, lihat docstring modul.
+                if koord_rows is None:
+                    print("\n[FASE 3] Koordinat titik assignment...", flush=True)
+                    koord_total = get_count(page, KOORD_COUNT_QUERY)
+                    print(f"[FASE 3] Total baris (perkiraan): {koord_total}", flush=True)
+                    koord_rows = scrape_paginated(page, KOORD_QUERY_TEMPLATE, "koordinat", koord_total)
+                    _save_checkpoint("koordinat", koord_rows)
+                else:
+                    print(f"\n[FASE 3] Pakai checkpoint tersimpan ({len(koord_rows)} baris) — skip scraping ulang.", flush=True)
             finally:
                 browser.close()
     else:
-        print("\n[FASE 1+2] Pakai checkpoint tersimpan untuk usaha & keluarga — skip scraping, langsung upsert.", flush=True)
+        print("\n[FASE 1+2+3] Pakai checkpoint tersimpan — skip scraping, langsung upsert.", flush=True)
 
     synced_at = _now_wita().strftime("%Y-%m-%d %H:%M:%S")
     print(f"\n[FASE 1] Upsert {len(usaha_rows)} baris usaha ke DB...", flush=True)
@@ -731,6 +820,13 @@ def run_once():
     delete_stale(conn, "tidak_ditemukan_keluarga", synced_at)
     _clear_checkpoint("keluarga")
     print(f"[FASE 2] Selesai: {len(keluarga_rows)} baris keluarga di-sync.", flush=True)
+
+    if koord_rows:
+        print(f"\n[FASE 3] Upsert {len(koord_rows)} baris koordinat ke DB...", flush=True)
+        upsert_koordinat(conn, koord_rows, sls_map, synced_at)
+        delete_stale(conn, "assignment_koordinat", synced_at, "updated_at")
+        _clear_checkpoint("koordinat")
+        print(f"[FASE 3] Selesai: {len(koord_rows)} baris koordinat di-sync.", flush=True)
 
     conn.close()
     print(f"\nSelesai semua fase!", flush=True)
