@@ -222,13 +222,15 @@ LIMIT {limit} OFFSET {offset}
 # level_6_full_code (16 digit, sama format dgn sls.kode_sls) cuma dipakai buat
 # nandai titik itu milik SLS mana (popup + filter kecamatan di peta).
 # latitude/longitude = 0 artinya assignment belum punya GPS valid → dibuang.
-# Ditambah bbox sanity Indonesia: GPS drift/salah input bisa bikin koordinat
-# nyasar (kejadian nyata: ada titik terbaca di Washington DC, 38.9/-77.0) —
-# tanpa filter ini, fitBounds peta jadi zoom ke seluruh dunia.
-KOORD_FILTER = (
-    "latitude <> 0 AND longitude <> 0 "
-    "AND latitude BETWEEN -11.5 AND 7.0 AND longitude BETWEEN 95.0 AND 141.0"
-)
+# Bbox sanity Indonesia (buang titik GPS nyasar, mis. terbaca di Washington DC
+# 38.9/-77.0) DILAKUKAN DI PYTHON, bukan di SQL: kolom latitude/longitude di
+# StarRocks diperlakukan sbg string di predicate BETWEEN (terbukti: COUNT dgn
+# bbox SQL selalu balik 0, dan SELECT-nya malah HANG) — jadi filter numeriknya
+# di sisi Python saja setelah data ditarik (lihat upsert_koordinat).
+KOORD_FILTER = "latitude <> 0 AND longitude <> 0"
+
+KOORD_LAT_RANGE = (-11.5, 7.0)   # derajat LS/LU (batas aman Indonesia)
+KOORD_LNG_RANGE = (95.0, 141.0)  # derajat BT
 
 KOORD_COUNT_QUERY = (
     f"SELECT COUNT(*) AS n FROM base_table_assignment WHERE {KOORD_FILTER}"
@@ -699,16 +701,25 @@ def upsert_koordinat(conn, rows, sls_map, synced_at):
     dibuang; kalau nanti ternyata ada SLS baru, sync ulang setelah sls
     di-import)."""
     skipped = 0
+    skipped_outlier = 0
     batch = []
     for r in rows:
         sls_id = sls_map.get(r.get("level_6_full_code"))
         if sls_id is None:
             skipped += 1
             continue
-        batch.append((
-            r.get("assignment_id"), sls_id,
-            r.get("latitude"), r.get("longitude"), synced_at,
-        ))
+        try:
+            lat = float(r.get("latitude"))
+            lng = float(r.get("longitude"))
+        except (TypeError, ValueError):
+            skipped_outlier += 1
+            continue
+        # Bbox sanity di Python (bukan SQL) — lihat komentar KOORD_FILTER.
+        if not (KOORD_LAT_RANGE[0] <= lat <= KOORD_LAT_RANGE[1]
+                and KOORD_LNG_RANGE[0] <= lng <= KOORD_LNG_RANGE[1]):
+            skipped_outlier += 1
+            continue
+        batch.append((r.get("assignment_id"), sls_id, lat, lng, synced_at))
     with conn.cursor() as cur:
         for i in range(0, len(batch), 5000):
             cur.executemany("""
@@ -724,6 +735,8 @@ def upsert_koordinat(conn, rows, sls_map, synced_at):
     conn.commit()
     if skipped:
         print(f"[DB] koordinat: {skipped} baris tanpa sls_id (kode_sls tidak ketemu di tabel sls)", flush=True)
+    if skipped_outlier:
+        print(f"[DB] koordinat: {skipped_outlier} titik di luar bbox sanity (lat/lng tidak valid) dibuang", flush=True)
 
 
 def delete_stale(conn, table, synced_at, col="imported_at"):
