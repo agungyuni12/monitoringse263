@@ -1735,8 +1735,20 @@
     var titikKecOf = {};
     var titikKecColor = {};
     var TITIK_KEC_PALETTE = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4',
-                             '#008080', '#f032e6', '#9a6324', '#800000', '#808000',
+                             '#00e5ff', '#f032e6', '#9a6324', '#800000', '#808000',
                              '#000075', '#a9a9a9'];
+    // Warna eksplisit per kecamatan (nama sesuai sls.nama_kec). KEMPO dibuat
+    // cyan terang karena warna gelap susah kelihatan di citra satelit.
+    var TITIK_KEC_COLORS = {
+      "HU'U": '#e6194b',
+      'PAJO': '#3cb44b',
+      'DOMPU': '#4363d8',
+      'WOJA': '#f58231',
+      'KILO': '#911eb4',
+      'KEMPO': '#00e5ff',
+      'MANGGALEWA': '#f032e6',
+      'PEKAT': '#9a6324'
+    };
 
     // Satu canvas untuk semua titik — digambar pakai proyeksi peta saat ini.
     function TitikCanvasLayer(points, colorOf) {
@@ -1854,7 +1866,8 @@
           titikSLSMap[s.id] = s;
           titikKecOf[s.id] = s.nama_kec;
           if (!(s.nama_kec in titikKecColor)) {
-            titikKecColor[s.nama_kec] = TITIK_KEC_PALETTE[kecIdx % TITIK_KEC_PALETTE.length];
+            titikKecColor[s.nama_kec] = TITIK_KEC_COLORS[s.nama_kec]
+              || TITIK_KEC_PALETTE[kecIdx % TITIK_KEC_PALETTE.length];
             kecIdx++;
           }
         });
