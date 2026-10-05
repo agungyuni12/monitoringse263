@@ -121,8 +121,13 @@ func tidakDitemukanFilters(c echo.Context, tipe string) (where string, args []in
 	pplID, _ = strconv.Atoi(c.QueryParam("ppl_id"))
 	like := "%" + q + "%"
 
-	where = ` WHERE (t.nama LIKE ? OR s.nama_sls LIKE ? OR t.assignment_id LIKE ?)`
-	args = []interface{}{like, like, like}
+	if tipe == "keluarga" {
+		where = ` WHERE (t.nama LIKE ? OR s.nama_sls LIKE ? OR t.assignment_id LIKE ? OR t.nomor_kk_prelist LIKE ? OR t.nomor_kk_sekarang LIKE ?)`
+		args = []interface{}{like, like, like, like, like}
+	} else {
+		where = ` WHERE (t.nama LIKE ? OR s.nama_sls LIKE ? OR t.assignment_id LIKE ?)`
+		args = []interface{}{like, like, like}
+	}
 	if len(kecs) > 0 {
 		where += ` AND s.nama_kec IN (` + placeholders(len(kecs)) + `)`
 		for _, k := range kecs {
